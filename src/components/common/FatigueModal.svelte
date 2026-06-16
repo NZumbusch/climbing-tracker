@@ -1,20 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { trainingState } from '../../lib/state.svelte';
   import { type Workout, calculateLoadFactor } from '../../lib/types';
 
   // --- Props ---
   let { 
-    show = false, 
     duration = 0,
     initialData = null,
-    onConfirm,
-    onBack
+    onConfirm
   } = $props<{ 
-    show: boolean, 
     duration: number,
     initialData?: Partial<Workout> | null,
-    onConfirm: (data: Partial<Workout>) => void,
-    onBack: () => void
+    onConfirm: (data: Partial<Workout>) => void
   }>();
 
   // --- State ---
@@ -24,7 +21,7 @@
   let notes = $state('');
 
   $effect(() => {
-    if (show && initialData) {
+    if (trainingState.showFatigue && initialData) {
       fingers = initialData.fingers ?? 5;
       core = initialData.core ?? 5;
       systemic = initialData.systemic ?? 5;
@@ -41,7 +38,7 @@
   }
 </script>
 
-{#if show}
+{#if trainingState.showFatigue}
   <div class="fixed inset-0 bg-black/90 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[100] backdrop-blur-md transition-all duration-300">
     <div class="bg-[#121214] w-full max-w-lg rounded-t-3xl sm:rounded-3xl border-t sm:border border-zinc-800 p-6 shadow-2xl animate-in slide-in-from-bottom-full duration-300">
       <div class="w-10 h-1 bg-zinc-800 rounded-full mx-auto mb-6 sm:hidden"></div>
@@ -105,7 +102,7 @@
           Complete & Save
         </button>
         <button 
-          onclick={onBack}
+          onclick={() => trainingState.closeFatigueModal()}
           class="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-bold py-3 rounded-xl transition-all active:scale-[0.98] text-xs"
         >
           Back to Session

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { storage } from '../../lib/storage';
+  import { generateId, showAlert } from '../../lib/utils';
   import type { Exercise, ExerciseTypeDef } from '../../lib/types';
 
   // --- Props ---
@@ -22,17 +23,22 @@
   let minGrade = $state('6A');
   let maxGrade = $state('6B');
   let cadence = $state(5);
-  let boulderingType = $state<Exercise['boulderingType']>('Kilterboard');
+  let climbingStyle = $state<Exercise['climbingStyle']>('Power');
+  let boardType = $state<Exercise['boardType']>('Kilterboard');
+  let boardAngle = $state(40);
   let variant = $state('4x4');
   let sets = $state<number | undefined>(4);
+  let reps = $state<number | undefined>(1);
   let holdType = $state<Exercise['holdType']>('Half Crimp');
   let timeOn = $state(7);
   let timeOff = $state(3);
   let timeBetweenSets = $state(180);
-  let addedWeight = $state(0);
-  let rungSize = $state(20);
+  let weight = $state(0);
+  let holdSize = $state(20);
+  let distance = $state(0);
   let campusType = $state<Exercise['campusType']>('Jumps');
   let difficulty = $state(5);
+  let plannedLoad = $state(5);
 
   // --- Lifecycle ---
   onMount(async () => {
@@ -52,7 +58,7 @@
         id: 'legacy',
         name: currentName,
         category: 'Other',
-        parameters: ['duration', 'grades', 'cadence', 'boulderingStyle', 'variant', 'sets', 'holdType', 'hangboardTimes', 'restTime', 'holdSize', 'weight', 'campusStyle', 'difficulty']
+        parameters: ['duration', 'grades', 'cadence', 'climbingStyle', 'boardType', 'boardAngle', 'variant', 'sets', 'reps', 'holdType', 'timeOn', 'timeOff', 'restTime', 'holdSize', 'weight', 'distance', 'campusStyle', 'difficulty']
       };
       exerciseTypes = [legacyType, ...exerciseTypes];
       selectedTypeId = 'legacy';
@@ -72,33 +78,63 @@
       minGrade = initialData.minGrade || '6A';
       maxGrade = initialData.maxGrade || '6B';
       cadence = initialData.cadence || 5;
-      boulderingType = initialData.boulderingType || 'Kilterboard';
+      climbingStyle = initialData.climbingStyle || 'Power';
+      boardType = initialData.boardType || 'Kilterboard';
+      boardAngle = initialData.boardAngle || 40;
       variant = initialData.variant || '4x4';
       sets = initialData.sets ?? 4;
+      reps = initialData.reps ?? 1;
       holdType = initialData.holdType || 'Half Crimp';
       timeOn = initialData.timeOn || 7;
       timeOff = initialData.timeOff || 3;
       timeBetweenSets = initialData.timeBetweenSets || 180;
-      addedWeight = initialData.addedWeight || 0;
-      rungSize = initialData.rungSize || 20;
+      weight = initialData.weight || 0;
+      holdSize = initialData.holdSize || 20;
+      distance = initialData.distance || 0;
       campusType = initialData.campusType || 'Jumps';
       difficulty = initialData.difficulty || 5;
+      plannedLoad = initialData.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
       
       const activeType = exerciseTypes.find(t => t.name === typeName);
       if (activeType) selectedTypeId = activeType.id;
     }
   });
 
+  // Watch for modality changes to set default planned load
+  $effect(() => {
+    if (!initialData && activeTypeDef) {
+      plannedLoad = activeTypeDef.defaultPlannedLoad ?? 5;
+    }
+  });
+
   // --- Handlers ---
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!activeTypeDef) return;
 
-    // Basic validation
-    const cleanDuration = Math.max(0, duration);
-    const cleanWeight = Math.max(0, addedWeight);
-    const cleanSize = Math.max(0, rungSize);
+    // Strict validation
+    if (activeTypeDef.parameters.includes('duration') && duration <= 0) {
+      await showAlert('Validation Error', 'Duration must be greater than 0.');
+      return;
+    }
 
-    const data: any = { type: activeTypeDef.name };
+    if (activeTypeDef.parameters.includes('holdSize') && holdSize <= 0) {
+      await showAlert('Validation Error', 'Hold size must be greater than 0.');
+      return;
+    }
+
+    if (activeTypeDef.parameters.includes('sets') && (sets || 0) < 0) {
+      await showAlert('Validation Error', 'Sets cannot be negative.');
+      return;
+    }
+
+    const cleanDuration = Math.max(0, duration);
+    const cleanWeight = weight; // Weight can be negative (assisted)
+    const cleanSize = Math.max(0, holdSize);
+
+    const data: any = { 
+      type: activeTypeDef.name,
+      plannedLoad: Number(plannedLoad)
+    };
     const params = activeTypeDef.parameters;
 
     if (params.includes('duration')) data.duration = cleanDuration;
@@ -107,18 +143,20 @@
       data.maxGrade = maxGrade;
     }
     if (params.includes('cadence')) data.cadence = cadence;
-    if (params.includes('boulderingStyle')) data.boulderingType = boulderingType;
+    if (params.includes('climbingStyle')) data.climbingStyle = climbingStyle;
+    if (params.includes('boardType')) data.boardType = boardType;
+    if (params.includes('boardAngle')) data.boardAngle = boardAngle;
     if (params.includes('variant')) data.variant = variant;
     if (params.includes('sets')) data.sets = sets;
+    if (params.includes('reps')) data.reps = reps;
     
     if (params.includes('holdType')) data.holdType = holdType;
-    if (params.includes('hangboardTimes')) {
-      data.timeOn = timeOn;
-      data.timeOff = timeOff;
-    }
+    if (params.includes('timeOn')) data.timeOn = timeOn;
+    if (params.includes('timeOff')) data.timeOff = timeOff;
     if (params.includes('restTime')) data.timeBetweenSets = timeBetweenSets;
-    if (params.includes('holdSize')) data.rungSize = cleanSize;
-    if (params.includes('weight')) data.addedWeight = cleanWeight;
+    if (params.includes('holdSize')) data.holdSize = cleanSize;
+    if (params.includes('weight')) data.weight = cleanWeight;
+    if (params.includes('distance')) data.distance = distance;
     if (params.includes('campusStyle')) data.campusType = campusType;
     if (params.includes('difficulty')) data.difficulty = difficulty;
 
@@ -127,7 +165,9 @@
 
   // Constants
   const grades = ['5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C'];
-  const boulderingStyles: Exercise['boulderingType'][] = ['Kilterboard', 'Moonboard', 'Slab', 'Overhang', 'Dyno'];
+  const climbingStyles: Exercise['climbingStyle'][] = ['Slab', 'Coordination', 'Power', 'Board'];
+  const boardTypes: Exercise['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
+  const boardAngles = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
   const variants = [{ id: '4x4', label: '4x4' }, { id: 'emom', label: 'One every 60s (EMOM)' }, { id: 'pyramid', label: 'Pyramid' }, { id: 'intervals', label: 'Intervals' }];
   const holdTypes: Exercise['holdType'][] = ['Crimp', 'Half Crimp', 'Full Crimp', 'Open Hand', 'Sloper', 'Pocket'];
   const campusStyles: Exercise['campusType'][] = ['Jumps', 'One Arm Ladders'];
@@ -159,16 +199,33 @@
     {/if}
 
     {#if activeTypeDef?.parameters.includes('cadence')}<div class="space-y-1.5"><label for="ex-cadence" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Cadence (min/boulder)</label><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
-    {#if activeTypeDef?.parameters.includes('boulderingStyle')}<div class="space-y-1.5"><label for="ex-style" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Style</label><select id="ex-style" bind:value={boulderingType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each boulderingStyles as style} <option value={style}>{style}</option> {/each}</select></div>{/if}
+    {#if activeTypeDef?.parameters.includes('climbingStyle')}<div class="space-y-1.5"><label for="ex-climbing-style" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Climbing Style</label><select id="ex-climbing-style" bind:value={climbingStyle} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each climbingStyles as style} <option value={style}>{style}</option> {/each}</select></div>{/if}
+    {#if activeTypeDef?.parameters.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
+    {#if activeTypeDef?.parameters.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
     {#if activeTypeDef?.parameters.includes('variant')}<div class="space-y-1.5"><label for="ex-variant" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Variant</label><select id="ex-variant" bind:value={variant} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each variants as v} <option value={v.id}>{v.label}</option> {/each}</select></div>{/if}
-    {#if activeTypeDef?.parameters.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Sets (Optional)</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    
+    <div class="grid grid-cols-2 gap-3">
+      {#if activeTypeDef?.parameters.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Sets</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+      {#if activeTypeDef?.parameters.includes('reps')}<div class="space-y-1.5"><label for="ex-reps" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Reps</label><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    </div>
     {#if activeTypeDef?.parameters.includes('holdType')}<div class="space-y-1.5"><label for="ex-hold" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Hold Type</label><select id="ex-hold" bind:value={holdType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each holdTypes as h} <option value={h}>{h}</option> {/each}</select></div>{/if}
-    {#if activeTypeDef?.parameters.includes('hangboardTimes')}<div class="grid grid-cols-2 gap-3"><div class="space-y-1.5"><label for="ex-on" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Time On (s)</label><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-xs" /></div><div class="space-y-1.5"><label for="ex-off" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Time Off (s)</label><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-xs" /></div></div>{/if}
+    {#if activeTypeDef?.parameters.includes('timeOn')}<div class="space-y-1.5"><label for="ex-on" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Time On (s)</label><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    {#if activeTypeDef?.parameters.includes('timeOff')}<div class="space-y-1.5"><label for="ex-off" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Time Off (s)</label><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
     {#if activeTypeDef?.parameters.includes('restTime')}<div class="space-y-1.5"><label for="ex-rest" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Between Sets (s)</label><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
-    {#if activeTypeDef?.parameters.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={rungSize} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
-    {#if activeTypeDef?.parameters.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={addedWeight} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    {#if activeTypeDef?.parameters.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    {#if activeTypeDef?.parameters.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
+    {#if activeTypeDef?.parameters.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
     {#if activeTypeDef?.parameters.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
     {#if activeTypeDef?.parameters.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1"><span>Difficulty</span><span class="text-blue-500 font-mono text-[10px]">{difficulty}/10</span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>{/if}
+
+    <div class="space-y-4 pt-4 border-t border-zinc-800/50">
+      <label for="ex-planned-load" class="flex justify-between text-[9px] font-bold text-emerald-500 uppercase tracking-widest ml-1">
+        <span>Target Intensity / Load</span>
+        <span class="text-emerald-500 font-mono text-[10px]">{plannedLoad}/10</span>
+      </label>
+      <input id="ex-planned-load" type="range" min="1" max="10" bind:value={plannedLoad} class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+      <p class="text-[8px] text-zinc-500 italic ml-1 leading-relaxed">Estimated stress for this specific exercise.</p>
+    </div>
   </div>
 
   <button onclick={handleSubmit} class="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold py-4 rounded-2xl transition-all active:scale-[0.98]">{initialData ? 'Update Exercise' : 'Add to Session'}</button>

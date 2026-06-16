@@ -1,33 +1,41 @@
 <script lang="ts">
-  import type { Workout, Exercise } from '../../lib/types';
+  import { trainingState } from '../../lib/state.svelte';
+  import { generateId } from '../../lib/utils';
+  import type { Workout, Exercise, DayOfWeek } from '../../lib/types';
   import ExerciseForm from './ExerciseForm.svelte';
+  import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import Icon from "@iconify/svelte";
 
   // --- Props ---
   let { 
     plannedWorkouts = [], 
-    workout = null,
-    onSave,
-    onCancel
+    workout: initialWorkout = null
   } = $props<{ 
     plannedWorkouts: Workout[], 
-    workout: Workout | null,
-    onSave: (workout: Workout) => void,
-    onCancel: () => void
+    workout: Workout | null
   }>();
 
   // --- State ---
+  let workout = $state<Workout | null>(null);
   let isAddingExercise = $state(false);
+  let isAddingBenchmark = $state(false);
   let editingExercise = $state<Exercise | null>(null);
+
+  $effect(() => {
+    if (initialWorkout && !workout) {
+      workout = $state.snapshot(initialWorkout);
+    }
+  });
 
   // --- Session Handlers ---
 
   function handleStartNew() {
+    const d = new Date();
     workout = {
-      id: Date.now(),
+      id: generateId(),
       status: 'planned',
-      date: new Date().toISOString(),
-      weekId: '', 
+      date: d.toISOString(),
+      weekId: trainingState.currentWeekId, 
       notes: 'New Session',
       loadFactor: 0,
       exercises: []
@@ -35,7 +43,13 @@
   }
 
   function handleSelectPlanned(p: Workout) {
-    workout = { ...p, date: new Date().toISOString(), status: 'completed' };
+    workout = { ...$state.snapshot(p), date: new Date().toISOString(), status: 'completed' };
+  }
+
+  // --- Benchmark Handlers ---
+
+  function handleAddBenchmark() {
+    isAddingBenchmark = true;
   }
 
   // --- Exercise Handlers ---
@@ -54,13 +68,13 @@
     if (!workout) return;
     
     if (editingExercise) {
-      const index = workout.exercises.findIndex(e => e.id === editingExercise?.id);
+      const index = workout.exercises.findIndex((e: Exercise) => e.id === editingExercise?.id);
       if (index !== -1) {
         workout.exercises[index] = { ...data, id: editingExercise.id };
         workout.exercises = [...workout.exercises]; 
       }
     } else {
-      const newExercise = { ...data, id: Date.now() };
+      const newExercise = { ...data, id: generateId() };
       workout.exercises = [...workout.exercises, newExercise];
     }
     
@@ -68,23 +82,25 @@
     editingExercise = null;
   }
 
-  function removeExercise(id: number) {
+  function removeExercise(id: string) {
     if (!workout) return;
-    workout.exercises = workout.exercises.filter(e => e.id !== id);
+    workout.exercises = workout.exercises.filter((e: Exercise) => e.id !== id);
   }
 
   // --- Persistence Handlers ---
 
+  const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
   function handleComplete() {
     if (!workout) return;
     workout.status = 'completed';
-    onSave(workout);
+    trainingState.processWorkoutSave(workout);
   }
 
   function handleSaveToPlan() {
     if (!workout) return;
     workout.status = 'planned';
-    onSave(workout);
+    trainingState.processWorkoutSave(workout);
   }
 </script>
 
@@ -109,6 +125,29 @@
             <Icon icon="ic:baseline-plus" class="text-xl group-hover:translate-x-1 transition-transform" />
           </div>
         </button>
+
+        <button 
+          onclick={handleAddBenchmark}
+          class="p-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-3xl shadow-xl shadow-emerald-900/20 transition-all active:scale-[0.98] text-left group"
+        >
+          <div class="flex justify-between items-center">
+            <div>
+              <p class="text-base font-bold">Log Benchmark</p>
+              <p class="text-[10px] text-emerald-200 mt-0.5">Record a test result</p>
+            </div>
+            <Icon icon="ic:baseline-insights" class="text-xl group-hover:translate-x-1 transition-transform" />
+          </div>
+        </button>
+
+        {#if isAddingBenchmark}
+          <div class="pt-2">
+            <BenchmarkForm 
+              weekId={trainingState.currentWeekId}
+              onSave={() => isAddingBenchmark = false}
+              onCancel={() => isAddingBenchmark = false}
+            />
+          </div>
+        {/if}
 
         {#if plannedWorkouts.length > 0}
           <div class="pt-2 space-y-2.5">
@@ -165,12 +204,38 @@
             {/if}
           </div>
         </div>
-        <button onclick={onCancel} class="p-2 text-zinc-600 hover:text-white transition-colors" aria-label="Cancel">
+        <button onclick={() => trainingState.navigate('plan')} class="p-2 text-zinc-600 hover:text-white transition-colors" aria-label="Cancel">
           <Icon icon="ic:baseline-close" class="text-xl" />
         </button>
       </div>
 
       <div class="space-y-3.5">
+        <div class="space-y-1.5 px-1">
+          <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1 block">Day of Week</span>
+          <div class="flex flex-wrap gap-1.5">
+            {#each days as day}
+              <button 
+                onclick={() => workout!.dayOfWeek = day}
+                class="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border
+                  {workout.dayOfWeek === day 
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-lg' 
+                    : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'}"
+              >
+                {day.slice(0, 3)}
+              </button>
+            {/each}
+            <button 
+              onclick={() => workout!.dayOfWeek = undefined}
+              class="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border
+                {!workout.dayOfWeek 
+                  ? 'bg-zinc-600 border-zinc-500 text-white shadow-lg' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'}"
+            >
+              None
+            </button>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between px-1">
           <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Exercises</h3>
           <button 

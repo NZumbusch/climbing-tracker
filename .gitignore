@@ -24,3 +24,7 @@ android
 *.njsproj
 *.sln
 *.sw?
+
+# Bits and pieces
+stuff
+GEMINI*

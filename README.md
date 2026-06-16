@@ -29,3 +29,5 @@ If you want to see changes instantly without rebuilding every time:
 3 "cleartext": true
 4 } 4. Run npx cap sync android one last time and launch from Android Studio. Now, whenever you save a file, the
 app in the emulator will update automatically!
+
+gemini --resume 06217720-4329-4aa1-aef9-e98545e72f7c

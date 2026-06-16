@@ -1,5 +1,5 @@
 {
-  "appId": "com.example.bouldertracker",
+  "appId": "com.bouldertracker.app",
   "appName": "boulder-tracker",
   "webDir": "dist"
 }

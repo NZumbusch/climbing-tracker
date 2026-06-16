@@ -1,27 +1,20 @@
 <script lang="ts">
+  import { trainingState } from '../../lib/state.svelte';
   import type { Workout } from '../../lib/types';
   import { formatDate } from '../../lib/dateUtils';
   import Icon from "@iconify/svelte";
 
-  // --- Props ---
-  let { 
-    workouts = [],
-    onEdit,
-    onDelete,
-    onOpenSettings
-  } = $props<{ 
-    workouts: Workout[],
-    onEdit: (workout: Workout) => void,
-    onDelete: (id: number) => void,
-    onOpenSettings: () => void
-  }>();
+  const completedWorkouts = $derived(trainingState.completedWorkouts);
+  let limit = $state(50);
+  
+  const displayedWorkouts = $derived(completedWorkouts.slice().reverse().slice(0, limit));
 </script>
 
 <div class="w-full max-w-lg space-y-5 animate-in fade-in duration-700 pb-12">
   <div class="flex items-center justify-between px-1">
     <div class="flex items-center gap-3">
       <button 
-        onclick={onOpenSettings}
+        onclick={() => trainingState.navigate('settings')}
         class="p-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 text-zinc-500 hover:text-white transition-colors"
         aria-label="Settings"
       >
@@ -30,11 +23,11 @@
       <h3 class="text-xl font-bold text-white tracking-tight">Timeline</h3>
     </div>
     <div class="h-px flex-1 bg-zinc-900 mx-3"></div>
-    <span class="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{workouts.length} Sessions</span>
+    <span class="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{completedWorkouts.length} Sessions</span>
   </div>
 
   <div class="space-y-4">
-    {#each workouts.slice().reverse() as workout}
+    {#each displayedWorkouts as workout}
       <div class="group p-5 bg-zinc-900/30 hover:bg-zinc-900/50 rounded-3xl border border-zinc-800/50 transition-all duration-300">
         <div class="flex justify-between items-start gap-4">
           <div class="space-y-2.5 flex-1 min-w-0">
@@ -61,13 +54,13 @@
 
             <div class="flex gap-4 pt-1">
               <button 
-                onclick={() => onEdit(workout)}
+                onclick={() => trainingState.navigate('add', workout)}
                 class="text-[9px] font-black text-zinc-500 hover:text-blue-500 uppercase tracking-widest transition-colors"
               >
                 Edit
               </button>
               <button 
-                onclick={() => onDelete(workout.id)}
+                onclick={() => trainingState.deleteWorkout(workout.id)}
                 class="text-[9px] font-black text-zinc-500 hover:text-red-500 uppercase tracking-widest transition-colors"
               >
                 Delete
@@ -88,5 +81,14 @@
         <p class="text-zinc-500 italic text-sm">No workout history yet.</p>
       </div>
     {/each}
+
+    {#if completedWorkouts.length > limit}
+      <button 
+        onclick={() => limit += 50}
+        class="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-zinc-800"
+      >
+        Load More
+      </button>
+    {/if}
   </div>
 </div>
