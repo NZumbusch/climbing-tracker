@@ -192,6 +192,13 @@
             class="w-full bg-transparent text-xl font-bold text-white tracking-tight outline-none border-b border-transparent focus:border-blue-500/30 pb-1 transition-colors"
             placeholder="Session Name"
           />
+          <textarea 
+            bind:value={workout.description}
+            class="w-full bg-transparent text-xs font-medium text-zinc-400 outline-none border-b border-transparent focus:border-blue-500/30 pb-1 mt-1 transition-colors resize-none overflow-hidden placeholder:text-zinc-600"
+            placeholder="Add session notes or goals here..."
+            rows="1"
+            oninput={(e) => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+          ></textarea>
           <div class="flex items-center gap-2 mt-1">
             <span class="text-[9px] font-bold text-blue-500 uppercase tracking-widest">
               {workout.status === 'planned' ? 'Planning' : 'Active Session'}

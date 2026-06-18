@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { storage } from '../../lib/storage';
   import { generateId, showAlert } from '../../lib/utils';
+  import { trainingState } from '../../lib/state.svelte';
   import type { Exercise, ExerciseTypeDef } from '../../lib/types';
 
   // --- Props ---
@@ -23,7 +24,7 @@
   let minGrade = $state('6A');
   let maxGrade = $state('6B');
   let cadence = $state(5);
-  let climbingStyle = $state<Exercise['climbingStyle']>('Power');
+  let climbingStyle = $state<NonNullable<Exercise['climbingStyle']>>(['Power']);
   let boardType = $state<Exercise['boardType']>('Kilterboard');
   let boardAngle = $state(40);
   let variant = $state('4x4');
@@ -39,6 +40,8 @@
   let campusType = $state<Exercise['campusType']>('Jumps');
   let difficulty = $state(5);
   let plannedLoad = $state(5);
+  let notes = $state('');
+  let categoryOverride = $state<string>('');
 
   // --- Lifecycle ---
   onMount(async () => {
@@ -53,12 +56,34 @@
     if (activeType) {
       selectedTypeId = activeType.id;
     } else if (currentName) {
-      // Legacy fallback
+      // Legacy fallback: Only show parameters that have non-default data in initialData
+      const activeParams: string[] = [];
+      if (initialData) {
+        if (initialData.duration !== undefined) activeParams.push('duration');
+        if (initialData.minGrade || initialData.maxGrade) activeParams.push('grades');
+        if (initialData.cadence !== undefined) activeParams.push('cadence');
+        if (initialData.climbingStyle !== undefined) activeParams.push('climbingStyle');
+        if (initialData.boardType !== undefined) activeParams.push('boardType');
+        if (initialData.boardAngle !== undefined) activeParams.push('boardAngle');
+        if (initialData.variant !== undefined) activeParams.push('variant');
+        if (initialData.sets !== undefined) activeParams.push('sets');
+        if (initialData.reps !== undefined) activeParams.push('reps');
+        if (initialData.holdType !== undefined) activeParams.push('holdType');
+        if (initialData.timeOn !== undefined) activeParams.push('timeOn');
+        if (initialData.timeOff !== undefined) activeParams.push('timeOff');
+        if (initialData.timeBetweenSets !== undefined) activeParams.push('restTime');
+        if (initialData.holdSize !== undefined) activeParams.push('holdSize');
+        if (initialData.weight !== undefined) activeParams.push('weight');
+        if (initialData.distance !== undefined) activeParams.push('distance');
+        if (initialData.campusType !== undefined) activeParams.push('campusStyle');
+        if (initialData.difficulty !== undefined) activeParams.push('difficulty');
+      }
+
       const legacyType: ExerciseTypeDef = {
         id: 'legacy',
         name: currentName,
-        category: 'Other',
-        parameters: ['duration', 'grades', 'cadence', 'climbingStyle', 'boardType', 'boardAngle', 'variant', 'sets', 'reps', 'holdType', 'timeOn', 'timeOff', 'restTime', 'holdSize', 'weight', 'distance', 'campusStyle', 'difficulty']
+        category: initialData?.category || 'Other',
+        parameters: activeParams as any
       };
       exerciseTypes = [legacyType, ...exerciseTypes];
       selectedTypeId = 'legacy';
@@ -78,7 +103,7 @@
       minGrade = initialData.minGrade || '6A';
       maxGrade = initialData.maxGrade || '6B';
       cadence = initialData.cadence || 5;
-      climbingStyle = initialData.climbingStyle || 'Power';
+      climbingStyle = Array.isArray(initialData.climbingStyle) ? initialData.climbingStyle : (initialData.climbingStyle ? [initialData.climbingStyle as any] : ['Power']);
       boardType = initialData.boardType || 'Kilterboard';
       boardAngle = initialData.boardAngle || 40;
       variant = initialData.variant || '4x4';
@@ -94,6 +119,8 @@
       campusType = initialData.campusType || 'Jumps';
       difficulty = initialData.difficulty || 5;
       plannedLoad = initialData.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
+      notes = initialData.notes || '';
+      categoryOverride = initialData.category || '';
       
       const activeType = exerciseTypes.find(t => t.name === typeName);
       if (activeType) selectedTypeId = activeType.id;
@@ -133,8 +160,13 @@
 
     const data: any = { 
       type: activeTypeDef.name,
-      plannedLoad: Number(plannedLoad)
+      plannedLoad: Number(plannedLoad),
+      notes: notes
     };
+    if (categoryOverride) {
+      data.category = categoryOverride;
+    }
+    
     const params = activeTypeDef.parameters;
 
     if (params.includes('duration')) data.duration = cleanDuration;
@@ -165,7 +197,7 @@
 
   // Constants
   const grades = ['5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C'];
-  const climbingStyles: Exercise['climbingStyle'][] = ['Slab', 'Coordination', 'Power', 'Board'];
+  const climbingStyles: NonNullable<Exercise['climbingStyle']>[number][] = ['Slab', 'Coordination', 'Power', 'Board'];
   const boardTypes: Exercise['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
   const boardAngles = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
   const variants = [{ id: '4x4', label: '4x4' }, { id: 'emom', label: 'One every 60s (EMOM)' }, { id: 'pyramid', label: 'Pyramid' }, { id: 'intervals', label: 'Intervals' }];
@@ -199,7 +231,28 @@
     {/if}
 
     {#if activeTypeDef?.parameters.includes('cadence')}<div class="space-y-1.5"><label for="ex-cadence" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Cadence (min/boulder)</label><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
-    {#if activeTypeDef?.parameters.includes('climbingStyle')}<div class="space-y-1.5"><label for="ex-climbing-style" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Climbing Style</label><select id="ex-climbing-style" bind:value={climbingStyle} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each climbingStyles as style} <option value={style}>{style}</option> {/each}</select></div>{/if}
+    {#if activeTypeDef?.parameters.includes('climbingStyle')}
+      <div class="space-y-1.5">
+        <label class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Climbing Style</label>
+        <div class="flex flex-wrap gap-2">
+          {#each climbingStyles as style}
+            <button 
+              type="button"
+              onclick={() => {
+                if (climbingStyle.includes(style)) {
+                  climbingStyle = climbingStyle.filter(s => s !== style);
+                } else {
+                  climbingStyle = [...climbingStyle, style];
+                }
+              }}
+              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {climbingStyle.includes(style) ? 'bg-blue-500 border-blue-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'}"
+            >
+              {style}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
     {#if activeTypeDef?.parameters.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
     {#if activeTypeDef?.parameters.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
     {#if activeTypeDef?.parameters.includes('variant')}<div class="space-y-1.5"><label for="ex-variant" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Variant</label><select id="ex-variant" bind:value={variant} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each variants as v} <option value={v.id}>{v.label}</option> {/each}</select></div>{/if}
@@ -217,6 +270,21 @@
     {#if activeTypeDef?.parameters.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm" /></div>{/if}
     {#if activeTypeDef?.parameters.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-zinc-800 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
     {#if activeTypeDef?.parameters.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1"><span>Difficulty</span><span class="text-blue-500 font-mono text-[10px]">{difficulty}/10</span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>{/if}
+
+    <div class="space-y-1.5 pt-4 border-t border-zinc-800/50">
+      <label for="ex-category" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Analytics Type</label>
+      <select id="ex-category" bind:value={categoryOverride} class="w-full bg-zinc-800/50 text-white p-3.5 rounded-xl border border-zinc-700 outline-none text-sm appearance-none cursor-pointer">
+        <option value="">Default ({activeTypeDef?.category || 'Other'})</option>
+        {#each trainingState.analyticsCategories as cat}
+          <option value={cat.name}>{cat.name}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="space-y-1.5 pt-4 border-t border-zinc-800/50">
+      <label for="ex-notes" class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Exercise Notes</label>
+      <textarea id="ex-notes" bind:value={notes} placeholder="Focus on footwork..." class="w-full bg-zinc-800/50 text-white p-3.5 rounded-xl border border-zinc-700 outline-none transition-all placeholder:text-zinc-600 text-sm" rows="2"></textarea>
+    </div>
 
     <div class="space-y-4 pt-4 border-t border-zinc-800/50">
       <label for="ex-planned-load" class="flex justify-between text-[9px] font-bold text-emerald-500 uppercase tracking-widest ml-1">

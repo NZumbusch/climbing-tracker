@@ -1,14 +1,21 @@
 <script lang="ts">
   import { trainingState } from '../../lib/state.svelte';
-  import { CATEGORY_COLORS } from '../../lib/constants';
   import { getWeekId } from '../../lib/dateUtils';
-  import type { Workout, ExerciseCategory, ExerciseTypeDef, Benchmark } from '../../lib/types';
+  import type { Workout, ExerciseTypeDef, Benchmark } from '../../lib/types';
   import Icon from "@iconify/svelte";
 
   // --- State ---
-  const categories: ExerciseCategory[] = ['Technique Bouldering', 'Power Bouldering', 'Fingers', 'Arms', 'Legs', 'Core', 'Other'];
+  const categories = $derived(trainingState.analyticsCategories);
   let selectedBenchmarkType = $state<string>('');
   let viewOffset = $state<number>(0);
+  
+  // --- Training Mix Controls ---
+  let showRelative = $state(true);
+  let showSettings = $state(false);
+  let includePlanned = $state(true);
+  let hiddenCategoryIds = $state<Set<string>>(new Set());
+  const visibleCategories = $derived(categories.filter(c => !hiddenCategoryIds.has(c.id)));
+  const maxVisibleDuration = $derived(Math.max(...chartData.weeks.map(w => visibleCategories.reduce((acc, cat) => acc + ((includePlanned ? w.categories[cat.name] : w.completedCategories[cat.name]) || 0), 0)), 1));
 
   // --- Handlers ---
   function navigate(direction: 'prev' | 'next' | 'today') {
@@ -62,7 +69,8 @@
         plannedLoad: 0,
         completedCount: 0,
         totalCount: 0,
-        categories: Object.fromEntries(categories.map(c => [c, 0]))
+        categories: Object.fromEntries(categories.map(c => [c.name, 0])),
+        completedCategories: Object.fromEntries(categories.map(c => [c.name, 0]))
       });
     }
 
@@ -82,20 +90,42 @@
       
       // Count exercises for both planned and completed to show Training Mix
       w.exercises?.forEach(e => {
-        const typeKey = (e.type || '').trim().toLowerCase();
-        let category = typeToCategory.get(typeKey);
+        let categoryName = e.category;
         
-        if (!category) {
-          if (typeKey.includes('hang')) category = 'Fingers';
-          else if (typeKey.includes('pull')) category = 'Arms';
-          else if (typeKey.includes('core')) category = 'Core';
-          else if (typeKey.includes('board') || typeKey.includes('boulder')) category = 'Power Bouldering';
-          else category = 'Other';
+        if (!categoryName) {
+          const typeKey = (e.type || '').trim().toLowerCase();
+          categoryName = typeToCategory.get(typeKey);
+          
+          if (!categoryName) {
+            if (typeKey.includes('hang')) categoryName = 'Fingers';
+            else if (typeKey.includes('pull')) categoryName = 'Arms';
+            else if (typeKey.includes('core')) categoryName = 'Core';
+            else if (typeKey.includes('board') || typeKey.includes('boulder')) categoryName = 'Power Bouldering';
+            else categoryName = 'Other';
+          }
+        }
+        
+        // Ensure category exists in map (if user deleted a category)
+        if (!categories.find(c => c.name === categoryName)) {
+           categoryName = categories.length > 0 ? categories[0].name : 'Other';
         }
         
         // Weight the ratio by duration (default to 30 mins if not specified)
         const durationWeight = e.duration ? e.duration : 30;
-        week.categories[category] = (week.categories[category] || 0) + durationWeight;
+        
+        if (week.categories[categoryName] !== undefined) {
+          week.categories[categoryName] += durationWeight;
+        } else {
+          week.categories[categoryName] = durationWeight;
+        }
+        
+        if (w.status === 'completed') {
+          if (week.completedCategories[categoryName] !== undefined) {
+            week.completedCategories[categoryName] += durationWeight;
+          } else {
+            week.completedCategories[categoryName] = durationWeight;
+          }
+        }
       });
     });
 
@@ -113,6 +143,7 @@
         totalLoad: getWeeklyTotal(data),
         totalPlannedLoad: getWeeklyPlannedTotal(data),
         categories: data.categories,
+        completedCategories: data.completedCategories,
         totalDuration: Object.values(data.categories).reduce((a: number, b: number) => a + b, 0),
         isCurrent: id === trainingState.currentWeekId
       })),
@@ -317,33 +348,106 @@
       </div>
     </div>
 
-    <div class="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl relative overflow-hidden">
+    <div class="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl relative z-30">
       <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 blur-[100px] pointer-events-none"></div>
 
-      <div class="flex items-center justify-between px-1 relative z-10">
-        <div>
-          <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Training Mix</h3>
-          <p class="text-[9px] text-zinc-500 uppercase mt-0.5">Activity breakdown by category</p>
+      <div class="flex flex-col gap-4 px-1 relative z-50">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Training Mix</h3>
+            <p class="text-[9px] text-zinc-500 uppercase mt-0.5">Activity breakdown by category</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick={() => navigate('today')} class="px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 text-[9px] font-black text-zinc-400 hover:text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-zinc-700/50">Today</button>
+            <div class="flex bg-zinc-900/50 rounded-xl border border-zinc-800 p-1">
+              <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
+              <button onclick={() => navigate('next')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
+            </div>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick={() => navigate('today')} class="px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 text-[9px] font-black text-zinc-400 hover:text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-zinc-700/50">Today</button>
-          <div class="flex bg-zinc-900/50 rounded-xl border border-zinc-800 p-1">
-            <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
-            <button onclick={() => navigate('next')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
+
+        <div class="flex items-center justify-between gap-4 border-t border-zinc-800/50 pt-4">
+          <div class="relative z-50">
+            <button 
+              onclick={() => showSettings = !showSettings}
+              class="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-xl transition-colors text-[9px] font-bold text-zinc-400 hover:text-white uppercase tracking-widest"
+            >
+              <Icon icon="ic:baseline-settings" />
+              Graph Settings
+            </button>
+            
+            {#if showSettings}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="fixed inset-0 z-40" onclick={() => showSettings = false}></div>
+              <div class="absolute top-full left-0 mt-2 w-56 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 p-3 space-y-4 animate-in fade-in zoom-in-95 origin-top-left">
+                
+                <div class="space-y-2">
+                  <h4 class="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Display Mode</h4>
+                  <label class="flex items-center justify-between cursor-pointer group px-1">
+                    <span class="text-[9px] font-bold text-zinc-300">Relative (%)</span>
+                    <div class="relative inline-flex items-center">
+                      <input type="checkbox" bind:checked={showRelative} class="sr-only peer" />
+                      <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-500"></div>
+                    </div>
+                  </label>
+                  <label class="flex items-center justify-between cursor-pointer group px-1">
+                    <span class="text-[9px] font-bold text-zinc-300">Include Planned</span>
+                    <div class="relative inline-flex items-center">
+                      <input type="checkbox" bind:checked={includePlanned} class="sr-only peer" />
+                      <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="border-t border-zinc-800 pt-3">
+                  <h4 class="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Visible Categories</h4>
+                  <div class="space-y-1">
+                    {#each categories as cat}
+                      <label class="flex items-center gap-3 p-1.5 hover:bg-zinc-800 rounded-xl cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={!hiddenCategoryIds.has(cat.id)}
+                          onchange={(e) => {
+                            if (e.currentTarget.checked) {
+                              hiddenCategoryIds.delete(cat.id);
+                            } else {
+                              hiddenCategoryIds.add(cat.id);
+                            }
+                            hiddenCategoryIds = new Set(hiddenCategoryIds);
+                          }}
+                          class="w-3.5 h-3.5 bg-zinc-800 border-zinc-600 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-zinc-900"
+                        />
+                        <div class="w-2.5 h-2.5 rounded-full {cat.color}"></div>
+                        <span class="text-[10px] font-bold text-white">{cat.name}</span>
+                      </label>
+                    {/each}
+                  </div>
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
 
       <div class="h-48 flex items-end justify-between gap-2 px-1 relative">
         {#each chartData.weeks as week}
+          {@const visibleTotalDuration = visibleCategories.reduce((acc, cat) => acc + ((includePlanned ? week.categories[cat.name] : week.completedCategories[cat.name]) || 0), 0)}
+          {@const weekHeightPercent = showRelative ? (visibleTotalDuration > 0 ? 100 : 0) : (visibleTotalDuration / maxVisibleDuration) * 100}
           <div class="flex-1 flex flex-col items-center gap-2 group relative h-full justify-end">
-            <div class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden h-full justify-end shadow-lg">
-              {#each categories as cat}
-                {#if week.categories[cat] && week.totalDuration > 0}
+            <div class="w-full flex flex-col-reverse rounded-t-lg overflow-hidden justify-end shadow-lg transition-all duration-500"
+                 style="height: {weekHeightPercent}%">
+              {#each visibleCategories as cat}
+                {@const catDuration = (includePlanned ? week.categories[cat.name] : week.completedCategories[cat.name]) || 0}
+                {#if catDuration > 0 && visibleTotalDuration > 0}
                   <div 
-                    class="{CATEGORY_COLORS[cat]} w-full border-t border-zinc-900/20 first:border-0 opacity-90 hover:opacity-100 transition-opacity"
-                    style="height: {(week.categories[cat] / week.totalDuration) * 100}%"
-                  ></div>
+                    class="{cat.color} w-full border-t border-zinc-900/20 first:border-0 opacity-90 hover:opacity-100 transition-opacity relative group/bar"
+                    style="height: {(catDuration / visibleTotalDuration) * 100}%"
+                  >
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-[8px] font-bold text-white rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-xl border border-zinc-700">
+                      {cat.name}: {Math.round(catDuration)} min
+                    </div>
+                  </div>
                 {/if}
               {/each}
             </div>
@@ -353,10 +457,10 @@
       </div>
 
       <div class="flex flex-wrap gap-x-4 gap-y-2 px-1 pt-2 relative z-10">
-        {#each categories as cat}
+        {#each visibleCategories as cat}
           <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 rounded-full {CATEGORY_COLORS[cat]} shadow-[0_0_8px_rgba(0,0,0,0.3)]"></div>
-            <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">{cat}</span>
+            <div class="w-2.5 h-2.5 rounded-full {cat.color} shadow-[0_0_8px_rgba(0,0,0,0.3)]"></div>
+            <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">{cat.name}</span>
           </div>
         {/each}
       </div>

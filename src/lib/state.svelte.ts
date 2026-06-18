@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { calculatePlannedLoad, type Workout, type PeriodizationWeek, type PhaseType, type ExerciseTypeDef, type ViewType, type Benchmark, type BenchmarkTypeDef } from './types';
+import { calculatePlannedLoad, type Workout, type PeriodizationWeek, type PhaseType, type ExerciseTypeDef, type ViewType, type Benchmark, type BenchmarkTypeDef, type AnalyticsCategory } from './types';
 import { getWeekId } from './dateUtils';
 import { generateId, showAlert, showConfirm } from './utils';
 
@@ -15,6 +15,7 @@ class TrainingState {
   templates = $state<Record<PhaseType, Partial<Workout>[]>>({} as any);
   benchmarks = $state<Benchmark[]>([]);
   benchmarkTypes = $state<BenchmarkTypeDef[]>([]);
+  analyticsCategories = $state<AnalyticsCategory[]>([]);
   isLoading = $state(true);
 
   // UI State
@@ -35,13 +36,14 @@ class TrainingState {
       // Run migrations on the local database before loading
       await storage.runStartupMigrations();
 
-      const [w, p, t, e, b, bt] = await Promise.all([
+      const [w, p, t, e, b, bt, ac] = await Promise.all([
         storage.getWorkouts(),
         storage.getPeriodization(),
         storage.getTemplates(),
         storage.getExerciseTypes(),
         storage.getBenchmarks(),
-        storage.getBenchmarkTypes()
+        storage.getBenchmarkTypes(),
+        storage.getAnalyticsCategories()
       ]);
 
       // Data Cleanup: Fix workouts with 0 plannedLoad that have exercises (Legacy bug)
@@ -63,6 +65,7 @@ class TrainingState {
       this.exerciseTypes = e;
       this.benchmarks = b;
       this.benchmarkTypes = bt;
+      this.analyticsCategories = ac;
     } finally {
       this.isLoading = false;
     }
@@ -177,9 +180,9 @@ class TrainingState {
 
     const rows = [];
     const headers = [
-      'Date', 'WeekId', 'Phase', 'Day', 'Workout Notes', 'Workout Actual Load', 'Workout Planned Load',
+      'Date', 'WeekId', 'Phase', 'Day', 'Workout Notes', 'Workout Description', 'Workout Actual Load', 'Workout Planned Load',
       'Fingers Fatigue', 'Core Fatigue', 'Systemic Fatigue',
-      'Exercise Type', 'Exercise Duration', 'Exercise Planned Load', 'Reps', 'Sets', 'Weight', 'Distance',
+      'Exercise Type', 'Exercise Notes', 'Exercise Duration', 'Exercise Planned Load', 'Reps', 'Sets', 'Weight', 'Distance',
       'Hold Type', 'Hold Size', 'Time On', 'Time Off', 'Rest Time', 'Climbing Style', 'Board Type', 'Board Angle'
     ];
     rows.push(headers.join(','));
@@ -192,6 +195,7 @@ class TrainingState {
         `"${phase}"`,
         w.dayOfWeek || '',
         `"${(w.notes || '').replace(/"/g, '""')}"`,
+        `"${(w.description || '').replace(/"/g, '""')}"`,
         w.loadFactor || 0,
         w.plannedLoad || 0,
         w.fingers || 0,
@@ -200,11 +204,12 @@ class TrainingState {
       ];
 
       if (!w.exercises || w.exercises.length === 0) {
-        rows.push([...baseInfo, ...Array(15).fill('')].join(','));
+        rows.push([...baseInfo, ...Array(16).fill('')].join(','));
       } else {
         w.exercises.forEach(e => {
           const exInfo = [
             `"${e.type}"`,
+            `"${(e.notes || '').replace(/"/g, '""')}"`,
             e.duration || 0,
             e.plannedLoad || 0,
             e.reps || 0,
@@ -216,7 +221,7 @@ class TrainingState {
             e.timeOn || 0,
             e.timeOff || 0,
             e.timeBetweenSets || 0,
-            e.climbingStyle || '',
+            (Array.isArray(e.climbingStyle) ? e.climbingStyle.join(' + ') : e.climbingStyle) || '',
             e.boardType || '',
             e.boardAngle || ''
           ];
@@ -337,6 +342,14 @@ class TrainingState {
    */
   async assignPhase(weekId: string, phase: PhaseType) {
     await storage.assignPhaseToWeek(weekId, phase);
+    await this.refresh();
+  }
+
+  /**
+   * Updates the global list of analytics categories.
+   */
+  async updateAnalyticsCategories(categories: AnalyticsCategory[]) {
+    await storage.saveAnalyticsCategories(categories);
     await this.refresh();
   }
 

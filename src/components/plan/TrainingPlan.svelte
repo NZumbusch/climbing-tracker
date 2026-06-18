@@ -256,7 +256,11 @@
               <button onclick={() => trainingState.duplicateWorkout(workout)} class="p-1.5 text-zinc-500 hover:text-white transition-colors" title="Duplicate"><Icon icon="ic:baseline-content-copy" class="text-sm" /></button>
               <button onclick={() => trainingState.navigate('add', workout)} class="p-1.5 text-zinc-500 hover:text-white transition-colors"><Icon icon="ic:baseline-edit" class="text-sm" /></button>
               <button onclick={() => trainingState.deleteWorkout(workout.id)} class="p-1.5 text-zinc-500 hover:text-red-500 transition-colors"><Icon icon="ic:baseline-delete" class="text-sm" /></button>
-              <button onclick={() => trainingState.navigate('add', workout)} class="text-[9px] font-black {workout.status === 'completed' ? 'text-green-500' : 'text-blue-500'} uppercase tracking-widest hover:scale-105 transition-transform">{workout.status === 'completed' ? 'Done' : 'Start'}</button>
+              {#if workout.status === 'completed'}
+                <span class="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Done</span>
+              {:else}
+                <button onclick={() => trainingState.navigate('add', workout)} class="text-[9px] font-black text-blue-500 uppercase tracking-widest hover:scale-105 transition-transform">Start</button>
+              {/if}
             </div>
           </div>
         {:else}

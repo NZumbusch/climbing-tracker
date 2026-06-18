@@ -17,14 +17,13 @@ export type ViewType = "plan" | "add" | "history" | "settings" | "analytics";
 /**
  * High-level categorization of exercises for analytics and UI color-coding.
  */
-export type ExerciseCategory =
-  | "Arms"
-  | "Legs"
-  | "Core"
-  | "Technique Bouldering"
-  | "Power Bouldering"
-  | "Fingers"
-  | "Other";
+export type ExerciseCategory = string; // Now a string referencing AnalyticsCategory.name
+
+export interface AnalyticsCategory {
+  id: string;
+  name: string;
+  color: string;
+}
 
 /**
  * Supported parameters that can be tracked for a specific exercise modality.
@@ -68,6 +67,8 @@ export interface ExerciseTypeDef {
 export interface Exercise {
   id: string;
   type: string;
+  category?: string; // Overrides the default AnalyticsCategory of the type
+  notes?: string;
   duration?: number;
   /** The specific planned load (1-10) assigned for this instance */
   plannedLoad?: number;
@@ -76,7 +77,7 @@ export interface Exercise {
   minGrade?: string;
   maxGrade?: string;
   cadence?: number; // min/boulder
-  climbingStyle?: "Slab" | "Coordination" | "Power" | "Board";
+  climbingStyle?: ("Slab" | "Coordination" | "Power" | "Board")[];
   boardType?: "Kilterboard" | "Moonboard" | "Tension Board" | "Spraywall";
   boardAngle?: number; // 20-70
 
@@ -125,9 +126,10 @@ export interface Workout {
   /** ISO date string of completion, or null if planned */
   date: string | null;
   dayOfWeek?: DayOfWeek;
+  notes?: string; // Used as the session name
+  description?: string; // Extended notes/description for the session
   /** ISO-8601 Week ID (e.g. 2026-W25) linking this to the macrocycle */
   weekId: string;
-  notes: string;
   /** Actual calculated physiological stress score */
   loadFactor: number;
   /** Pre-calculated planned stress score based on scheduled exercises */
@@ -204,11 +206,11 @@ export interface Benchmark {
   typeId: string;
   /** Keeping name for display/backwards compatibility during migrations */
   type: string;
+  notes?: string;
   value: number;
   unit: string;
   date: string;
   weekId: string;
-  notes?: string;
 }
 
 /**
@@ -222,4 +224,5 @@ export interface TrainingData {
   templates: Record<PhaseType, Partial<Workout>[]>;
   benchmarks: Benchmark[];
   benchmarkTypes: BenchmarkTypeDef[];
+  analyticsCategories: AnalyticsCategory[];
 }

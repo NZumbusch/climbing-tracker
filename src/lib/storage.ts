@@ -9,12 +9,14 @@ import type {
   PhaseType,
   Benchmark,
   BenchmarkTypeDef,
+  AnalyticsCategory,
 } from "./types";
 import { calculatePlannedLoad } from "./types";
 import {
   DEFAULT_TEMPLATES,
   DEFAULT_EXERCISE_TYPES,
   DEFAULT_BENCHMARK_TYPES,
+  DEFAULT_ANALYTICS_CATEGORIES,
   DATA_EXPORT_VERSION,
 } from "./constants";
 import { generateId } from "./utils";
@@ -23,6 +25,78 @@ localforage.config({
   name: "boulder-tracker",
   storeName: "training_data_v2",
 });
+
+let _dbState: any = null;
+
+async function initDB() {
+  if (_dbState) return;
+
+  let rawData: any = null;
+  let usingNative = Capacitor.isNativePlatform();
+
+  if (usingNative) {
+    try {
+      const res = await Filesystem.readFile({
+        path: "boulder_tracker_db.json",
+        directory: Directory.Data,
+        encoding: Encoding.UTF8,
+      });
+      rawData = JSON.parse(res.data as string);
+    } catch (e) {
+      // File doesn't exist yet
+    }
+  }
+
+  if (!rawData) {
+    rawData = {
+      workouts: await localforage.getItem("workouts"),
+      periodization: await localforage.getItem("periodization"),
+      templates: await localforage.getItem("templates"),
+      exerciseTypes: await localforage.getItem("exerciseTypes"),
+      benchmarks: await localforage.getItem("benchmarks"),
+      benchmarkTypes: await localforage.getItem("benchmarkTypes"),
+      analyticsCategories: await localforage.getItem("analyticsCategories"),
+      exportVersion: await localforage.getItem("database_version"),
+    };
+  }
+
+  _dbState = {
+    workouts: rawData.workouts || [],
+    periodization: rawData.periodization || [],
+    templates: rawData.templates || DEFAULT_TEMPLATES,
+    exerciseTypes: rawData.exerciseTypes || DEFAULT_EXERCISE_TYPES,
+    benchmarks: rawData.benchmarks || [],
+    benchmarkTypes: rawData.benchmarkTypes || DEFAULT_BENCHMARK_TYPES,
+    analyticsCategories: rawData.analyticsCategories || DEFAULT_ANALYTICS_CATEGORIES,
+    exportVersion: rawData.exportVersion || "1.0",
+  };
+}
+
+async function flushDB() {
+  if (!_dbState) return;
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await Filesystem.writeFile({
+        path: "boulder_tracker_db.json",
+        data: JSON.stringify(_dbState),
+        directory: Directory.Data,
+        encoding: Encoding.UTF8,
+      });
+    } catch (err) {
+      console.error("Failed to write to native Filesystem", err);
+    }
+  } else {
+    await localforage.setItem("workouts", _dbState.workouts);
+    await localforage.setItem("periodization", _dbState.periodization);
+    await localforage.setItem("templates", _dbState.templates);
+    await localforage.setItem("exerciseTypes", _dbState.exerciseTypes);
+    await localforage.setItem("benchmarks", _dbState.benchmarks);
+    await localforage.setItem("benchmarkTypes", _dbState.benchmarkTypes);
+    await localforage.setItem("analyticsCategories", _dbState.analyticsCategories);
+    await localforage.setItem("database_version", _dbState.exportVersion);
+  }
+}
 
 // --- Migration Helper ---
 
@@ -213,6 +287,71 @@ function runDataMigrations(data: any): void {
     }
     importVersion = "2.8";
   }
+
+  // Migration: 2.8 -> 2.9 (Convert climbingStyle from string to array)
+  if (importVersion === "2.8") {
+    const migrateClimbingStyle = (e: any) => {
+      if (typeof e.climbingStyle === "string") {
+        e.climbingStyle = [e.climbingStyle];
+      }
+    };
+    data.workouts?.forEach((w: any) =>
+      w.exercises?.forEach(migrateClimbingStyle),
+    );
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach(migrateClimbingStyle)),
+      );
+    }
+    importVersion = "2.9";
+  }
+
+  // Migration: 2.9 -> 3.0 (Add analyticsCategories)
+  if (importVersion === "2.9") {
+    if (!data.analyticsCategories) {
+      data.analyticsCategories = [...DEFAULT_ANALYTICS_CATEGORIES];
+    }
+
+    const existingCats = new Set(data.analyticsCategories.map((c: any) => c.name));
+    const missingCats = new Set<string>();
+
+    data.exerciseTypes?.forEach((t: any) => {
+      if (t.category && !existingCats.has(t.category)) {
+        missingCats.add(t.category);
+      }
+    });
+
+    data.workouts?.forEach((w: any) => {
+      w.exercises?.forEach((e: any) => {
+        if (e.category && !existingCats.has(e.category)) {
+          missingCats.add(e.category);
+        }
+      });
+    });
+
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) => {
+        phase?.forEach((t: any) => {
+          t.exercises?.forEach((e: any) => {
+            if (e.category && !existingCats.has(e.category)) {
+              missingCats.add(e.category);
+            }
+          });
+        });
+      });
+    }
+
+    missingCats.forEach((catName) => {
+      data.analyticsCategories.push({
+        id: generateId(),
+        name: catName,
+        color: "bg-zinc-500"
+      });
+      existingCats.add(catName);
+    });
+
+    importVersion = "3.0";
+  }
 }
 
 /**
@@ -221,42 +360,21 @@ function runDataMigrations(data: any): void {
 export const storage = {
   // --- Private Helpers ---
 
-  async _getWorkouts(): Promise<Workout[]> {
-    return (await localforage.getItem<Workout[]>("workouts")) || [];
-  },
+  async _getWorkouts(): Promise<Workout[]> { await initDB(); return _dbState.workouts; },
+  async _getPeriodization(): Promise<PeriodizationWeek[]> { await initDB(); return _dbState.periodization; },
+  async _getBenchmarks(): Promise<Benchmark[]> { await initDB(); return _dbState.benchmarks; },
+  async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> { await initDB(); return _dbState.benchmarkTypes; },
+  async _getAnalyticsCategories(): Promise<AnalyticsCategory[]> { await initDB(); return _dbState.analyticsCategories; },
+  async _getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> { await initDB(); return _dbState.templates; },
+  async _getExerciseTypes(): Promise<ExerciseTypeDef[]> { await initDB(); return _dbState.exerciseTypes; },
 
-  async _getPeriodization(): Promise<PeriodizationWeek[]> {
-    return (
-      (await localforage.getItem<PeriodizationWeek[]>("periodization")) || []
-    );
-  },
-
-  async _getBenchmarks(): Promise<Benchmark[]> {
-    return (await localforage.getItem<Benchmark[]>("benchmarks")) || [];
-  },
-
-  async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> {
-    return (
-      (await localforage.getItem<BenchmarkTypeDef[]>("benchmarkTypes")) ||
-      DEFAULT_BENCHMARK_TYPES
-    );
-  },
-
-  async _saveWorkouts(workouts: Workout[]): Promise<void> {
-    await localforage.setItem("workouts", workouts);
-  },
-
-  async _savePeriodization(periodization: PeriodizationWeek[]): Promise<void> {
-    await localforage.setItem("periodization", periodization);
-  },
-
-  async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> {
-    await localforage.setItem("benchmarks", benchmarks);
-  },
-
-  async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> {
-    await localforage.setItem("benchmarkTypes", types);
-  },
+  async _saveWorkouts(workouts: Workout[]): Promise<void> { await initDB(); _dbState.workouts = workouts; await flushDB(); },
+  async _savePeriodization(periodization: PeriodizationWeek[]): Promise<void> { await initDB(); _dbState.periodization = periodization; await flushDB(); },
+  async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> { await initDB(); _dbState.benchmarks = benchmarks; await flushDB(); },
+  async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> { await initDB(); _dbState.benchmarkTypes = types; await flushDB(); },
+  async _saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> { await initDB(); _dbState.analyticsCategories = categories; await flushDB(); },
+  async _saveTemplates(templates: Record<PhaseType, Partial<Workout>[]>): Promise<void> { await initDB(); _dbState.templates = templates; await flushDB(); },
+  async _saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> { await initDB(); _dbState.exerciseTypes = types; await flushDB(); },
 
   // --- Public Interface ---
 
@@ -264,32 +382,16 @@ export const storage = {
    * Runs migrations on the local database to ensure it matches the current schema.
    */
   async runStartupMigrations(): Promise<void> {
-    const currentVersion = (await localforage.getItem<string>("database_version")) || "1.0";
-    
+    await initDB();
+
+    const currentVersion = _dbState.exportVersion;
     if (currentVersion === DATA_EXPORT_VERSION) return;
 
-    // Build a TrainingData-like object from local storage
-    const data = {
-      workouts: await this.getWorkouts(),
-      periodization: await this.getPeriodization(),
-      templates: await this.getTemplates(),
-      exerciseTypes: await this.getExerciseTypes(),
-      benchmarks: await this.getBenchmarks(),
-      benchmarkTypes: await this.getBenchmarkTypes(),
-      exportVersion: currentVersion
-    };
+    // runDataMigrations modifies the object in place
+    runDataMigrations(_dbState);
+    _dbState.exportVersion = DATA_EXPORT_VERSION;
 
-    runDataMigrations(data);
-
-    // Save migrated data back to local storage
-    if (data.workouts) await this._saveWorkouts(data.workouts);
-    if (data.periodization) await this._savePeriodization(data.periodization);
-    if (data.templates) await this.saveTemplates(data.templates);
-    if (data.exerciseTypes) await this.saveExerciseTypes(data.exerciseTypes);
-    if (data.benchmarks) await this._saveBenchmarks(data.benchmarks);
-    if (data.benchmarkTypes) await this._saveBenchmarkTypes(data.benchmarkTypes);
-
-    await localforage.setItem("database_version", DATA_EXPORT_VERSION);
+    await flushDB();
   },
 
   async getWorkouts(): Promise<Workout[]> {
@@ -352,6 +454,14 @@ export const storage = {
     await this._saveBenchmarkTypes(types);
   },
 
+  async getAnalyticsCategories(): Promise<AnalyticsCategory[]> {
+    return this._getAnalyticsCategories();
+  },
+
+  async saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> {
+    await this._saveAnalyticsCategories(categories);
+  },
+
   async getPeriodization(): Promise<PeriodizationWeek[]> {
     return this._getPeriodization();
   },
@@ -377,28 +487,21 @@ export const storage = {
   },
 
   async getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> {
-    return (
-      (await localforage.getItem<Record<PhaseType, Partial<Workout>[]>>(
-        "templates",
-      )) || DEFAULT_TEMPLATES
-    );
+    return this._getTemplates();
   },
 
   async saveTemplates(
     templates: Record<PhaseType, Partial<Workout>[]>,
   ): Promise<void> {
-    await localforage.setItem("templates", templates);
+    await this._saveTemplates(templates);
   },
 
   async resetTemplates(): Promise<void> {
-    await localforage.setItem("templates", DEFAULT_TEMPLATES);
+    await this._saveTemplates(DEFAULT_TEMPLATES);
   },
 
   async getExerciseTypes(): Promise<ExerciseTypeDef[]> {
-    return (
-      (await localforage.getItem<ExerciseTypeDef[]>("exerciseTypes")) ||
-      DEFAULT_EXERCISE_TYPES
-    );
+    return this._getExerciseTypes();
   },
 
   async saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> {
@@ -418,7 +521,7 @@ export const storage = {
       }
     });
 
-    await localforage.setItem("exerciseTypes", types);
+    await this._saveExerciseTypes(types);
 
     if (renames.size > 0) {
       const workouts = await this._getWorkouts();
@@ -504,13 +607,9 @@ export const storage = {
   },
 
   async exportData(): Promise<void> {
+    await initDB();
     const data = {
-      workouts: await this.getWorkouts(),
-      periodization: await this.getPeriodization(),
-      templates: await this.getTemplates(),
-      exerciseTypes: await this.getExerciseTypes(),
-      benchmarks: await this.getBenchmarks(),
-      benchmarkTypes: await this.getBenchmarkTypes(),
+      ..._dbState,
       exportVersion: DATA_EXPORT_VERSION,
     };
 
@@ -561,18 +660,16 @@ export const storage = {
 
           runDataMigrations(data);
 
-          if (data.workouts)
-            await localforage.setItem("workouts", data.workouts);
-          if (data.periodization)
-            await localforage.setItem("periodization", data.periodization);
-          if (data.templates)
-            await localforage.setItem("templates", data.templates);
-          if (data.exerciseTypes)
-            await localforage.setItem("exerciseTypes", data.exerciseTypes);
-          if (data.benchmarks)
-            await localforage.setItem("benchmarks", data.benchmarks);
-          if (data.benchmarkTypes)
-            await localforage.setItem("benchmarkTypes", data.benchmarkTypes);
+          if (data.workouts) _dbState.workouts = data.workouts;
+          if (data.periodization) _dbState.periodization = data.periodization;
+          if (data.templates) _dbState.templates = data.templates;
+          if (data.exerciseTypes) _dbState.exerciseTypes = data.exerciseTypes;
+          if (data.benchmarks) _dbState.benchmarks = data.benchmarks;
+          if (data.benchmarkTypes) _dbState.benchmarkTypes = data.benchmarkTypes;
+          if (data.analyticsCategories) _dbState.analyticsCategories = data.analyticsCategories;
+          _dbState.exportVersion = data.exportVersion || "1.0";
+          
+          await flushDB();
           resolve();
         } catch (err) {
           reject(err);

@@ -3,20 +3,22 @@ import type { ExerciseTypeDef, PhaseType, Workout } from "./types";
 /**
  * Current data model version for exports and migrations.
  */
-export const DATA_EXPORT_VERSION = "2.8";
+export const DATA_EXPORT_VERSION = "3.0";
 
 /**
  * Standard colors for training categories used in charts and indicators.
  */
-export const CATEGORY_COLORS: Record<string, string> = {
-  "Technique Bouldering": "bg-emerald-500",
-  "Power Bouldering": "bg-purple-500",
-  Fingers: "bg-indigo-500",
-  Arms: "bg-rose-500",
-  Legs: "bg-amber-500",
-  Core: "bg-sky-500",
-  Other: "bg-zinc-500",
-};
+import type { AnalyticsCategory } from "./types";
+
+export const DEFAULT_ANALYTICS_CATEGORIES: AnalyticsCategory[] = [
+  { id: "cat-1", name: "Technique Bouldering", color: "bg-emerald-500" },
+  { id: "cat-2", name: "Power Bouldering", color: "bg-purple-500" },
+  { id: "cat-3", name: "Fingers", color: "bg-indigo-500" },
+  { id: "cat-4", name: "Arms", color: "bg-rose-500" },
+  { id: "cat-5", name: "Legs", color: "bg-amber-500" },
+  { id: "cat-6", name: "Core", color: "bg-sky-500" },
+  { id: "cat-7", name: "Other", color: "bg-zinc-500" },
+];
 
 /**
  * Exercise definitions incorporating new climbing styles and board parameters.
@@ -89,7 +91,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Volume Day: Focus on perfect technique below flash level.",
       dayOfWeek: "Monday",
       exercises: [
-        { id: "1", type: "Free Bouldering", duration: 120, climbingStyle: "Slab", cadence: 10, plannedLoad: 5 },
+        { id: "1", type: "Free Bouldering", duration: 120, climbingStyle: ["Slab"], cadence: 10, plannedLoad: 5 },
         { id: "2", type: "Core Training", duration: 30, difficulty: 6, plannedLoad: 4 },
       ],
     },
@@ -97,7 +99,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Pulling Capacity & Capacity Bouldering",
       dayOfWeek: "Wednesday",
       exercises: [
-        { id: "3", type: "Free Bouldering", duration: 90, climbingStyle: "Power", plannedLoad: 6 },
+        { id: "3", type: "Free Bouldering", duration: 90, climbingStyle: ["Power"], plannedLoad: 6 },
         { id: "4", type: "Weighted Pull-ups", weight: 10, sets: 4, plannedLoad: 5 },
       ],
     },
@@ -107,7 +109,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Limit Bouldering & Max Hangs",
       dayOfWeek: "Tuesday",
       exercises: [
-        { id: "1", type: "Free Bouldering", duration: 90, climbingStyle: "Power", plannedLoad: 8 },
+        { id: "1", type: "Free Bouldering", duration: 90, climbingStyle: ["Power"], plannedLoad: 8 },
         { id: "2", type: "Max Hangs", holdType: "Half Crimp", holdSize: 20, weight: 25, sets: 5, plannedLoad: 6 },
       ],
     },
@@ -125,7 +127,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Explosive Power Day",
       dayOfWeek: "Wednesday",
       exercises: [
-        { id: "1", type: "Free Bouldering", duration: 90, climbingStyle: "Coordination", plannedLoad: 7 },
+        { id: "1", type: "Free Bouldering", duration: 90, climbingStyle: ["Coordination"], plannedLoad: 7 },
         { id: "2", type: "Campus Board", duration: 20, campusType: "Jumps", plannedLoad: 9 },
       ],
     },
@@ -153,14 +155,14 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Projecting Day",
       dayOfWeek: "Saturday",
       exercises: [
-        { id: "1", type: "Free Bouldering", duration: 120, climbingStyle: "Board", plannedLoad: 9 },
+        { id: "1", type: "Free Bouldering", duration: 120, climbingStyle: ["Board"], plannedLoad: 9 },
       ],
     },
     {
       notes: "Active Recovery",
       dayOfWeek: "Thursday",
       exercises: [
-        { id: "2", type: "Free Bouldering", duration: 60, climbingStyle: "Slab", plannedLoad: 3 },
+        { id: "2", type: "Free Bouldering", duration: 60, climbingStyle: ["Slab"], plannedLoad: 3 },
       ],
     },
   ],
@@ -169,14 +171,14 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Light Activation Session",
       dayOfWeek: "Tuesday",
       exercises: [
-        { id: "1", type: "Free Bouldering", duration: 60, climbingStyle: "Slab", cadence: 6, plannedLoad: 2 },
+        { id: "1", type: "Free Bouldering", duration: 60, climbingStyle: ["Slab"], cadence: 6, plannedLoad: 2 },
       ],
     },
     {
       notes: "Light Activation Session",
       dayOfWeek: "Thursday",
       exercises: [
-        { id: "2", type: "Free Bouldering", duration: 60, climbingStyle: "Power", cadence: 4, plannedLoad: 2 },
+        { id: "2", type: "Free Bouldering", duration: 60, climbingStyle: ["Power"], cadence: 4, plannedLoad: 2 },
       ],
     }
   ]
