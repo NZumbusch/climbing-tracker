@@ -35,3 +35,27 @@ export function formatDate(dateStr: string | null): string {
     year: 'numeric'
   });
 }
+
+/**
+ * Returns the start and end dates (as a formatted string) for a given ISO week ID.
+ */
+export function getWeekDateRange(weekId: string): string {
+  if (!weekId) return '';
+  const match = weekId.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return '';
+
+  const year = parseInt(match[1]);
+  const week = parseInt(match[2]);
+
+  // January 4th is always in week 1.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = (jan4.getUTCDay() + 6) % 7; // Monday = 0
+  const firstMonday = new Date(Date.UTC(year, 0, 4 - dayOfWeek));
+
+  const startOfWeek = new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  const endOfWeek = new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000);
+
+  const formatOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  return `${startOfWeek.toLocaleDateString(undefined, formatOpts)} - ${endOfWeek.toLocaleDateString(undefined, formatOpts)}`;
+}
+

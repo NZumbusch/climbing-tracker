@@ -18,12 +18,20 @@ class TrainingState {
   analyticsCategories = $state<AnalyticsCategory[]>([]);
   isLoading = $state(true);
 
-  // UI State
   view = $state<ViewType>('plan');
   activeWorkout = $state<Workout | null>(null);
+  selectedWeekId = $state<string | null>(null);
+  weekOffset = $state(0);
   showFatigue = $state(false);
+  theme = $state<'dark' | 'light' | 'contrast'>('dark');
 
   constructor() {
+    if (typeof localStorage !== 'undefined') {
+      const savedTheme = localStorage.getItem('boulder_tracker_theme');
+      if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'contrast') {
+        this.theme = savedTheme;
+      }
+    }
     this.refresh();
   }
 
@@ -138,6 +146,16 @@ class TrainingState {
   }
 
   // --- Backup Actions ---
+
+  /**
+   * Updates the theme mode and persists to localStorage
+   */
+  setTheme(newTheme: 'dark' | 'light' | 'contrast') {
+    this.theme = newTheme;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('boulder_tracker_theme', newTheme);
+    }
+  }
 
   /**
    * Exports all training data to a JSON file.
@@ -360,6 +378,8 @@ class TrainingState {
     await storage.saveExerciseTypes(types);
     await this.refresh();
   }
+
+
 
   /**
    * Updates workout templates for different phases.

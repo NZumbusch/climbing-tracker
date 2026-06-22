@@ -352,6 +352,183 @@ function runDataMigrations(data: any): void {
 
     importVersion = "3.0";
   }
+
+  // Migration: 3.0 -> 3.1 (Add Mobility to exerciseTypes)
+  if (importVersion === "3.0") {
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      const hasMobility = data.exerciseTypes.some((t: any) => t.id === "mobility");
+      if (!hasMobility) {
+        data.exerciseTypes.push({
+          id: "mobility",
+          name: "Mobility",
+          category: "Other",
+          parameters: ["duration", "mobilityType"],
+          defaultPlannedLoad: 2,
+        });
+      }
+    }
+    importVersion = "3.1";
+  }
+
+  // Migration: 3.1 -> 3.2 (Rename grades to boulderingGrades, add lead-climbing)
+  if (importVersion === "3.1") {
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes.forEach((t: any) => {
+        if (t.parameters) {
+          t.parameters = t.parameters.map((p: string) => p === "grades" ? "boulderingGrades" : p);
+          
+          if ((t.id === "free-bouldering" || t.id === "board-session") && !t.parameters.includes("variant")) {
+            t.parameters.push("variant");
+          }
+        }
+      });
+
+      const hasLeadClimbing = data.exerciseTypes.some((t: any) => t.id === "lead-climbing");
+      if (!hasLeadClimbing) {
+        data.exerciseTypes.push({
+          id: "lead-climbing",
+          name: "Lead Climbing",
+          category: "Power Endurance",
+          parameters: ["duration", "routeGrades", "cadence", "leadStyle"],
+          defaultPlannedLoad: 7,
+        });
+      }
+    }
+    importVersion = "3.2";
+  }
+
+  // Migration: 3.2 -> 3.3 (Add startTime to workouts if missing)
+  if (importVersion === "3.2") {
+    if (data.workouts && Array.isArray(data.workouts)) {
+      data.workouts.forEach((w: any) => {
+        if (!w.startTime) {
+          // Attempt to extract time from ISO date if available and completed
+          if (w.status === "completed" && w.date) {
+            const dateObj = new Date(w.date);
+            w.startTime = `${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
+          } else {
+            w.startTime = "12:00"; // default for old planned workouts
+          }
+        }
+      });
+    }
+    importVersion = "3.3";
+  }
+
+  // Migration: 3.3 -> 3.4 (Add timeOn to boulder-intervals parameters)
+  if (importVersion === "3.3") {
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes.forEach((t: any) => {
+        if (t.id === "boulder-intervals" && t.parameters && !t.parameters.includes("timeOn")) {
+          const restTimeIdx = t.parameters.indexOf("restTime");
+          if (restTimeIdx !== -1) {
+            t.parameters.splice(restTimeIdx, 0, "timeOn");
+          } else {
+            t.parameters.push("timeOn");
+          }
+        }
+      });
+    }
+    importVersion = "3.4";
+  }
+
+  // Migration: 3.4 -> 3.5 (Split boulder-intervals into time-based-intervals and rep-based-intervals)
+  if (importVersion === "3.4") {
+    const migrateExercise = (e: any) => {
+      if (e.type === "Boulder Intervals") {
+        if (e.variant === "4x4" || e.variant === "emom" || e.reps !== undefined) {
+          e.type = "Rep-Based Intervals";
+        } else {
+          e.type = "Time-Based Intervals";
+        }
+      }
+    };
+
+    data.workouts?.forEach((w: any) =>
+      w.exercises?.forEach(migrateExercise),
+    );
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach(migrateExercise)),
+      );
+    }
+    
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes = data.exerciseTypes.filter((t: any) => t.id !== "boulder-intervals");
+      
+      const hasTimeBased = data.exerciseTypes.some((t: any) => t.id === "time-based-intervals");
+      if (!hasTimeBased) {
+        data.exerciseTypes.push({
+          id: "time-based-intervals",
+          name: "Time-Based Intervals",
+          category: "Power Bouldering",
+          parameters: ["duration", "sets", "timeOn", "restTime"],
+          defaultPlannedLoad: 7,
+        });
+      }
+      
+      const hasRepBased = data.exerciseTypes.some((t: any) => t.id === "rep-based-intervals");
+      if (!hasRepBased) {
+        data.exerciseTypes.push({
+          id: "rep-based-intervals",
+          name: "Rep-Based Intervals",
+          category: "Power Bouldering",
+          parameters: ["duration", "sets", "reps", "restTime", "movesPerRoute"],
+          defaultPlannedLoad: 7,
+        });
+      }
+    }
+    
+    importVersion = "3.5";
+  }
+
+  // Migration: 3.5 -> 3.6 (Update Max Hangs and Interval parameters)
+  if (importVersion === "3.5") {
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes.forEach((t: any) => {
+        if (t.id === "max-hangs" && t.parameters) {
+          if (!t.parameters.includes("bodyweightPercent")) {
+            t.parameters.push("bodyweightPercent");
+          }
+          if (!t.parameters.includes("weight")) {
+            t.parameters.push("weight");
+          }
+        }
+        if ((t.id === "time-based-intervals" || t.id === "rep-based-intervals") && t.parameters) {
+          if (!t.parameters.includes("routeDifficulty")) {
+            t.parameters.push("routeDifficulty");
+          }
+        }
+      });
+    }
+
+    const migrateExercise = (e: any) => {
+      if (e.type === "Max Hangs") {
+        if (e.weight !== undefined && e.bodyweightPercent === undefined) {
+          // Rough estimation: assume 70kg climber. 100% = 70kg.
+          // Formula: (70 + weight) / 70 * 100 => 100 + (weight / 70 * 100)
+          e.bodyweightPercent = Math.round(100 + (e.weight / 70) * 100);
+        }
+      }
+    };
+
+    data.workouts?.forEach((w: any) =>
+      w.exercises?.forEach(migrateExercise),
+    );
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach(migrateExercise)),
+      );
+    }
+    
+    importVersion = "3.6";
+  }
+
+  // Migration: 3.6 -> 3.7 (Add maxWeightPercent support)
+  if (importVersion === "3.6") {
+    // No explicit structure changes needed yet, just tracking version
+    importVersion = "3.7";
+  }
 }
 
 /**

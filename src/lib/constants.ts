@@ -1,9 +1,9 @@
-import type { ExerciseTypeDef, PhaseType, Workout } from "./types";
+import type { ExerciseTypeDef, PhaseType, Workout, ParameterBlock } from "./types";
 
 /**
  * Current data model version for exports and migrations.
  */
-export const DATA_EXPORT_VERSION = "3.0";
+export const DATA_EXPORT_VERSION = "3.7";
 
 /**
  * Standard colors for training categories used in charts and indicators.
@@ -28,49 +28,64 @@ export const DEFAULT_EXERCISE_TYPES: ExerciseTypeDef[] = [
     id: "free-bouldering",
     name: "Free Bouldering",
     category: "Technique Bouldering",
-    parameters: ["duration", "grades", "cadence", "climbingStyle"],
+    parameters: ["duration", "boulderingGrades", "climbingStyle"],
+    possibleParameters: ["duration", "boulderingGrades", "cadence", "climbingStyle", "variant"],
     defaultPlannedLoad: 5,
   },
   {
     id: "board-session",
     name: "Board Session",
     category: "Power Bouldering",
-    parameters: ["duration", "grades", "boardType", "boardAngle"],
+    parameters: ["duration", "boulderingGrades", "boardType", "boardAngle"],
+    possibleParameters: ["duration", "boulderingGrades", "boardType", "boardAngle", "variant"],
     defaultPlannedLoad: 8,
   },
   {
-    id: "boulder-intervals",
-    name: "Boulder Intervals",
+    id: "time-based-intervals",
+    name: "Time-Based Intervals",
     category: "Power Bouldering",
-    parameters: ["duration", "variant", "sets", "restTime"],
+    parameters: ["duration", "sets", "timeOn", "restTime", "routeDifficulty"],
+    possibleParameters: ["duration", "sets", "timeOn", "timeOff", "restTime", "routeDifficulty"],
+    defaultPlannedLoad: 7,
+  },
+  {
+    id: "rep-based-intervals",
+    name: "Rep-Based Intervals",
+    category: "Power Bouldering",
+    parameters: ["duration", "sets", "reps", "restTime", "routeDifficulty"],
+    possibleParameters: ["duration", "sets", "reps", "restTime", "movesPerRoute", "routeDifficulty"],
     defaultPlannedLoad: 7,
   },
   {
     id: "max-hangs",
     name: "Max Hangs",
     category: "Fingers",
-    parameters: ["holdType", "holdSize", "weight", "sets", "reps", "timeOn", "timeOff", "restTime"],
+    parameters: ["holdType", "holdSize", "bodyweightPercent", "sets", "timeOn", "restTime"],
+    possibleParameters: ["holdType", "holdSize", "bodyweightPercent", "maxWeightPercent", "weight", "sets", "reps", "timeOn", "timeOff", "restTime"],
     defaultPlannedLoad: 6,
   },
   {
     id: "weighted-pullups",
     name: "Weighted Pull-ups",
     category: "Arms",
-    parameters: ["weight", "sets", "reps", "difficulty"],
+    parameters: ["weight", "sets", "reps"],
+    possibleParameters: ["weight", "bodyweightPercent", "maxWeightPercent", "sets", "reps", "difficulty"],
     defaultPlannedLoad: 5,
   },
   {
     id: "campus-board",
     name: "Campus Board",
     category: "Power Bouldering",
-    parameters: ["duration", "campusStyle", "sets", "reps", "timeOn", "timeOff", "restTime"],
+    parameters: ["duration", "campusStyle", "sets", "reps"],
+    possibleParameters: ["duration", "campusStyle", "sets", "reps", "timeOn", "timeOff", "restTime"],
     defaultPlannedLoad: 9,
   },
   {
     id: "core-training",
     name: "Core Training",
     category: "Core",
-    parameters: ["duration", "difficulty"],
+    parameters: ["duration"],
+    possibleParameters: ["duration", "difficulty"],
     defaultPlannedLoad: 4,
   },
   {
@@ -78,9 +93,54 @@ export const DEFAULT_EXERCISE_TYPES: ExerciseTypeDef[] = [
     name: "Running",
     category: "Other",
     parameters: ["duration", "distance"],
+    possibleParameters: ["duration", "distance"],
     defaultPlannedLoad: 4,
   },
+  {
+    id: "mobility",
+    name: "Mobility",
+    category: "Other",
+    parameters: ["duration", "mobilityType"],
+    possibleParameters: ["duration", "mobilityType"],
+    defaultPlannedLoad: 2,
+  },
+  {
+    id: "lead-climbing",
+    name: "Lead Climbing",
+    category: "Power Endurance",
+    parameters: ["duration", "routeGrades", "leadStyle"],
+    possibleParameters: ["duration", "routeGrades", "cadence", "leadStyle"],
+    defaultPlannedLoad: 7,
+  },
 ];
+
+export const PARAMETER_LABELS: Record<ParameterBlock, string> = {
+  duration: 'Duration',
+  boulderingGrades: 'Bouldering Grades',
+  routeGrades: 'Route Grades',
+  cadence: 'Cadence',
+  climbingStyle: 'Climbing Style',
+  boardType: 'Board Type',
+  boardAngle: 'Board Angle',
+  variant: 'Variant',
+  sets: 'Sets',
+  reps: 'Reps',
+  holdType: 'Hold Type',
+  timeOn: 'Time On',
+  timeOff: 'Time Off',
+  restTime: 'Rest Time',
+  holdSize: 'Hold Size',
+  weight: 'Weight',
+  distance: 'Distance',
+  campusStyle: 'Campus Style',
+  mobilityType: 'Mobility Type',
+  leadStyle: 'Lead Style',
+  difficulty: 'Difficulty/RPE',
+  routeDifficulty: 'Route Difficulty',
+  bodyweightPercent: 'Bodyweight %',
+  maxWeightPercent: 'Max Weight %',
+  movesPerRoute: 'Moves per Route'
+};
 
 /**
  * Periodized workout templates optimized for high-level training.
@@ -110,7 +170,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       dayOfWeek: "Tuesday",
       exercises: [
         { id: "1", type: "Free Bouldering", duration: 90, climbingStyle: ["Power"], plannedLoad: 8 },
-        { id: "2", type: "Max Hangs", holdType: "Half Crimp", holdSize: 20, weight: 25, sets: 5, plannedLoad: 6 },
+        { id: "2", type: "Max Hangs", holdType: "Half Crimp", holdSize: 20, bodyweightPercent: 125, sets: 5, plannedLoad: 6 },
       ],
     },
     {
@@ -145,7 +205,7 @@ export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = {
       notes: "Lactic Tolerance",
       dayOfWeek: "Tuesday",
       exercises: [
-        { id: "1", type: "Boulder Intervals", variant: "4x4", sets: 4, duration: 60, plannedLoad: 8 },
+        { id: "1", type: "Rep-Based Intervals", reps: 4, sets: 4, duration: 60, plannedLoad: 8 },
         { id: "2", type: "Core Training", duration: 25, difficulty: 8, plannedLoad: 4 },
       ],
     },

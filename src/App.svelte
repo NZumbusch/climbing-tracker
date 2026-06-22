@@ -13,14 +13,20 @@
 
   // --- Derived State ---
   const plannedThisWeek = $derived(trainingState.getPlannedWorkoutsForWeek(trainingState.activeWorkout?.weekId || trainingState.currentWeekId));
+
+  $effect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', trainingState.theme);
+    }
+  });
 </script>
 
-<main class="flex flex-col h-screen overflow-hidden bg-[#0a0a0b] text-zinc-100 font-sans">
-  <div class="flex-1 overflow-y-auto no-scrollbar bg-[#121214] flex flex-col items-center w-full p-4">
+<main class="flex flex-col h-screen overflow-hidden bg-app-bg text-content font-sans">
+  <div class="flex-1 overflow-y-auto no-scrollbar bg-surface flex flex-col items-center w-full p-4">
     {#if trainingState.isLoading}
       <div class="flex flex-col items-center justify-center h-full space-y-4">
-        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">Loading Training Data...</p>
+        <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-content-subtle text-xs font-bold uppercase tracking-widest">Loading Training Data...</p>
       </div>
     {:else if trainingState.view === 'plan'}
       <TrainingPlan />
@@ -42,33 +48,29 @@
   </div>
 
   <nav 
-    class="w-full h-[75px] border-t flex justify-evenly items-center shrink-0 select-none"
-    style="background-color: #121214; border-color: rgba(255, 255, 255, 0.05);"
+    class="w-full h-[75px] border-t flex justify-evenly items-center shrink-0 select-none bg-surface border-border"
   >
     <button 
       onclick={() => trainingState.navigate('plan')}
-      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300"
-      style="color: {trainingState.view === 'plan' || trainingState.view === 'analytics' ? '#10b981' : '#71717a'}; transform: scale({trainingState.view === 'plan' || trainingState.view === 'analytics' ? '1.05' : '1'});"
+      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'plan' || trainingState.view === 'analytics' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
     >
       <Icon icon="ic:baseline-calendar-month" class="text-[28px]" />
-      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300" style="background-color: {trainingState.view === 'plan' || trainingState.view === 'analytics' ? '#10b981' : 'transparent'}; transform: scale({trainingState.view === 'plan' || trainingState.view === 'analytics' ? '1' : '0'});"></div>
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'plan' || trainingState.view === 'analytics' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
     </button>
 
     <button 
       onclick={() => trainingState.navigate('add')}
-      class="flex items-center justify-center w-12 h-12 rounded-full cursor-pointer transition-all duration-300 active:scale-90"
-      style="background-color: {trainingState.view === 'add' ? '#10b981' : '#27272a'}; color: {trainingState.view === 'add' ? '#09090b' : '#a1a1aa'}; box-shadow: {trainingState.view === 'add' ? '0 0 20px rgba(16, 185, 129, 0.3)' : 'none'};"
+      class="flex items-center justify-center w-12 h-12 rounded-full cursor-pointer transition-all duration-300 active:scale-90 {trainingState.view === 'add' ? 'bg-success text-app-bg shadow-[0_0_20px_var(--color-success)]' : 'bg-surface-elevated text-content-muted'}"
     >
       <Icon icon="ic:baseline-plus" class="text-[34px]" />
     </button>
 
     <button 
       onclick={() => trainingState.navigate('history')}
-      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300"
-      style="color: {(trainingState.view === 'history' || trainingState.view === 'settings') ? '#10b981' : '#71717a'}; transform: scale({(trainingState.view === 'history' || trainingState.view === 'settings') ? '1.05' : '1'});"
+      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300 {(trainingState.view === 'history' || trainingState.view === 'settings') ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
     >
       <Icon icon="ic:baseline-content-paste" class="text-[28px]" />
-      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300" style="background-color: {(trainingState.view === 'history' || trainingState.view === 'settings') ? '#10b981' : 'transparent'}; transform: scale({(trainingState.view === 'history' || trainingState.view === 'settings') ? '1' : '0'});"></div>
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {(trainingState.view === 'history' || trainingState.view === 'settings') ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
     </button>
   </nav>
 

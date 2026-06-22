@@ -1,33 +1,47 @@
-To test the updated app in Android Studio, follow these steps:
+# Climbing Tracker
 
-1. Build and Sync
-   Since I've made significant code changes, you need to compile the web code and "sync" it into the Android
-   project. Run this command in your terminal:
+A progressive web app built with Svelte and Vite to track your bouldering and climbing workouts.
 
-1 npm run build && npx cap sync android
+## Features
+- Track training load across different climbing styles and exercises
+- Comprehensive dashboard and analytics
+- Supports periodization and workout templates
+- Exports and imports training data to JSON
+- Offline support (using localForage)
+- Mobile-ready, can be compiled as an Android app using Capacitor
 
-2. Open in Android Studio
-   Once the sync is finished, you can open the project in Android Studio by running:
+## Setup for Web
 
-1 npx cap open android
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-3. Build and Run
-   Inside Android Studio:
-1. Wait for Gradle to finish indexing (look at the progress bar at the bottom).
-1. Select your Virtual Device (Emulator) or a physical device from the top toolbar dropdown.
-1. Click the Green Play Button (Run 'app') or press Shift + F10.
+2. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
 
-Pro Tip: Live Reload (Faster Testing)
-If you want to see changes instantly without rebuilding every time:
+3. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
-1.  Start the Vite dev server: npm run dev
-2.  Find your local IP address (e.g., 192.168.1.50).
-3.  In capacitor.config.json, add a server block:
+## Android Development (Capacitor)
 
-1 "server": {
-2 "url": "http://192.168.1.50:5173",
-3 "cleartext": true
-4 } 4. Run npx cap sync android one last time and launch from Android Studio. Now, whenever you save a file, the
-app in the emulator will update automatically!
+This project uses Capacitor to compile the web app into a native Android app.
 
-gemini --resume 06217720-4329-4aa1-aef9-e98545e72f7c
+1. **Setup Android environment:**
+   Ensure you have Android Studio installed.
+   ```bash
+   ./setup-android.sh
+   ```
+
+2. **Build and open in Android Studio:**
+   ```bash
+   ./run_android.sh
+   ```
+
+## Deploying to GitHub Pages
+
+This project is configured to be automatically deployed to GitHub Pages using GitHub Actions. Any push to the `main` or `master` branch will trigger a deployment.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId } from '../../lib/dateUtils';
-  import type { Workout, ExerciseTypeDef, Benchmark } from '../../lib/types';
+  import type { Workout, ExerciseTypeDef, Benchmark, ExerciseCategory } from '../../lib/types';
   import Icon from "@iconify/svelte";
 
   // --- State ---
@@ -14,9 +14,6 @@
   let showSettings = $state(false);
   let includePlanned = $state(true);
   let hiddenCategoryIds = $state<Set<string>>(new Set());
-  const visibleCategories = $derived(categories.filter(c => !hiddenCategoryIds.has(c.id)));
-  const maxVisibleDuration = $derived(Math.max(...chartData.weeks.map(w => visibleCategories.reduce((acc, cat) => acc + ((includePlanned ? w.categories[cat.name] : w.completedCategories[cat.name]) || 0), 0)), 1));
-
   // --- Handlers ---
   function navigate(direction: 'prev' | 'next' | 'today') {
     if (direction === 'prev') viewOffset--;
@@ -50,7 +47,8 @@
       plannedLoad: number,
       completedCount: number,
       totalCount: number,
-      categories: Record<string, number> 
+      categories: Record<string, number>,
+      completedCategories: Record<string, number>
     }>();
 
     const weeksToDisplay: string[] = [];
@@ -151,6 +149,9 @@
     };
   });
 
+  const visibleCategories = $derived(categories.filter(c => !hiddenCategoryIds.has(c.id)));
+  const maxVisibleDuration = $derived(Math.max(...chartData.weeks.map(w => visibleCategories.reduce((acc, cat) => acc + ((includePlanned ? w.categories[cat.name] : w.completedCategories[cat.name]) || 0), 0)), 1));
+
   /**
    * Derives chart data for the "Benchmark Progress" line graph.
    * Filters the last 10 historical entries for the currently selected benchmark type
@@ -220,16 +221,16 @@
     <div class="flex items-center gap-4">
       <button 
         onclick={() => trainingState.navigate('plan')}
-        class="p-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 text-zinc-400 hover:text-white transition-colors"
+        class="p-2 bg-surface-elevated/50 rounded-xl border border-border-strong/50 text-content-muted hover:text-content transition-colors"
       >
         <Icon icon="ic:baseline-arrow-back" class="text-xl" />
       </button>
-      <h2 class="text-xl font-bold text-white tracking-tight">Training Analytics</h2>
+      <h2 class="text-xl font-bold text-content tracking-tight">Training Analytics</h2>
     </div>
     
     <button 
       onclick={() => trainingState.exportToCSV()}
-      class="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl border border-zinc-700/50 transition-all text-[10px] font-bold uppercase tracking-widest active:scale-95"
+      class="flex items-center gap-2 px-3 py-2 bg-surface-elevated hover:bg-surface-elevated-hover text-content-muted hover:text-content rounded-xl border border-border-strong/50 transition-all text-[10px] font-bold uppercase tracking-widest active:scale-95"
     >
       <Icon icon="ic:baseline-download" class="text-sm" />
       CSV Export
@@ -237,20 +238,20 @@
   </div>
 
   <div class="space-y-8">
-    <div class="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl overflow-hidden relative">
+    <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl overflow-hidden relative">
       <!-- Background Glow -->
-      <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/10 blur-[100px] pointer-events-none"></div>
+      <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary-hover/10 blur-[100px] pointer-events-none"></div>
       
       <div class="flex items-center justify-between px-1 relative z-10">
         <div>
-          <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Rolling Load</h3>
-          <p class="text-[9px] text-zinc-500 uppercase mt-0.5">Weekly Targets vs Actual Output</p>
+          <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest">Rolling Load</h3>
+          <p class="text-[9px] text-content-subtle uppercase mt-0.5">Weekly Targets vs Actual Output</p>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick={() => navigate('today')} class="px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 text-[9px] font-black text-zinc-400 hover:text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-zinc-700/50">Today</button>
-          <div class="flex bg-zinc-900/50 rounded-xl border border-zinc-800 p-1">
-            <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
-            <button onclick={() => navigate('next')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
+          <button onclick={() => navigate('today')} class="px-2 py-1 bg-surface-elevated/50 hover:bg-surface-elevated text-[9px] font-black text-content-muted hover:text-content uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-border-strong/50">Today</button>
+          <div class="flex bg-surface/50 rounded-xl border border-border p-1">
+            <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
+            <button onclick={() => navigate('next')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
           </div>
         </div>
       </div>
@@ -260,9 +261,9 @@
         <div class="flex-1 relative flex items-end justify-between gap-2">
           <!-- Grid Lines -->
           <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 py-2">
-            <div class="border-t border-zinc-700 w-full"></div>
-            <div class="border-t border-zinc-700 w-full"></div>
-            <div class="border-t border-zinc-700 w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
           </div>
 
           <!-- Planned Load Line (SVG) -->
@@ -284,7 +285,7 @@
                 <path 
                   d="M {connectedPoints.map(p => `${p.x} ${p.y}`).join(' L ')}" 
                   fill="none" 
-                  stroke="#10b981" 
+                  stroke="var(--color-success)" 
                   stroke-width="2" 
                   stroke-dasharray="4 3"
                   stroke-linecap="round"
@@ -297,7 +298,7 @@
               <!-- Target Dots -->
               {#each planPoints as p}
                 {#if p.val > 0}
-                  <circle cx={p.x} cy={p.y} r="1.5" fill="#10b981" class="transition-all duration-1000" />
+                  <circle cx={p.x} cy={p.y} r="1.5" fill="var(--color-success)" class="transition-all duration-1000" />
                 {/if}
               {/each}
             {/if}
@@ -309,14 +310,14 @@
                 class="w-full bg-gradient-to-t from-blue-600/60 to-blue-400 rounded-t-lg transition-all duration-700 group-hover:from-blue-500 group-hover:to-blue-300 relative shadow-[0_-4px_12px_rgba(59,130,246,0.2)]"
                 style="height: {(week.totalLoad / chartData.maxLoad) * 100}%"
               >
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1.5 bg-zinc-800 text-[9px] font-black text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100 whitespace-nowrap z-20 border border-zinc-700 shadow-2xl pointer-events-none">
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1.5 bg-surface-elevated text-[9px] font-black text-content rounded-lg opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100 whitespace-nowrap z-20 border border-border-strong shadow-2xl pointer-events-none">
                   <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
-                      <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <div class="w-1.5 h-1.5 rounded-full bg-primary-hover"></div>
                       <span>Actual: {Math.round(week.totalLoad)}</span>
                     </div>
                     <div class="flex items-center gap-2 text-emerald-400">
-                      <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                      <div class="w-1.5 h-1.5 rounded-full bg-success-hover"></div>
                       <span>Target: {Math.round(week.totalPlannedLoad)}</span>
                     </div>
                   </div>
@@ -330,7 +331,7 @@
         <div class="flex justify-between gap-2 h-4">
           {#each chartData.weeks as week}
             <div class="flex-1 flex justify-center">
-              <span class="text-[8px] font-bold text-zinc-600 {week.isCurrent ? 'text-blue-500' : ''}">W{week.label}</span>
+              <span class="text-[8px] font-bold text-content-subtle {week.isCurrent ? 'text-primary' : ''}">W{week.label}</span>
             </div>
           {/each}
         </div>
@@ -339,38 +340,38 @@
       <div class="flex items-center gap-6 px-1 pt-2 relative z-10">
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded-md bg-gradient-to-t from-blue-600/80 to-blue-400"></div>
-          <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Actual Output</span>
+          <span class="text-[9px] font-bold text-content-muted uppercase tracking-widest">Actual Output</span>
         </div>
         <div class="flex items-center gap-2">
           <div class="w-4 h-0 border-t-2 border-dashed border-emerald-500"></div>
-          <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Target Path</span>
+          <span class="text-[9px] font-bold text-content-muted uppercase tracking-widest">Target Path</span>
         </div>
       </div>
     </div>
 
-    <div class="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl relative z-30">
-      <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 blur-[100px] pointer-events-none"></div>
+    <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl relative z-30">
+      <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-success-hover/10 blur-[100px] pointer-events-none"></div>
 
       <div class="flex flex-col gap-4 px-1 relative z-50">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Training Mix</h3>
-            <p class="text-[9px] text-zinc-500 uppercase mt-0.5">Activity breakdown by category</p>
+            <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest">Training Mix</h3>
+            <p class="text-[9px] text-content-subtle uppercase mt-0.5">Activity breakdown by category</p>
           </div>
           <div class="flex items-center gap-2">
-            <button onclick={() => navigate('today')} class="px-2 py-1 bg-zinc-800/50 hover:bg-zinc-800 text-[9px] font-black text-zinc-400 hover:text-white uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-zinc-700/50">Today</button>
-            <div class="flex bg-zinc-900/50 rounded-xl border border-zinc-800 p-1">
-              <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
-              <button onclick={() => navigate('next')} class="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
+            <button onclick={() => navigate('today')} class="px-2 py-1 bg-surface-elevated/50 hover:bg-surface-elevated text-[9px] font-black text-content-muted hover:text-content uppercase tracking-widest rounded-lg transition-all active:scale-95 border border-border-strong/50">Today</button>
+            <div class="flex bg-surface/50 rounded-xl border border-border p-1">
+              <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
+              <button onclick={() => navigate('next')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
             </div>
           </div>
         </div>
 
-        <div class="flex items-center justify-between gap-4 border-t border-zinc-800/50 pt-4">
+        <div class="flex items-center justify-between gap-4 border-t border-border/50 pt-4">
           <div class="relative z-50">
             <button 
               onclick={() => showSettings = !showSettings}
-              class="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-xl transition-colors text-[9px] font-bold text-zinc-400 hover:text-white uppercase tracking-widest"
+              class="flex items-center gap-2 px-3 py-1.5 bg-surface-elevated/50 hover:bg-surface-elevated border border-border-strong/50 rounded-xl transition-colors text-[9px] font-bold text-content-muted hover:text-content uppercase tracking-widest"
             >
               <Icon icon="ic:baseline-settings" />
               Graph Settings
@@ -380,31 +381,31 @@
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div class="fixed inset-0 z-40" onclick={() => showSettings = false}></div>
-              <div class="absolute top-full left-0 mt-2 w-56 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl z-50 p-3 space-y-4 animate-in fade-in zoom-in-95 origin-top-left">
+              <div class="absolute top-full left-0 mt-2 w-56 bg-surface border border-border-strong rounded-2xl shadow-2xl z-50 p-3 space-y-4 animate-in fade-in zoom-in-95 origin-top-left">
                 
                 <div class="space-y-2">
-                  <h4 class="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Display Mode</h4>
+                  <h4 class="text-[8px] font-black text-content-subtle uppercase tracking-widest mb-2 px-1">Display Mode</h4>
                   <label class="flex items-center justify-between cursor-pointer group px-1">
-                    <span class="text-[9px] font-bold text-zinc-300">Relative (%)</span>
+                    <span class="text-[9px] font-bold text-content-muted">Relative (%)</span>
                     <div class="relative inline-flex items-center">
                       <input type="checkbox" bind:checked={showRelative} class="sr-only peer" />
-                      <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-500"></div>
+                      <div class="w-8 h-4 bg-surface-elevated-hover rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-hover"></div>
                     </div>
                   </label>
                   <label class="flex items-center justify-between cursor-pointer group px-1">
-                    <span class="text-[9px] font-bold text-zinc-300">Include Planned</span>
+                    <span class="text-[9px] font-bold text-content-muted">Include Planned</span>
                     <div class="relative inline-flex items-center">
                       <input type="checkbox" bind:checked={includePlanned} class="sr-only peer" />
-                      <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                      <div class="w-8 h-4 bg-surface-elevated-hover rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-success-hover"></div>
                     </div>
                   </label>
                 </div>
 
-                <div class="border-t border-zinc-800 pt-3">
-                  <h4 class="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2 px-1">Visible Categories</h4>
+                <div class="border-t border-border pt-3">
+                  <h4 class="text-[8px] font-black text-content-subtle uppercase tracking-widest mb-2 px-1">Visible Categories</h4>
                   <div class="space-y-1">
                     {#each categories as cat}
-                      <label class="flex items-center gap-3 p-1.5 hover:bg-zinc-800 rounded-xl cursor-pointer transition-colors">
+                      <label class="flex items-center gap-3 p-1.5 hover:bg-surface-elevated rounded-xl cursor-pointer transition-colors">
                         <input 
                           type="checkbox" 
                           checked={!hiddenCategoryIds.has(cat.id)}
@@ -416,10 +417,10 @@
                             }
                             hiddenCategoryIds = new Set(hiddenCategoryIds);
                           }}
-                          class="w-3.5 h-3.5 bg-zinc-800 border-zinc-600 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-zinc-900"
+                          class="w-3.5 h-3.5 bg-surface-elevated border-zinc-600 rounded text-primary focus:ring-blue-500 focus:ring-offset-zinc-900"
                         />
                         <div class="w-2.5 h-2.5 rounded-full {cat.color}"></div>
-                        <span class="text-[10px] font-bold text-white">{cat.name}</span>
+                        <span class="text-[10px] font-bold text-content">{cat.name}</span>
                       </label>
                     {/each}
                   </div>
@@ -444,14 +445,14 @@
                     class="{cat.color} w-full border-t border-zinc-900/20 first:border-0 opacity-90 hover:opacity-100 transition-opacity relative group/bar"
                     style="height: {(catDuration / visibleTotalDuration) * 100}%"
                   >
-                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-[8px] font-bold text-white rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-xl border border-zinc-700">
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-xl border border-border-strong">
                       {cat.name}: {Math.round(catDuration)} min
                     </div>
                   </div>
                 {/if}
               {/each}
             </div>
-            <span class="text-[8px] font-bold text-zinc-600 group-hover:text-zinc-400">W{week.label}</span>
+            <span class="text-[8px] font-bold text-content-subtle group-hover:text-content-muted">W{week.label}</span>
           </div>
         {/each}
       </div>
@@ -460,30 +461,30 @@
         {#each visibleCategories as cat}
           <div class="flex items-center gap-2">
             <div class="w-2.5 h-2.5 rounded-full {cat.color} shadow-[0_0_8px_rgba(0,0,0,0.3)]"></div>
-            <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">{cat.name}</span>
+            <span class="text-[8px] font-bold text-content-subtle uppercase tracking-widest">{cat.name}</span>
           </div>
         {/each}
       </div>
     </div>
 
     {#if benchmarkProgress.types.length > 0}
-      <div class="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
+      <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
         <div class="flex items-center justify-between px-1">
           <div>
-            <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Benchmark Progress</h3>
+            <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest">Benchmark Progress</h3>
             <div class="relative mt-1">
               <select 
                 bind:value={selectedBenchmarkType}
-                class="bg-transparent text-[9px] text-blue-500 uppercase font-bold outline-none appearance-none pr-4 cursor-pointer"
+                class="bg-transparent text-[9px] text-primary uppercase font-bold outline-none appearance-none pr-4 cursor-pointer"
               >
                 {#each benchmarkProgress.types as type}
                   <option value={type.id}>{type.name}</option>
                 {/each}
               </select>
-              <Icon icon="ic:baseline-arrow-drop-down" class="absolute right-0 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" />
+              <Icon icon="ic:baseline-arrow-drop-down" class="absolute right-0 top-1/2 -translate-y-1/2 text-primary pointer-events-none" />
             </div>
           </div>
-          <div class="p-2 bg-blue-500/10 rounded-xl text-blue-500">
+          <div class="p-2 bg-primary-hover/10 rounded-xl text-primary">
             <Icon icon="ic:baseline-insights" class="text-lg" />
           </div>
         </div>
@@ -491,17 +492,17 @@
         <div class="h-48 relative px-1">
           <!-- Grid Lines -->
           <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 py-2">
-            <div class="border-t border-zinc-700 w-full"></div>
-            <div class="border-t border-zinc-700 w-full"></div>
-            <div class="border-t border-zinc-700 w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
+            <div class="border-t border-border-strong w-full"></div>
           </div>
 
           <!-- SVG Line Graph -->
           <svg class="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
             <defs>
               <linearGradient id="line-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3" />
-                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+                <stop offset="0%" stop-color="var(--color-primary)" stop-opacity="0.3" />
+                <stop offset="100%" stop-color="var(--color-primary)" stop-opacity="0" />
               </linearGradient>
             </defs>
             
@@ -517,7 +518,7 @@
               <path 
                 d={benchmarkProgress.linePath}
                 fill="none" 
-                stroke="#3b82f6" 
+                stroke="var(--color-primary)" 
                 stroke-width="3" 
                 stroke-linecap="round" 
                 stroke-linejoin="round"
@@ -532,18 +533,18 @@
               {@const xPos = (i / Math.max(benchmarkProgress.history.length - 1, 1)) * 100}
               <div class="absolute flex flex-col items-center group" style="left: {xPos}%; height: 100%;">
                 <!-- Tooltip -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1 bg-zinc-800 text-[8px] font-bold text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 border border-zinc-700 shadow-xl pointer-events-none">
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 border border-border-strong shadow-xl pointer-events-none">
                   {entry.value} {entry.unit}
                 </div>
                 
                 <!-- Dot -->
                 <div 
-                  class="w-3 h-3 bg-blue-500 rounded-full border-4 border-[#121214] shadow-lg group-hover:scale-150 transition-transform z-10 absolute -translate-x-1/2"
+                  class="w-3 h-3 bg-primary-hover rounded-full border-4 border-surface shadow-lg group-hover:scale-150 transition-transform z-10 absolute -translate-x-1/2"
                   style="bottom: {entry.height}%; left: 0;"
                 ></div>
 
                 <!-- Date Label -->
-                <span class="text-[8px] font-bold text-zinc-600 group-hover:text-zinc-400 absolute top-full mt-2 rotate-[-45deg] origin-top-left whitespace-nowrap">
+                <span class="text-[8px] font-bold text-content-subtle group-hover:text-content-muted absolute top-full mt-2 rotate-[-45deg] origin-top-left whitespace-nowrap">
                   {new Date(entry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </span>
               </div>
@@ -552,7 +553,7 @@
           
           {#if benchmarkProgress.history.length === 0}
             <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <p class="text-[10px] text-zinc-600 italic font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
+              <p class="text-[10px] text-content-subtle italic font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
                 Log a {benchmarkProgress.types.find(t => t.id === selectedBenchmarkType)?.name || 'benchmark'} to see your progress
               </p>
             </div>
@@ -563,9 +564,9 @@
     {/if}
 
     {#if trainingState.completedWorkouts.length === 0}
-      <div class="py-12 text-center bg-zinc-800/20 rounded-3xl border border-dashed border-zinc-800">
+      <div class="py-12 text-center bg-surface-elevated/20 rounded-3xl border border-dashed border-border">
         <Icon icon="ic:baseline-insights" class="text-3xl text-zinc-700 mx-auto mb-3" />
-        <p class="text-[10px] text-zinc-500 italic uppercase tracking-widest px-8 leading-relaxed">
+        <p class="text-[10px] text-content-subtle italic uppercase tracking-widest px-8 leading-relaxed">
           Complete some sessions to unlock detailed training analytics
         </p>
       </div>

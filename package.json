@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.0",
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.0",
     "@iconify/svelte": "^5.2.2",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
@@ -29,6 +30,8 @@
     "@capacitor/dialog": "^8.0.1",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/share": "^8.0.1",
-    "localforage": "^1.10.0"
+    "html2pdf.js": "^0.14.0",
+    "localforage": "^1.10.0",
+    "svelte-dnd-action": "^0.9.70"
   }
 }

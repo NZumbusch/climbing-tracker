@@ -30,7 +30,8 @@ export interface AnalyticsCategory {
  */
 export type ParameterBlock =
   | "duration"
-  | "grades"
+  | "boulderingGrades"
+  | "routeGrades"
   | "cadence"
   | "climbingStyle"
   | "boardType"
@@ -46,7 +47,13 @@ export type ParameterBlock =
   | "weight"
   | "distance"
   | "campusStyle"
-  | "difficulty";
+  | "difficulty"
+  | "mobilityType"
+  | "leadStyle"
+  | "movesPerRoute"
+  | "routeDifficulty"
+  | "bodyweightPercent"
+  | "maxWeightPercent";
 
 /**
  * Defines a custom exercise modality, its tracking parameters, and defaults.
@@ -55,8 +62,10 @@ export interface ExerciseTypeDef {
   id: string;
   name: string;
   category: ExerciseCategory;
-  /** Parameters that this exercise type uses in its form */
+  /** Parameters that are added by default when creating this exercise */
   parameters: ParameterBlock[];
+  /** All parameters that make sense for this exercise (including defaults). If undefined, assumed equal to parameters. */
+  possibleParameters?: ParameterBlock[];
   /** Expected stress scale (1-10) for a standard session of this type */
   defaultPlannedLoad?: number;
 }
@@ -69,6 +78,8 @@ export interface Exercise {
   type: string;
   category?: string; // Overrides the default AnalyticsCategory of the type
   notes?: string;
+  /** Explicitly tracks which parameters are active for this specific instance */
+  activeParameters?: ParameterBlock[];
   duration?: number;
   /** The specific planned load (1-10) assigned for this instance */
   plannedLoad?: number;
@@ -76,15 +87,21 @@ export interface Exercise {
   // Technique / Bouldering
   minGrade?: string;
   maxGrade?: string;
-  cadence?: number; // min/boulder
+  cadence?: number; // min/boulder (or routes/hour)
   climbingStyle?: ("Slab" | "Coordination" | "Power" | "Board")[];
   boardType?: "Kilterboard" | "Moonboard" | "Tension Board" | "Spraywall";
   boardAngle?: number; // 20-70
+
+  // Lead Climbing
+  minRouteGrade?: string;
+  maxRouteGrade?: string;
+  leadStyle?: ("Onsight" | "Flash" | "Redpoint" | "Projecting")[];
 
   // Non-Free / General
   variant?: string; // 4x4, EMOM, etc.
   sets?: number;
   reps?: number;
+  movesPerRoute?: number;
 
   // Specific / Hangboard / Weights / Cardio
   holdType?:
@@ -106,6 +123,12 @@ export interface Exercise {
 
   // Core / RPE
   difficulty?: number; // Perceived exertion 1-10
+  routeDifficulty?: "Easy" | "Moderate" | "Hard";
+  bodyweightPercent?: number; // % of bodyweight (e.g., 100% = bodyweight, 120% = BW + 20% weight)
+  maxWeightPercent?: number; // % of 1RM or max weight
+
+  // Mobility
+  mobilityType?: ("Hamstrings" | "Shoulders" | "Hips" | "Spine" | "Ankles" | "Wrists")[];
 }
 
 export type DayOfWeek =
@@ -125,6 +148,7 @@ export interface Workout {
   status: "planned" | "completed";
   /** ISO date string of completion, or null if planned */
   date: string | null;
+  startTime?: string; // HH:mm format
   dayOfWeek?: DayOfWeek;
   notes?: string; // Used as the session name
   description?: string; // Extended notes/description for the session
