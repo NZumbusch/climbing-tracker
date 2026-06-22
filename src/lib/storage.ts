@@ -790,7 +790,7 @@ export const storage = {
       exportVersion: DATA_EXPORT_VERSION,
     };
 
-    const fileName = `boulder-tracker-backup-${new Date().toISOString().split("T")[0]}.json`;
+    const fileName = `climbing-tracker-backup-${new Date().toISOString().split("T")[0]}.json`;
     const jsonString = JSON.stringify(data, null, 2);
 
     if (Capacitor.isNativePlatform()) {
@@ -804,7 +804,7 @@ export const storage = {
 
         await Share.share({
           title: "Export Training Data",
-          text: "Backup of your boulder tracker data",
+          text: "Backup of your climbing tracker data",
           url: result.uri,
           dialogTitle: "Save or Share Data",
         });

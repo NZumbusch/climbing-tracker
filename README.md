@@ -1,6 +1,6 @@
 # Climbing Tracker
 
-A progressive web app built with Svelte and Vite to track your bouldering and climbing workouts.
+A web app built with Svelte and Vite to track your bouldering and climbing workouts.
 
 ## Features
 - Track training load across different climbing styles and exercises

@@ -78,7 +78,7 @@
         margin:       10,
         filename:     `training-plan-${startWeek}-to-${endWeek}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        html2canvas:  { scale: 2, useCORS: true, windowWidth: 750 },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
@@ -145,10 +145,11 @@
 </div>
 
 <!-- Hidden Printable Content Container -->
-<div class="fixed left-[-9999px] top-[-9999px] overflow-visible w-[800px] hidden" style="background-color: #ffffff; color: #000000;" bind:this={printContainer}>
+<div class="absolute top-0 left-0 w-0 h-0 overflow-hidden pointer-events-none z-[-50]">
+  <div style="width: 750px; background-color: #ffffff; color: #000000; box-sizing: border-box;" bind:this={printContainer}>
   <div class="p-10 font-sans" style="background-color: #ffffff; color: #000000;">
     <div class="mb-8 border-b-2 pb-4 text-center" style="border-color: #000000;">
-      <h1 class="text-4xl font-black uppercase tracking-widest">Boulder Tracker</h1>
+      <h1 class="text-4xl font-black uppercase tracking-widest">Climbing Tracker</h1>
       <p class="text-sm mt-2 font-bold" style="color: #4b5563;">Training Plan: {startWeek} to {endWeek}</p>
     </div>
 
@@ -165,11 +166,11 @@
           <div class="grid grid-cols-1 gap-6 px-4">
             {#each week.workouts as workout}
               <div class="border rounded-xl p-5 break-inside-avoid" style="border-color: #d1d5db;">
-                <div class="flex justify-between items-center border-b pb-3 mb-4" style="border-color: #e5e7eb;">
+                <div class="flex justify-between items-end border-b pb-3 mb-5" style="border-color: #e5e7eb;">
                   <h3 class="text-xl font-bold">{workout.notes || 'Unnamed Session'}</h3>
-                  <div class="text-sm font-bold px-3 py-1 rounded-full uppercase tracking-wider" style="background-color: #000000; color: #ffffff;">
+                  <span class="text-sm font-bold uppercase tracking-widest" style="color: #6b7280;">
                     {workout.dayOfWeek || 'Unscheduled'}
-                  </div>
+                  </span>
                 </div>
 
                 {#if !workout.exercises || workout.exercises.length === 0}
@@ -195,7 +196,10 @@
                           </div>
                           
                           {#if ex.notes}
-                            <p class="text-sm mt-2 p-2 rounded border" style="color: #4b5563; background-color: #f9fafb; border-color: #f3f4f6;">📝 {ex.notes}</p>
+                            <div style="position: relative; margin-top: 12px; min-height: 20px;">
+                              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background-color: #9ca3af; border-radius: 9999px;"></div>
+                              <div style="position: absolute; left: 10px; top: -7px; bottom: 0px; width: full; color: #4b5563; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">{ex.notes ? ex.notes.trim() : ''}</div>
+                            </div>
                           {/if}
                         </div>
                       </li>
@@ -209,6 +213,7 @@
       </div>
     {/each}
   </div>
+</div>
 </div>
 
 <style>

@@ -2,12 +2,6 @@
   // Logic & Storage
   import { trainingState } from './lib/state.svelte';
   
-  // View Components
-  import TrainingPlan from './components/plan/TrainingPlan.svelte';
-  import WorkoutForm from './components/workout/WorkoutForm.svelte';
-  import History from './components/history/History.svelte';
-  import Settings from './components/settings/Settings.svelte';
-  import Analytics from './components/analytics/Analytics.svelte';
   import FatigueModal from './components/common/FatigueModal.svelte';
   import Icon from "@iconify/svelte";
 
@@ -29,21 +23,31 @@
         <p class="text-content-subtle text-xs font-bold uppercase tracking-widest">Loading Training Data...</p>
       </div>
     {:else if trainingState.view === 'plan'}
-      <TrainingPlan />
+      {#await import('./components/plan/TrainingPlan.svelte') then { default: TrainingPlan }}
+        <TrainingPlan />
+      {/await}
     {:else if trainingState.view === 'add'}
-      <WorkoutForm 
-        plannedWorkouts={plannedThisWeek} 
-        workout={trainingState.activeWorkout}
-      />
+      {#await import('./components/workout/WorkoutForm.svelte') then { default: WorkoutForm }}
+        <WorkoutForm 
+          plannedWorkouts={plannedThisWeek} 
+          workout={trainingState.activeWorkout}
+        />
+      {/await}
     {:else if trainingState.view === 'history'}
-      <History />
+      {#await import('./components/history/History.svelte') then { default: History }}
+        <History />
+      {/await}
     {:else if trainingState.view === 'settings'}
-      <Settings 
-        onExport={() => trainingState.exportData()}
-        onImport={(e) => trainingState.importData(e)}
-      />
+      {#await import('./components/settings/Settings.svelte') then { default: Settings }}
+        <Settings 
+          onExport={() => trainingState.exportData()}
+          onImport={(e) => trainingState.importData(e)}
+        />
+      {/await}
     {:else if trainingState.view === 'analytics'}
-      <Analytics />
+      {#await import('./components/analytics/Analytics.svelte') then { default: Analytics }}
+        <Analytics />
+      {/await}
     {/if}
   </div>
 

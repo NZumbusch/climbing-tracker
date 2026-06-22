@@ -429,28 +429,28 @@
       <button onclick={() => currentTab = 'customization'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-primary-hover/10 rounded-2xl text-primary group-hover:bg-primary-hover group-hover:text-white transition-colors"><Icon icon="ic:baseline-tune" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-base font-bold text-content">Customization</p><p class="text-[11px] text-content-subtle mt-1">Modalities, Analytics, Benchmarks</p></div>
+          <div class="text-left"><p class="text-base font-bold text-content">Customization</p><p class="text-[11px] text-content-subtle mt-1">Configure tracking parameters and categories</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
       <button onclick={() => currentTab = 'design'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-tertiary-hover/10 rounded-2xl text-tertiary group-hover:bg-tertiary-hover group-hover:text-white transition-colors"><Icon icon="ic:baseline-color-lens" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-base font-bold text-content">Appearance & Design</p><p class="text-[11px] text-content-subtle mt-1">Contrast, Visuals & Themes</p></div>
+          <div class="text-left"><p class="text-base font-bold text-content">Appearance & Design</p><p class="text-[11px] text-content-subtle mt-1">Interface aesthetics and accessibility</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
       <button onclick={() => currentTab = 'integration'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors"><Icon icon="ic:baseline-sync" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-base font-bold text-content">Data & Exports</p><p class="text-[11px] text-content-subtle mt-1">Calendar, JSON Backups, Apps</p></div>
+          <div class="text-left"><p class="text-base font-bold text-content">Data & Exports</p><p class="text-[11px] text-content-subtle mt-1">Manage backups and external integrations</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
       <button onclick={() => currentTab = 'about'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-zinc-500/10 rounded-2xl text-content-subtle group-hover:bg-zinc-500 group-hover:text-content transition-colors"><Icon icon="ic:baseline-info" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-base font-bold text-content">About & Impressum</p><p class="text-[11px] text-content-subtle mt-1">Impressum, Credits & License</p></div>
+          <div class="text-left"><p class="text-base font-bold text-content">About & Impressum</p><p class="text-[11px] text-content-subtle mt-1">Application details and legal information</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
@@ -460,7 +460,7 @@
       <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
       <div class="space-y-2">
         <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Exercise Modalities</h3>
-        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Define custom exercise types and their tracking parameters.</p>
+        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure custom training modalities and their associated metrics.</p>
       </div>
 
       {#if isAddingType && editingType}
@@ -495,7 +495,7 @@
     <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
       <div class="space-y-2">
         <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Analytics Categories</h3>
-        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Manage categories for the Training Mix graph.</p>
+        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure analytical classifications for training distribution visualization.</p>
       </div>
 
       {#if isAddingAnalyticsCategory && editingAnalyticsCategory}
@@ -562,7 +562,7 @@
     <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
       <div class="space-y-2">
         <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Benchmark Types</h3>
-        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Customize performance tests and their units.</p>
+        <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Define standard performance benchmarks and measurement units.</p>
       </div>
 
       {#if isAddingBenchmark && editingBenchmarkType}
@@ -590,7 +590,7 @@
     </div>
 
     <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
-      <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Training Templates</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">Customize default sessions for each periodization phase.</p></div>
+      <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Training Templates</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure default training templates for macrocycle phases.</p></div>
       <div class="space-y-4">
         <div class="flex flex-wrap gap-2">{#each phases as phase}<button onclick={() => { selectedPhase = phase; editingWorkoutIndex = null; isAddingExercise = false; }} class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border {selectedPhase === phase ? 'bg-primary border-primary text-white shadow-lg' : 'bg-surface-elevated/50 border-border-strong text-content-muted hover:text-content'}">{phase}</button>{/each}</div>
         {#if selectedPhase && templates}
@@ -696,7 +696,7 @@
       <div class="bg-surface border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl animate-in fade-in">
         <div class="space-y-2">
           <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Visual Settings</h3>
-          <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Adjust the app's appearance to suit your needs, especially helpful for outdoor use.</p>
+          <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure interface themes and high-contrast settings to optimize visibility across diverse lighting conditions.</p>
         </div>
         <div class="space-y-3">
           <button 
@@ -737,7 +737,7 @@
               <Icon icon="ic:baseline-contrast" class="text-xl" />
               <div class="text-left">
                 <p class="text-sm font-bold">High Contrast</p>
-                <p class="text-[9px] opacity-80 mt-1">Maximum readability for direct sunlight.</p>
+                <p class="text-[9px] opacity-80 mt-1">Maximized contrast ratio for optimal outdoor readability.</p>
               </div>
             </div>
             {#if trainingState.theme === 'contrast'}
@@ -752,7 +752,7 @@
       <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl animate-in fade-in">
         <div class="space-y-2">
           <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Calendar Integration</h3>
-          <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Export your workouts to an ICS file to import into Samsung Calendar, Google Calendar, or Apple Calendar.</p>
+          <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Export training history as an ICS file for integration with standard calendar applications.</p>
         </div>
         <button 
           onclick={() => exportWorkoutsToICS(trainingState.workouts)} 
@@ -772,7 +772,7 @@
       </div>
       
       <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl animate-in fade-in">
-        <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Printable Training Plan</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">Generate a beautifully formatted PDF of your workouts for any week range.</p></div>
+        <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Printable Training Plan</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">Generate a PDF of your workouts for any week range.</p></div>
         <button 
           onclick={() => showPDFExport = true} 
           class="w-full flex items-center justify-between p-4 bg-surface-elevated/50 hover:bg-surface-elevated rounded-2xl border border-border-strong/50 transition-all group"
@@ -807,15 +807,15 @@
         <div class="space-y-4">
           <div class="text-center py-4">
             <Icon icon="ic:baseline-terrain" class="text-6xl text-primary mx-auto mb-2" />
-            <h3 class="text-xl font-black text-content">Boulder Tracker</h3>
+            <h3 class="text-xl font-black text-content">Climbing Tracker</h3>
             <p class="text-xs text-content-subtle mt-1">Version 1.0.0</p>
           </div>
           
           <div class="space-y-2 pt-4 border-t border-border">
             <h4 class="text-xs font-bold text-content-muted uppercase tracking-widest">Impressum</h4>
             <p class="text-[11px] text-content-muted leading-relaxed">
-              Developer: Boulder Tracker Team<br/>
-              Contact: support@bouldertracker.app<br/>
+              Developer: Climbing Tracker Team<br/>
+              Contact: support@climbingtracker.app<br/>
               <br/>
               Created with passion for the climbing community.
             </p>

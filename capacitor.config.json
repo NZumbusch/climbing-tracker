@@ -1,5 +1,5 @@
 {
-  "appId": "com.bouldertracker.app",
-  "appName": "boulder-tracker",
+  "appId": "com.climbingtracker.app",
+  "appName": "climbing-tracker",
   "webDir": "dist"
 }

@@ -120,7 +120,7 @@ export function exportWorkoutsToICS(workouts: Workout[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `boulder-tracker-workouts-${new Date().toISOString().split('T')[0]}.ics`);
+  link.setAttribute('download', `climbing-tracker-workouts-${new Date().toISOString().split('T')[0]}.ics`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
