@@ -7,6 +7,7 @@
   import Icon from "@iconify/svelte";
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIPromptModal from './AIPromptModal.svelte';
+  import AIImportModal from './AIImportModal.svelte';
   import WeekCalendar from './WeekCalendar.svelte';
   import BlockManager from './BlockManager.svelte';
   import CompetitionCalendar from './CompetitionCalendar.svelte';
@@ -31,6 +32,7 @@
   let isAddingBenchmark = $state(false);
   let editingBenchmark = $state<Benchmark | null>(null);
   let showAIPrompt = $state(false);
+  let showAIImport = $state(false);
   let showBlockManager = $state(false);
 
   // --- Logic: Calendar Generation ---
@@ -180,8 +182,17 @@
           onclick={() => showAIPrompt = true}
           class="px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all active:scale-95"
           aria-label="Generate AI Prompt"
+          title="Generate AI Prompt"
         >
           <Icon icon="ic:baseline-auto-awesome" class="text-sm" />
+        </button>
+        <button
+          onclick={() => showAIImport = true}
+          class="px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all active:scale-95"
+          aria-label="Import AI Plan"
+          title="Import AI Plan"
+        >
+          <Icon icon="ic:baseline-file-upload" class="text-sm" />
         </button>
         <button
           onclick={() => navigate('today')}
@@ -364,6 +375,10 @@
 
 {#if showAIPrompt}
   <AIPromptModal onClose={() => showAIPrompt = false} />
+{/if}
+
+{#if showAIImport}
+  <AIImportModal mode="plan" onClose={() => showAIImport = false} />
 {/if}
 
 {#if showBlockManager}

@@ -1502,3 +1502,179 @@ be generated from pasted AI output instead of only manual entry.
 **Commit:** made as its own commit, referencing "Phase 4" per the plan's
 convention.
 
+---
+
+## 2026-09-16 — Phase 5 implemented: AI import/export pipeline
+
+**New module `src/lib/ai/schema.ts`:** hand-rolled runtime validators (no new
+dependency, per PLAN.md's stated default) for `AIPlanOutput` and
+`AIWorkoutLogOutput`. Deliberately **all-or-nothing**: if any required field
+anywhere in the document is missing or the wrong type, the whole parse is
+rejected (`valid: false`, no `data`) rather than importing the well-formed
+parts - this is what makes "never silently commit anything on invalid
+input" trivially true at the validation layer, and it's simple enough to
+test exhaustively (see below). Deliberately permissive in the other
+direction: unrecognized object keys anywhere (top-level, per-week/workout/
+exercise, inside `values`) are silently ignored rather than rejected, since
+LLMs routinely add extra commentary fields even when told not to and an
+unknown key can't corrupt anything (it's never read). Numeric fields accept
+a numeric string ("30") and coerce it, since LLMs often quote numbers.
+`parseAIPlanOutput`/`parseAIWorkoutLogOutput` wrap `JSON.parse` so garbage/
+non-JSON text and truncated input surface as one clear issue instead of
+throwing. Also exports the exact prompt text embedding each schema
+(`AI_PLAN_OUTPUT_INSTRUCTIONS`, `AI_WORKOUT_LOG_OUTPUT_INSTRUCTIONS`), so the
+prompt shown to the user and the validator can't silently drift apart.
+
+**New module `src/lib/ai/planImport.ts`:** pure, storage-free functions -
+`buildPlanPreview` (what importing a validated plan would do against the
+*current* catalog: per-week phase/workout/exercise counts, deduped
+unresolved exercise-type/phase name lists) and `buildPlanCommit` (given the
+plan plus the user's mapping choice for every unresolved name, produces
+exactly what would be written: new `ExerciseTypeDef`/`PhaseDef` entries for
+any "create" mappings, `TrainingBlock`s, and planned `Workout`s - never
+touches storage itself). Matching-by-name is exact, case-insensitive only -
+deliberately no fuzzy matching, to avoid surprising auto-links a user didn't
+choose.
+
+**Judgment call - `NameMapping` records must be keyed by `normalizeName(name)`,
+not the raw display string:** found while writing `planImport.test.ts` -
+if a plan referenced the same exercise/phase name with different casing in
+different weeks (a real thing LLMs do), the mapping the user chose for the
+first occurrence needs to also apply to the others. Made this an explicit,
+documented contract (`normalizeName` exported, both `buildPlanCommit`'s
+mapping params and `AIImportModal.svelte`'s state keyed by it) rather than
+trying to match on the raw string.
+
+**Judgment call - `TrainingBlock` grouping, not one block per week:** PLAN.md's
+`TrainingBlock` is inherently a possibly-multi-week concurrent emphasis, and
+an AI-generated plan naturally proposes runs of consecutive same-phase weeks
+- so `buildPlanCommit` sorts the plan's weeks chronologically (weekId
+strings sort correctly, per the existing Phase 4 precedent in
+`trainingBlocks.ts`) and merges contiguous same-resolved-phase weeks into
+one `TrainingBlock` each, using the new `getWeekIdRange`/`incrementWeekId`
+helpers added to `dateUtils.ts` for this. Chose this over reusing
+`planningStore.assignPhase` (the existing single-week "quick assign" path)
+because that path also auto-generates workouts from the phase's *templates*
+- which would either double up with or fight against the AI's own explicit
+workouts for that week. `saveTrainingBlock` (already a normal, existing
+Phase 4 domain service, "the concurrent-block / overlapping-emphasis editing
+path" per its own PROGRESS.md entry) is the correct one to reuse here - it
+just persists a block, no side effects to work around.
+
+**New module `src/lib/ai/workoutLogImport.ts`:** the "paste free-text
+training notes, get structured exercises" flow, reusing `AIExercise`/
+name-resolution/`buildExerciseSlot` from `planImport.ts` (exported for
+this). Its target is a single in-progress workout's exercise list
+(`WorkoutForm.svelte`), not the whole calendar, so every exercise from every
+parsed "workout" in the JSON is flattened into one slot list - matching
+PLAN.md's own framing ("targeting a single workout's exercises instead of a
+whole plan"). `bucket: 'prescribed' | 'logged'` selects which `ExerciseSlot`
+field the parsed values land in, mirroring `WorkoutForm.svelte`'s existing
+`exerciseFormMode` distinction from Phase 1.
+
+**New component `src/components/plan/AIImportModal.svelte`:** paste -> live
+validate (on every keystroke, cheap) -> preview/diff -> per-unresolved-name
+mapping (dropdown: map to an existing catalog entry, or create new,
+defaulting to "create" but always visibly listed before commit, never
+silent) -> "Confirm Import" (disabled until the parse is valid and there's
+at least something to import) -> commit. Two modes sharing one component and
+one pipeline:
+- `mode="plan"` (opened from a new button on `TrainingPlan.svelte`, next to
+  the existing "Generate AI Prompt" button): commits directly via
+  `trainingState.updateExerciseTypes`/`updatePhaseDefs`/`saveTrainingBlock`/
+  `saveWorkout` - the normal domain services, never a special-cased write
+  path, per PLAN.md's explicit requirement.
+- `mode="workoutLog"` (opened from a new button in `WorkoutForm.svelte`'s
+  exercise list header, next to "Add Exercise"): only persists newly-created
+  exercise types (a global catalog concern) via the same service; the
+  resolved `ExerciseSlot[]` are handed back to `WorkoutForm` via
+  `onImportWorkoutLog`, which appends them to the in-progress workout's
+  local `$state` - not written to storage until the user finishes/saves that
+  form through the existing flow, since there is no "append to an
+  already-open workout" storage action and shouldn't be one.
+
+**`AIPromptModal.svelte` changes (PLAN.md's explicit scope):**
+- New third tab, "Context Only": exports the same condensed training
+  profile as the other two modes but with no coaching prompt/instructions
+  attached, for pasting into any LLM to ask free-form questions.
+- "Generate Plan"'s prompt text now ends with `AI_PLAN_OUTPUT_INSTRUCTIONS`
+  (the exact JSON shape + rules, imported from `schema.ts`) instead of the
+  old "Please provide a JSON or clear text format..." line - replacing the
+  too-loose-to-validate-against instruction PLAN.md called out by name.
+- Small refactor while already touching this function: extracted the
+  inline week-range-building loop into `dateUtils.ts`'s new
+  `getWeekIdRange`/`incrementWeekId` (also used by `planImport.ts`'s block
+  grouping) - same 52-weeks-per-year approximation as before, just no longer
+  duplicated in two places.
+
+**Bug found and fixed while touching this file (not scope creep - directly
+in the function this phase was already rewriting):** `handleCopyPrompt` had
+`const data = await storage.exportData();` whose result `data` was never
+referenced anywhere else in the function - the actual prompt text is built
+entirely from `trainingState`, already in memory. `storage.exportData()`
+doesn't return prompt data at all (`Promise<void>`) - it performs a full
+*file download* (web) or opens the native OS *share sheet* (Capacitor) as a
+side effect. This meant every click of "Copy Prompt" in the shipped app was
+**also silently triggering a full backup export/download or a native share
+dialog**, unrelated to what the button says it does. Confirmed by reading
+`storage.exportData`'s implementation (`src/lib/storage/index.ts`), not
+just inferred from the unused variable. Fixed by deleting the call - the
+function only ever needed `trainingState`, which was already available.
+
+**Tests** (`src/lib/ai/schema.test.ts`, `planImport.test.ts`,
+`workoutLogImport.test.ts` - 53 new, all passing): per PLAN.md's explicit
+DoD ("test missing fields, wrong types, extra fields, and unresolvable
+exercise-type names" - not just happy path), `schema.test.ts` covers:
+non-object top-level input, missing `weeks`/`workouts` arrays, missing
+`weekId`/`phaseName`/`exerciseTypeName`, malformed `weekId` format,
+empty-string required fields, non-numeric values for numeric fields
+(including a boolean), a string where a `string[]` field is expected, mixed
+-type arrays, invalid `dayOfWeek` values, a wrong-type `values` object,
+garbage non-JSON text, empty input, truncated JSON, and JSON wrapped in
+markdown code fences (deliberately *not* auto-stripped - surfaced as an
+error rather than silently guessing intent) - plus that every issue in a
+multi-problem document is collected, not just the first, and that unknown/
+extra fields and numeric-string coercion are tolerated. `planImport.test.ts`/
+`workoutLogImport.test.ts` cover: case-insensitive exact-name matching (and
+that it does *not* fuzzy-match), unresolved-name dedup across
+differently-cased occurrences, "map to existing" vs. "create new" for both
+exercise types and phases, that a "create" for a name repeated across
+multiple exercises/workouts reuses the same new id (not one per occurrence),
+contiguous-same-phase-week grouping into one `TrainingBlock` (including
+out-of-order input weeks sorting correctly first), determinism, and that the
+catalog inputs (`exerciseTypes`/`phaseDefs`) are never mutated.
+
+**Verification performed:**
+- `npm run test` -> 149/149 pass (96 prior, unchanged + 53 new).
+- `npm run check` -> 0 errors, 0 warnings, 393 files. (One round-trip fix
+  needed: `AIImportModal.svelte`'s `<select>` bindings originally read
+  `mapping?.id` directly off the `NameMapping` union, which only the `"map"`
+  variant has - `svelte-check` correctly rejected this; replaced with a
+  `mappingSelectValue()` helper that narrows on `.action` first.)
+- `npx vite build` -> production build succeeds (same pre-existing >500kB
+  `Settings` chunk warning as every prior phase, unrelated to this one; new
+  `AIImportModal` chunk is 24kB/7.6kB gzipped).
+- **Manual verification: handed to the user by their own request** - two
+  dev servers were already running from earlier sessions
+  (`localhost:5173`/`5174`, confirmed responding), left running so Vite's
+  HMR picks up this phase's changes automatically. The user asked to test
+  the "Generate Plan" -> real LLM -> "Import AI Plan" round trip themselves
+  rather than have this session attempt browser automation - this is a
+  deliberate handoff, not a gap being silently claimed as done. PLAN.md's
+  manual-test bullets (run a real "Generate Plan" prompt through a real LLM,
+  paste the result back in, confirm the preview is accurate, confirm
+  nothing writes until confirmed, confirm an unresolvable exercise-type name
+  is surfaced rather than silently dropped/invented) are **not yet
+  confirmed in the running app** as of this entry.
+
+**Explicitly not done here** (deferred, consistent with PLAN.md's own
+framing or out of this phase's stated scope): fuzzy/approximate name
+matching (exact case-insensitive only, by design - see above); an
+archive-aware mapping UI (the "map to existing" dropdowns only list
+non-archived catalog entries, matching every other picker in this app since
+Phase 1/3); a `zod`-based (or other schema-library) rewrite of the
+validators (hand-rolled was PLAN.md's stated default, taken as-is).
+
+**Commit:** made as its own commit, referencing "Phase 5" per the plan's
+convention.
+

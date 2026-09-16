@@ -25,6 +25,45 @@ export function getWeekId(date: Date): string {
 }
 
 /**
+ * Returns the week id immediately following `weekId`. Approximates every
+ * year as 52 weeks (matches the pre-existing week-range loop this was
+ * extracted from in `AIPromptModal.svelte` - see PROGRESS.md) rather than
+ * computing true ISO week counts (52 or 53 depending on the year): a 53-week
+ * year can produce one extra, slightly-early rollover to next year. Low-risk
+ * here - only used for week-range generation/grouping, not for `getWeekId`
+ * itself (which is exact).
+ */
+export function incrementWeekId(weekId: string): string {
+  const match = weekId.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return weekId;
+  let year = parseInt(match[1], 10);
+  let week = parseInt(match[2], 10) + 1;
+  if (week > 52) {
+    week = 1;
+    year++;
+  }
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Returns every week id from `startWeekId` to `endWeekId` inclusive.
+ * Relies on "YYYY-Www" sorting correctly as a plain string (confirmed
+ * elsewhere in this codebase, e.g. `trainingBlocks.ts`). Returns an empty
+ * array if `startWeekId` is after `endWeekId`. Capped at 500 iterations as a
+ * guard against a malformed id that never reaches `endWeekId`.
+ */
+export function getWeekIdRange(startWeekId: string, endWeekId: string): string[] {
+  const ids: string[] = [];
+  let current = startWeekId;
+  for (let i = 0; i < 500 && current <= endWeekId; i++) {
+    ids.push(current);
+    if (current === endWeekId) break;
+    current = incrementWeekId(current);
+  }
+  return ids;
+}
+
+/**
  * Formats an ISO date string into a user-friendly display date.
  */
 export function formatDate(dateStr: string | null): string {

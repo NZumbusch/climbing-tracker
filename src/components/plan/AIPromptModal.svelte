@@ -1,9 +1,9 @@
 <script lang="ts">
   import { trainingState } from '../../lib/state.svelte';
-  import { storage } from '../../lib/storage';
-  import { getWeekId } from '../../lib/dateUtils';
+  import { getWeekId, getWeekIdRange } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
   import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import { AI_PLAN_OUTPUT_INSTRUCTIONS } from '../../lib/ai/schema';
   import Icon from '@iconify/svelte';
 
   let { onClose } = $props<{ onClose: () => void }>();
@@ -11,7 +11,7 @@
   let startWeek = $state(trainingState.currentWeekId);
   let endWeek = $state(trainingState.currentWeekId);
   let goal = $state('');
-  let mode = $state<'generate' | 'analyze'>('generate');
+  let mode = $state<'generate' | 'analyze' | 'context'>('generate');
 
   const weekOptions = $derived.by(() => {
     const opts = [];
@@ -26,34 +26,28 @@
 
   async function handleCopyPrompt() {
     try {
-      const data = await storage.exportData();
-      
-      const targetWeekIds: string[] = [];
-      const [startYearStr, startWeekStr] = startWeek.split('-W');
-      let currentYear = parseInt(startYearStr);
-      let currentWeek = parseInt(startWeekStr);
-
-      const [endYearStr, endWeekStr] = endWeek.split('-W');
-      const targetEndYear = parseInt(endYearStr);
-      const targetEndWeek = parseInt(endWeekStr);
-
-      if (currentYear > targetEndYear || (currentYear === targetEndYear && currentWeek > targetEndWeek)) {
+      if (startWeek > endWeek) {
         await showAlert('Input Error', 'Start week must be before or equal to end week.');
         return;
       }
-
-      while (currentYear < targetEndYear || (currentYear === targetEndYear && currentWeek <= targetEndWeek)) {
-        targetWeekIds.push(`${currentYear}-W${currentWeek.toString().padStart(2, '0')}`);
-        currentWeek++;
-        if (currentWeek > 52) {
-          currentWeek = 1;
-          currentYear++;
-        }
-      }
+      const targetWeekIds = getWeekIdRange(startWeek, endWeek);
 
       let prompt = '';
 
-      if (mode === 'generate') {
+      if (mode === 'context') {
+        prompt = `Here is my condensed training profile (no specific question attached - I'll ask you directly after pasting this):
+
+- Custom Exercise Modalities:
+${JSON.stringify(trainingState.exerciseTypes.map(e => ({ name: e.name, params: e.parameters })), null, 2)}
+
+- Recent Workouts (Last 20):
+${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => slotTypeName(e, trainingState.exerciseTypes)) })), null, 2)}
+
+- Available Phases: ${trainingState.phaseDefs.filter(p => !p.archived).map(p => p.name).join(', ')}.
+
+- My Benchmarks:
+${JSON.stringify(trainingState.benchmarks || [], null, 2)}`;
+      } else if (mode === 'generate') {
         prompt = `You are an elite climbing coach. Design a highly detailed training plan based on my historical data.
 I want an optimal week-by-week plan mapping phases to weeks, and giving detailed workouts with specific exercises from my exercise dictionary.
 
@@ -75,7 +69,7 @@ ${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.d
 - My Benchmarks:
 ${JSON.stringify(trainingState.benchmarks || [], null, 2)}
 
-Please provide a JSON or clear text format showing the phase for each week and the recommended default workouts (with exercises, sets, reps) for each day of those weeks.`;
+${AI_PLAN_OUTPUT_INSTRUCTIONS}`;
       } else {
         const targetWorkouts = trainingState.workouts.filter(w => w.weekId && targetWeekIds.includes(w.weekId) && w.status === 'completed');
         const targetBenchmarks = trainingState.benchmarks.filter(b => b.weekId && targetWeekIds.includes(b.weekId));
@@ -103,7 +97,9 @@ Based on this data, please evaluate:
       }
 
       await navigator.clipboard.writeText(prompt);
-      await showAlert('Copied!', 'Your detailed prompt and condensed context have been copied to the clipboard. Paste it into your preferred AI to generate a plan!');
+      await showAlert('Copied!', mode === 'context'
+        ? 'Your training context has been copied to the clipboard. Paste it into your preferred AI, then ask it anything.'
+        : 'Your detailed prompt and condensed context have been copied to the clipboard. Paste it into your preferred AI to generate a plan!');
       onClose();
     } catch (err: any) {
       await showAlert('Error', 'Failed to copy to clipboard: ' + err.message);
@@ -132,35 +128,48 @@ Based on this data, please evaluate:
         <div class="flex bg-surface-elevated/50 p-1 rounded-xl">
           <button onclick={() => mode = 'generate'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'generate' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Generate Plan</button>
           <button onclick={() => mode = 'analyze'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'analyze' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Analyze Past</button>
+          <button onclick={() => mode = 'context'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'context' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Context Only</button>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-1.5">
-            <label for="ai-start-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Start Week</label>
-            <select id="ai-start-week" bind:value={startWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
-              {#each weekOptions as opt}
-                <option value={opt.id}>{opt.label}</option>
-              {/each}
-            </select>
+        {#if mode === 'context'}
+          <p class="text-xs text-content-subtle px-1">
+            Copies just your training profile - no coaching prompt attached. Paste it into any AI chat to ask your own free-form questions.
+          </p>
+        {:else}
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label for="ai-start-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Start Week</label>
+              <select id="ai-start-week" bind:value={startWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
+                {#each weekOptions as opt}
+                  <option value={opt.id}>{opt.label}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label for="ai-end-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">End Week</label>
+              <select id="ai-end-week" bind:value={endWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
+                {#each weekOptions as opt}
+                  <option value={opt.id}>{opt.label}</option>
+                {/each}
+              </select>
+            </div>
           </div>
+
           <div class="space-y-1.5">
-            <label for="ai-end-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">End Week</label>
-            <select id="ai-end-week" bind:value={endWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
-              {#each weekOptions as opt}
-                <option value={opt.id}>{opt.label}</option>
-              {/each}
-            </select>
+            <label for="ai-goal" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Your Goal / Notes</label>
+            <textarea id="ai-goal" bind:value={goal} rows="4" placeholder="e.g. I want to prepare for a trip to Font in 4 weeks. Focus on Power Endurance and slopers." class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm resize-none"></textarea>
           </div>
-        </div>
-        
-        <div class="space-y-1.5">
-          <label for="ai-goal" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Your Goal / Notes</label>
-          <textarea id="ai-goal" bind:value={goal} rows="4" placeholder="e.g. I want to prepare for a trip to Font in 4 weeks. Focus on Power Endurance and slopers." class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm resize-none"></textarea>
-        </div>
+
+          {#if mode === 'generate'}
+            <p class="text-[10px] text-content-subtle px-1">
+              The copied prompt asks the AI to reply with strict JSON - paste its reply into "Import AI Plan" on the Training Plan screen afterward.
+            </p>
+          {/if}
+        {/if}
       </div>
 
       <button onclick={handleCopyPrompt} class="w-full py-4 bg-primary hover:bg-primary-hover text-white text-sm font-black tracking-widest uppercase rounded-2xl shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2">
-        <Icon icon="ic:baseline-content-copy" /> Copy Prompt
+        <Icon icon="ic:baseline-content-copy" /> Copy {mode === 'context' ? 'Context' : 'Prompt'}
       </button>
     </div>
   </div>

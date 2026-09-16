@@ -7,6 +7,7 @@
   import { flip } from 'svelte/animate';
   import ExerciseForm from './ExerciseForm.svelte';
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
+  import AIImportModal from '../plan/AIImportModal.svelte';
   import Icon from "@iconify/svelte";
 
   // --- Props ---
@@ -23,6 +24,7 @@
   let isAddingExercise = $state(false);
   let isAddingBenchmark = $state(false);
   let editingSlot = $state<ExerciseSlot | null>(null);
+  let isImportingAILog = $state(false);
 
   // Which ExerciseValues bucket the form edits - wired to the existing
   // planned/completed status distinction (see PLAN.md Phase 1).
@@ -111,6 +113,13 @@
 
     isAddingExercise = false;
     editingSlot = null;
+  }
+
+  /** Appends AI-parsed exercises to this session - see AIImportModal's "workoutLog" mode. */
+  function handleImportAILog(slots: ExerciseSlot[]) {
+    if (!workout) return;
+    workout.exercises = [...workout.exercises, ...slots];
+    isImportingAILog = false;
   }
 
   async function removeExercise(id: string) {
@@ -309,13 +318,23 @@
 
         <div class="flex items-center justify-between px-1">
           <h3 class="text-[10px] font-bold text-content-subtle uppercase tracking-widest">Exercises</h3>
-          <button 
-            onclick={handleAddExercise}
-            class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1.5 rounded-lg transition-colors shadow-lg shadow-black/20"
-            aria-label="Add Exercise"
-          >
-            <Icon icon="ic:baseline-plus" class="text-lg" />
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button
+              onclick={() => isImportingAILog = true}
+              class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1.5 rounded-lg transition-colors shadow-lg shadow-black/20"
+              aria-label="Paste AI Workout Log"
+              title="Paste AI Workout Log"
+            >
+              <Icon icon="ic:baseline-auto-awesome" class="text-lg" />
+            </button>
+            <button
+              onclick={handleAddExercise}
+              class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1.5 rounded-lg transition-colors shadow-lg shadow-black/20"
+              aria-label="Add Exercise"
+            >
+              <Icon icon="ic:baseline-plus" class="text-lg" />
+            </button>
+          </div>
         </div>
 
         <section 
@@ -384,3 +403,12 @@
     </div>
   {/if}
 </div>
+
+{#if isImportingAILog}
+  <AIImportModal
+    mode="workoutLog"
+    bucket={exerciseFormMode}
+    onImportWorkoutLog={handleImportAILog}
+    onClose={() => isImportingAILog = false}
+  />
+{/if}
