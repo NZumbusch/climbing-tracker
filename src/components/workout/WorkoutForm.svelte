@@ -1,7 +1,8 @@
 <script lang="ts">
   import { trainingState } from '../../lib/state.svelte';
   import { generateId, showConfirm } from '../../lib/utils';
-  import type { Workout, Exercise, DayOfWeek } from '../../lib/types';
+  import type { Workout, ExerciseSlot, ExerciseValues, ParameterBlock, DayOfWeek } from '../../lib/types';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
   import ExerciseForm from './ExerciseForm.svelte';
@@ -9,11 +10,11 @@
   import Icon from "@iconify/svelte";
 
   // --- Props ---
-  let { 
-    plannedWorkouts = [], 
+  let {
+    plannedWorkouts = [],
     workout: initialWorkout = null
-  } = $props<{ 
-    plannedWorkouts: Workout[], 
+  } = $props<{
+    plannedWorkouts: Workout[],
     workout: Workout | null
   }>();
 
@@ -21,7 +22,18 @@
   let workout = $state<Workout | null>(null);
   let isAddingExercise = $state(false);
   let isAddingBenchmark = $state(false);
-  let editingExercise = $state<Exercise | null>(null);
+  let editingSlot = $state<ExerciseSlot | null>(null);
+
+  // Which ExerciseValues bucket the form edits - wired to the existing
+  // planned/completed status distinction (see PLAN.md Phase 1).
+  const exerciseFormMode = $derived<'prescribed' | 'logged'>(
+    workout?.status === 'completed' ? 'logged' : 'prescribed',
+  );
+
+  /** For every slot missing `logged`, seed it from `prescribed` as the starting point for editing - never leave it undefined once a workout is being actively logged. */
+  function ensureLoggedInitialized(w: Workout) {
+    w.exercises = w.exercises.map(e => e.logged ? e : { ...e, logged: { ...(e.prescribed ?? {}) } });
+  }
 
   $effect(() => {
     if (initialWorkout && !workout) {
@@ -48,6 +60,7 @@
   function handleSelectPlanned(p: Workout) {
     const d = new Date();
     workout = { ...$state.snapshot(p), date: d.toISOString(), startTime: p.startTime || d.toTimeString().slice(0, 5), status: 'completed' };
+    ensureLoggedInitialized(workout);
   }
 
   // --- Benchmark Handlers ---
@@ -59,47 +72,61 @@
   // --- Exercise Handlers ---
 
   function handleAddExercise() {
-    editingExercise = null;
+    editingSlot = null;
     isAddingExercise = true;
   }
 
-  function handleEditExercise(exercise: Exercise) {
-    editingExercise = exercise;
+  function handleEditExercise(exercise: ExerciseSlot) {
+    editingSlot = exercise;
     isAddingExercise = true;
   }
 
-  function saveExercise(data: Omit<Exercise, 'id'>) {
+  function saveExercise(data: { typeId: string; categoryId?: string; activeParameters: ParameterBlock[]; values: ExerciseValues }) {
     if (!workout) return;
-    
-    if (editingExercise) {
-      const index = workout.exercises.findIndex((e: Exercise) => e.id === editingExercise?.id);
+    const mode = exerciseFormMode;
+
+    if (editingSlot) {
+      const index = workout.exercises.findIndex((e: ExerciseSlot) => e.id === editingSlot?.id);
       if (index !== -1) {
-        workout.exercises[index] = { ...data, id: editingExercise.id };
-        workout.exercises = [...workout.exercises]; 
+        const existing = workout.exercises[index];
+        workout.exercises[index] = {
+          ...existing,
+          typeId: data.typeId,
+          categoryId: data.categoryId,
+          activeParameters: data.activeParameters,
+          [mode]: data.values
+        };
+        workout.exercises = [...workout.exercises];
       }
     } else {
-      const newExercise = { ...data, id: generateId() };
-      workout.exercises = [...workout.exercises, newExercise];
+      const newSlot: ExerciseSlot = {
+        id: generateId(),
+        typeId: data.typeId,
+        categoryId: data.categoryId,
+        activeParameters: data.activeParameters,
+        [mode]: data.values
+      };
+      workout.exercises = [...workout.exercises, newSlot];
     }
-    
+
     isAddingExercise = false;
-    editingExercise = null;
+    editingSlot = null;
   }
 
   async function removeExercise(id: string) {
     if (!workout) return;
     const confirmed = await showConfirm('Remove Exercise', 'Are you sure you want to remove this exercise?');
     if (confirmed) {
-      workout.exercises = workout.exercises.filter((e: Exercise) => e.id !== id);
+      workout.exercises = workout.exercises.filter((e: ExerciseSlot) => e.id !== id);
     }
   }
 
-  function handleDndConsider(e: CustomEvent<DndEvent<Exercise>>) {
+  function handleDndConsider(e: CustomEvent<DndEvent<ExerciseSlot>>) {
     if (!workout) return;
     workout.exercises = e.detail.items;
   }
 
-  function handleDndFinalize(e: CustomEvent<DndEvent<Exercise>>) {
+  function handleDndFinalize(e: CustomEvent<DndEvent<ExerciseSlot>>) {
     if (!workout) return;
     workout.exercises = e.detail.items;
   }
@@ -118,6 +145,7 @@
 
   function handleComplete() {
     if (!workout) return;
+    if (workout.status !== 'completed') ensureLoggedInitialized(workout);
     workout.status = 'completed';
     trainingState.processWorkoutSave(workout);
   }
@@ -198,14 +226,14 @@
 
   {:else if isAddingExercise}
     <div class="space-y-4">
-      <button 
-        onclick={() => { isAddingExercise = false; editingExercise = null; }}
+      <button
+        onclick={() => { isAddingExercise = false; editingSlot = null; }}
         class="text-[10px] font-black text-content-subtle hover:text-content uppercase tracking-widest flex items-center gap-2 px-1"
       >
         <Icon icon="ic:baseline-arrow-back" class="text-sm" />
         Back to Session
       </button>
-      <ExerciseForm initialData={editingExercise} onSave={saveExercise} />
+      <ExerciseForm initialSlot={editingSlot} mode={exerciseFormMode} onSave={saveExercise} />
     </div>
 
   {:else}
@@ -303,9 +331,9 @@
               </div>
 
               <div class="flex-1 min-w-0">
-                <p class="font-bold text-sm text-content truncate">{exercise.type}</p>
-                {#if exercise.duration}
-                  <p class="text-[9px] text-content-subtle uppercase tracking-tighter">{exercise.duration} mins</p>
+                <p class="font-bold text-sm text-content truncate">{slotTypeName(exercise, trainingState.exerciseTypes)}</p>
+                {#if slotValues(exercise).duration}
+                  <p class="text-[9px] text-content-subtle uppercase tracking-tighter">{slotValues(exercise).duration} mins</p>
                 {/if}
               </div>
               

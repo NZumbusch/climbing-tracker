@@ -2,6 +2,8 @@
   import type { Workout } from '../../lib/types';
   import { formatDate } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
+  import { trainingState } from '../../lib/state.svelte';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
   import html2canvas from 'html2canvas';
 
   let { workout, onClose } = $props<{ workout: Workout, onClose: () => void }>();
@@ -9,14 +11,14 @@
   let containerNode: HTMLElement | null = $state(null);
   let styleIndex = $state(0);
   let isCopying = $state(false);
-  
+
   const styles = ['overview', 'detailed', 'stats'];
   const activeStyle = $derived(styles[styleIndex]);
 
   // Derived stats for templates
-  const totalSets = $derived(workout.exercises.reduce((acc: number, e: any) => acc + (e.sets || 0), 0));
-  const topExercise = $derived(workout.exercises.length > 0 
-    ? [...workout.exercises].sort((a, b) => (b.plannedLoad || 0) - (a.plannedLoad || 0))[0] 
+  const totalSets = $derived(workout.exercises.reduce((acc: number, e: any) => acc + (slotValues(e).sets || 0), 0));
+  const topExercise = $derived(workout.exercises.length > 0
+    ? [...workout.exercises].sort((a, b) => (slotValues(b).plannedLoad || 0) - (slotValues(a).plannedLoad || 0))[0]
     : null);
 
   async function shareImage() {
@@ -140,7 +142,7 @@
           <div class="mt-6 flex flex-wrap gap-2 overflow-hidden max-h-[140px]">
             {#each (workout.exercises || []).slice(0, 15) as exercise}
               <div class="text-[10px] px-3 py-1.5 bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.1)] rounded-xl text-white font-bold shrink-0 inline-block">
-                {exercise.type}
+                {slotTypeName(exercise, trainingState.exerciseTypes)}
               </div>
             {/each}
             {#if workout.exercises.length > 15}
@@ -153,20 +155,21 @@
         {:else if activeStyle === 'detailed'}
           <div class="mt-6 space-y-2.5 overflow-hidden max-h-[150px]">
             {#each (workout.exercises || []).slice(0, 4) as exercise}
+              {@const v = slotValues(exercise)}
               <div class="flex justify-between items-center border-b border-[rgba(255,255,255,0.1)] pb-2.5 last:border-0 last:pb-0">
-                <div class="text-xs font-bold text-[rgba(255,255,255,0.9)] truncate mr-2 inline-block">{exercise.type}</div>
+                <div class="text-xs font-bold text-[rgba(255,255,255,0.9)] truncate mr-2 inline-block">{slotTypeName(exercise, trainingState.exerciseTypes)}</div>
                 <div class="text-[10px] font-mono font-bold text-[rgba(255,255,255,0.7)] bg-[rgba(255,255,255,0.05)] px-2 py-1 rounded-md shrink-0 inline-block">
-                  {#if exercise.sets && exercise.reps}
-                    {exercise.sets}x{exercise.reps}
-                  {:else if exercise.duration}
-                    {exercise.duration}m
-                  {:else if exercise.distance}
-                    {exercise.distance}km
+                  {#if v.sets && v.reps}
+                    {v.sets}x{v.reps}
+                  {:else if v.duration}
+                    {v.duration}m
+                  {:else if v.distance}
+                    {v.distance}km
                   {:else}
                     Done
                   {/if}
-                  {#if exercise.weight || exercise.maxWeightPercent}
-                    @ {exercise.weight ? `${exercise.weight}kg` : `${exercise.maxWeightPercent}%`}
+                  {#if v.weight || v.maxWeightPercent}
+                    @ {v.weight ? `${v.weight}kg` : `${v.maxWeightPercent}%`}
                   {/if}
                 </div>
               </div>
@@ -180,7 +183,7 @@
           <div class="mt-8 flex gap-3">
             <div class="flex-1 bg-[rgba(255,255,255,0.05)] p-4 rounded-2xl border border-[rgba(255,255,255,0.1)] flex flex-col justify-center">
               <p class="text-[8px] font-black uppercase tracking-widest text-primary mb-1">Top Focus</p>
-              <p class="text-sm font-bold text-white tracking-tight leading-tight">{topExercise?.type || 'Resting'}</p>
+              <p class="text-sm font-bold text-white tracking-tight leading-tight">{topExercise ? slotTypeName(topExercise, trainingState.exerciseTypes) : 'Resting'}</p>
             </div>
             <div class="flex-1 bg-[rgba(255,255,255,0.05)] p-4 rounded-2xl border border-[rgba(255,255,255,0.1)] flex flex-col justify-center">
               <p class="text-[8px] font-black uppercase tracking-widest text-primary mb-1">Volume</p>

@@ -3,6 +3,7 @@
   import { storage } from '../../lib/storage';
   import { getWeekId } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
   import Icon from '@iconify/svelte';
 
   let { onClose } = $props<{ onClose: () => void }>();
@@ -67,7 +68,7 @@ Here is my condensed training profile:
 ${JSON.stringify(trainingState.exerciseTypes.map(e => ({ name: e.name, params: e.parameters })), null, 2)}
 
 - Recent Workouts (Last 20):
-${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => e.type) })), null, 2)}
+${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => slotTypeName(e, trainingState.exerciseTypes)) })), null, 2)}
 
 - Available Phases: Work Capacity, Max Strength, Power, Power Endurance, Performance / Taper, Deload.
 
@@ -89,7 +90,7 @@ ${goal || 'No specific goals provided. Just tell me what I did well and what I s
 
 Here is the data for the weeks in question:
 - Completed Workouts:
-${JSON.stringify(targetWorkouts.map(w => ({ date: w.date, type: w.notes, load: w.plannedLoad, exercises: w.exercises.map(e => ({ type: e.type, duration: e.duration, sets: e.sets, reps: e.reps })) })), null, 2)}
+${JSON.stringify(targetWorkouts.map(w => ({ date: w.date, type: w.notes, load: w.plannedLoad, exercises: w.exercises.map(e => ({ type: slotTypeName(e, trainingState.exerciseTypes), duration: slotValues(e).duration, sets: slotValues(e).sets, reps: slotValues(e).reps })) })), null, 2)}
 
 - Benchmarks Recorded:
 ${JSON.stringify(targetBenchmarks, null, 2)}

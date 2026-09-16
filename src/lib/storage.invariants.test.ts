@@ -23,7 +23,7 @@ function loadFixture(name: string): any {
 describe("assertMigrationInvariants", () => {
   const baseline = {
     workouts: [
-      { id: "w1", exercises: [{ id: "e1", type: "Free Bouldering" }] },
+      { id: "w1", exercises: [{ id: "e1", typeId: "free-bouldering" }] },
     ],
     benchmarks: [{ id: "b1" }],
     exerciseTypes: [{ id: "free-bouldering", name: "Free Bouldering" }],
@@ -50,11 +50,11 @@ describe("assertMigrationInvariants", () => {
     );
   });
 
-  it("throws when an exercise's type no longer resolves against exerciseTypes", () => {
+  it("throws when an exercise's typeId no longer resolves against exerciseTypes", () => {
     const after = JSON.parse(JSON.stringify(baseline));
     after.exerciseTypes = []; // simulates a bad migration dropping the type definition
     expect(() => assertMigrationInvariants(baseline, after)).toThrow(
-      /unresolvable type/,
+      /unresolvable typeId/,
     );
   });
 

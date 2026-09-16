@@ -1,4 +1,5 @@
 import type { Workout, DayOfWeek } from './types';
+import { slotValues } from './exerciseSlot';
 
 // Helper to get the starting date of a week given a weekId like "2026-W25"
 function getDateFromWeekId(weekId: string, dayOfWeek?: DayOfWeek): Date {
@@ -56,7 +57,7 @@ function calculateWorkoutDuration(workout: Workout): number {
   }
   let totalDuration = 0;
   for (const ex of workout.exercises) {
-    totalDuration += ex.duration || 30; // Default 30 mins for missing duration
+    totalDuration += slotValues(ex).duration || 30; // Default 30 mins for missing duration
   }
   return totalDuration;
 }

@@ -3,6 +3,7 @@
   import { trainingState } from './lib/state.svelte';
   
   import FatigueModal from './components/common/FatigueModal.svelte';
+  import { slotValues } from './lib/exerciseSlot';
   import Icon from "@iconify/svelte";
 
   // --- Derived State ---
@@ -81,7 +82,7 @@
   {#if trainingState.activeWorkout && trainingState.showFatigue}
     <FatigueModal 
       initialData={trainingState.activeWorkout}
-      duration={trainingState.activeWorkout.exercises.reduce((acc, e) => acc + (e.duration || 0), 0)} 
+      duration={trainingState.activeWorkout.exercises.reduce((acc, e) => acc + (slotValues(e).duration || 0), 0)}
       onConfirm={(data) => trainingState.confirmFatigue(data)} 
     />
   {/if}

@@ -442,4 +442,288 @@ was checked - flagging it rather than asserting the manual step was done.
 **Commit:** made as its own commit, separate from the pre-existing-bug fix
 above and from the Prerequisite step, per the plan's convention.
 
+---
+
+## 2026-09-16 — Phase 1 scope gap-fills (decided with user before implementation)
+
+Before writing any Phase 1 code, read the full surface area the phase
+touches: `types.ts`, `storage.ts`, `state.svelte.ts`, `App.svelte`,
+`ics.ts`, and every component that reads/writes exercises (`ExerciseForm`,
+`WorkoutForm`, `Settings` (template editor), `TrainingPlan`, `Analytics`,
+`History`, `WorkoutShareImage`, `AIPromptModal`, `PDFExportModal`,
+`BenchmarkForm`). Four real gaps in `PLAN.md`'s Phase 1 section surfaced;
+all four were confirmed with the user and `PLAN.md` itself has been
+updated in place (not just this log) since they're gaps in the plan, not
+just implementation choices:
+
+1. **`ExerciseSlot.categoryId`** - `PLAN.md`'s own code block omitted a
+   category field, but its migration scope explicitly requires resolving
+   `Exercise.category` (a name) to `AnalyticsCategory.id`, same as
+   `typeId`. Added `categoryId?: string` to `ExerciseSlot`.
+2. **`defaults.json`'s `templates` must convert to the new shape too**,
+   and doing so uncovered a real, confirmed-reachable bug: two *existing*
+   migration steps (`2.3→2.4` "Ensure Deload is in templates",
+   `3.7→3.8`'s per-phase fallback fill) reference the live
+   `DEFAULT_TEMPLATES` constant as an old-shape fallback. Checked
+   concretely (not just reasoned abstractly) via
+   `node -e "console.log(Object.keys(require('./src/lib/__fixtures__/backup-2.1.json').templates))"`
+   → `[ 'Maintenance', 'Endurance', 'Strength', 'Power', 'Power Endurance' ]`.
+   No `"Deload"` key, and no `"Work Capacity"` key either (so `"Capacity"`
+   also ends up missing after the 3.7→3.8 rename pass). This means the
+   real backup fixture *does* hit the `2.3→2.4` step's
+   `DEFAULT_TEMPLATES["Deload"]` fallback.
+   - Checked whether the `3.7→3.8` step's own
+     `DEFAULT_TEMPLATES["Capacity"/"Strength"/"Performance"/"Taper"]`
+     fallbacks are similarly live: they are not, and this is a
+     **pre-existing, unrelated latent bug, left unfixed** -
+     `defaults.json`'s `templates` object has never had keys named
+     `"Capacity"`/`"Strength"`/`"Performance"`/`"Taper"` (only the
+     pre-3.7 names), so `DEFAULT_TEMPLATES["Capacity"]` etc. already
+     silently resolve to `undefined → []` today, before any Phase 1
+     change. Converting `defaults.json`'s shape doesn't change that
+     (still `[]` either way) - only `"Deload"` (which *does* exist as a
+     key in `defaults.json` today, with real content) is a live landmine.
+   - **Fix:** froze the current (pre-this-change) old-shape `"Deload"`
+     template content as an inline constant used only by the `2.3→2.4`
+     step, decoupled from `DEFAULT_TEMPLATES`/`defaults.json`. This keeps
+     that historical step's output byte-identical to what it produces
+     today, regardless of future `defaults.json` shape changes - matching
+     Phase 0's own "migration steps are frozen, behavior-preserving"
+     discipline. Added a fixture test (old data missing `"Deload"`)
+     specifically to confirm this.
+   - Per the user's explicit ask: added a **separate, dedicated** fixture
+     test asserting `DEFAULT_TEMPLATES` itself (no migration involved -
+     this is what a fresh install / "Reset to Default Library" actually
+     uses) already has valid `typeId`-resolving, `prescribed`-shaped
+     exercises.
+3. **`DailyReadiness` has no typed shape today** (`dailyReadiness` is
+   untyped `any[]`; no committed UI reads/writes it - `state.svelte.ts`'s
+   `refresh()` never even loads it). Used
+   `{ date: string; sleepScore?: number; hrv?: number; rhr?: number }`,
+   confirmed via the stashed/deferred dashboard WIP's own unmerged
+   `DailyReadiness` interface (`git stash show -p stash@{0}`) - matches
+   the plan's own `sleep-score`/`hrv`/`rhr` `MetricDef` ids exactly. Used
+   only to confirm field-name shape for the migration step, not reusing
+   any stashed code.
+4. **`calculateLoadFactor` stays 3-arg** (fingers/core/systemic), formula
+   unchanged, even though `arms` becomes a formally typed `Workout` field.
+   Confirmed via `FatigueModal.svelte`: its fatigue slider is already
+   labeled "Fingers/Arms" as one combined input and never captures `arms`
+   separately - matches `PLAN.md`'s explicit "not extended" framing for
+   the 4-axis formula. No code change beyond adding the typed field.
+
+**Additional judgment calls made while implementing (not asked about
+individually, flagged here rather than silently decided):**
+- **Category-placeholder creation on unresolved names.** `PLAN.md`'s
+  migration bullet for `typeId` explicitly says to create an
+  `archived: true` placeholder `ExerciseTypeDef` when a name doesn't
+  resolve; it doesn't repeat this instruction for the `categoryId`
+  migration bullet. Applied the same archived-placeholder pattern to
+  unresolved `AnalyticsCategory` names too, since principle 2 ("archived,
+  never hard-deleted, once referenced") is stated as applying to "every
+  user-editable catalog," not just exercise types.
+- **`saveExerciseTypes`'s rename-propagation block becomes dead code and
+  was removed**, not just left in place. It used to find-and-replace
+  `Exercise.type` (name) across workouts/templates whenever a type's
+  `name` changed - but post-Phase-1, exercises reference `typeId`, which
+  doesn't change on rename, so propagation is structurally unnecessary
+  (this is the actual payoff of principle 1). Keeping the block would
+  also fail to compile (`ExerciseSlot` has no `.type` field), so removal
+  wasn't optional.
+- **No archive-toggle UI was added to `Settings.svelte`.** The `archived`
+  flag now exists on `ExerciseTypeDef`/`AnalyticsCategory`/
+  `BenchmarkTypeDef`, and migration-created placeholders set it
+  automatically, but `PLAN.md`'s Phase 1 "concrete scope — component
+  changes" list never itemizes converting Settings' hard-delete buttons
+  into archive toggles, and doing so well (filtering archived items out
+  of "add new" pickers everywhere, etc.) is a real, non-trivial feature in
+  its own right. Treated this the same way as `painLogs`/`metricDefs`:
+  the field exists and the migration writes it correctly, but building
+  UI around it is left for a later phase. Flagging so a future session
+  doesn't assume this was overlooked.
+- **No public `storage.getMetricDefs()`/`saveDailyMetrics()`-style
+  accessors were added.** `metricDefs`/`dailyMetrics`/`painLogs` are
+  persisted (read/written in `initDB`/`flushDB`/`exportData`/
+  `importData`) so export/import round-trips don't drop them, but no
+  convenience getter/setter was added to the `storage` object since
+  nothing calls one yet (Phase 4/6's job). This intentionally does *not*
+  follow the precedent of the pre-existing (now-removed) `dailyReadiness`
+  getters, which were already-dead code inherited from before this
+  refactor - not a pattern worth extending.
+
+---
+
+## 2026-09-16 — Phase 1 implemented: core data model, ID references, prescribed/logged split
+
+**Types (`src/lib/types.ts`):** Added `ExerciseValues` (the tracked
+parameter fields, minus `id`/`type`/`category`/`activeParameters`) and
+`ExerciseSlot` (`id`, `typeId`, `categoryId?`, `activeParameters?`,
+`prescribed?`, `logged?`), replacing the old flat `Exercise` interface
+everywhere (`Workout.exercises: ExerciseSlot[]`). Added `archived?:
+boolean` to `ExerciseTypeDef`/`AnalyticsCategory`/`BenchmarkTypeDef`.
+Added `arms?: number` to `Workout` (the 4th fatigue axis, already written
+by the committed `3.10→3.11` migration step but never typed until now -
+`calculateLoadFactor`'s formula deliberately untouched, see gap-fill #4
+above). Added `MetricDef`/`DailyMetricEntry`/`PainLog` and extended
+`TrainingData` with `metricDefs`/`dailyMetrics`/`painLogs`. New helper
+module `src/lib/exerciseSlot.ts`: `slotValues(slot)` (`logged ?? prescribed
+?? {}`, the "best available info" read used by every display-only
+consumer) and `slotTypeName(slot, exerciseTypes)`.
+
+**Migration (`src/lib/storage.ts`):** Five new registry steps appended
+after `3.13→3.14`, `DATA_EXPORT_VERSION` bumped to `"3.19"`:
+- `3.14→3.15`: resolve `Exercise.type` (name) → `typeId`, creating an
+  `archived: true` placeholder `ExerciseTypeDef` (deduped per unique
+  missing name within one migration run) for anything unresolvable -
+  never drops the reference. Falls back to a generic `"Unknown Exercise"`
+  placeholder for the (real-data-wise, never-seen) case of a missing
+  `type` entirely.
+- `3.15→3.16`: same pattern for `Exercise.category` → `categoryId`
+  against `AnalyticsCategory`. Extended the archived-placeholder pattern
+  here too, even though `PLAN.md`'s migration bullet only spelled it out
+  for `typeId` - principle 2 ("archived, never hard-deleted") is stated
+  as applying to every user-editable catalog, so this fills what reads as
+  an omission rather than a deliberate difference.
+- `3.16→3.17`: restructures `Exercise[]` → `ExerciseSlot[]`. Every
+  `ExerciseValues` field except `duration`/`reps` moves unchanged into
+  both `prescribed` and `logged` for completed workouts (the two fields
+  that ever had real prescribed-vs-actual tracking historically -
+  `plannedDuration`/`duration` since `3.11→3.12`, `actualReps`/`reps`
+  since `3.9→3.10` - everything else never got that treatment, so
+  duplicating the single historical value into both buckets is the
+  correct "don't fabricate a different prescribed value" behavior, not a
+  simplification). Planned workouts get `prescribed` only. Slot ids are
+  kept stable and only regenerated on collision within the run (fixes the
+  `duplicateWorkout` bug class described below).
+- `3.17→3.18`: `dailyReadiness` → seeded `sleep-score`/`hrv`/`rhr`
+  `MetricDef`s + `DailyMetricEntry` rows (field-name shape confirmed via
+  the deferred dashboard stash, see gap-fill #3).
+- `3.18→3.19`: adds `painLogs: []`.
+- `assertMigrationInvariants` updated from name-based (`e.type`) to
+  `typeId`-based resolution, matching the new schema.
+
+**A real bug found via decision #2 (defaults.json conversion) and fixed
+before it could ship:** converting `defaults.json`'s `templates` to the
+new shape meant the `2.3→2.4` step's `DEFAULT_TEMPLATES["Deload"]`
+fallback needed decoupling (see gap-fill #2) - implemented as a frozen
+`LEGACY_DEFAULT_DELOAD_TEMPLATE` constant. Writing the regression test
+for it (`storage.phase1.test.ts`, scenario (g)) caught a *second*, worse
+bug in that same fix: the constant was assigned into `data.templates` by
+*reference*, not cloned, so the first migration run to hit that fallback
+mutates the shared module-level constant in place (the restructuring step
+reassigns `w.exercises`) - any *later* migration run in the same process
+that also hits the fallback (a second old import, e.g.) would then
+re-process already-new-shape data as if it were still flat, producing a
+double-nested `prescribed.prescribed`. Fixed with a
+`JSON.parse(JSON.stringify(...))` deep clone at the assignment site,
+matching the technique `runStartupMigrations` already uses for its
+pre-migration snapshot. Added a test that runs the fallback twice in one
+process specifically to guard this.
+
+**Other bugs fixed while touching directly-adjacent code (not scope
+creep - each is in a function/line this phase already had to rewrite):**
+- `storage.assignPhaseToWeek`: exercises copied from a template into a
+  newly-generated workout kept the template's exercise ids verbatim: the
+  same id-collision bug class the plan calls out for `duplicateWorkout`,
+  just here for "assign this phase to N different weeks" instead of
+  "duplicate this one workout." Now regenerates slot ids on copy, same
+  as `duplicateWorkout` (`state.svelte.ts`, also fixed per `PLAN.md`'s
+  explicit instruction).
+- `storage.saveExerciseTypes`'s rename-propagation block (find every
+  exercise with the old type *name* and rewrite it) is now dead code, not
+  just unnecessary: exercises reference `typeId`, which doesn't change on
+  rename, so the block was removed rather than left inert (it also
+  wouldn't have compiled - `ExerciseSlot` has no `.type` field).
+  Elsewhere (`PDFExportModal.svelte`), the "Grades: {ex.boulderingGrades}"
+  line was rewritten as part of translating this component to the new
+  types.ts - noticed while doing so that `boulderingGrades` was never a
+  real field on `Exercise` (grades were always `minGrade`/`maxGrade`), so
+  the old branch could never have rendered. Fixed to read `minGrade`/
+  `maxGrade` while rewriting the surrounding code anyway, not as separate
+  scope.
+- `Analytics.svelte`'s category-resolution fallback had substring-matching
+  heuristics (`typeKey.includes('hang') → 'Fingers'`, etc.) as a
+  workaround for exercise type *names* that might not resolve. Since
+  every `typeId` is now guaranteed resolvable to some `ExerciseTypeDef`
+  (real or archived placeholder), this workaround is structurally
+  unreachable for migrated data and was removed in favor of the same
+  generic `'Other'` fallback `assertMigrationInvariants`-style code uses
+  elsewhere - keeping unreachable name-matching heuristics around after
+  switching to id-based lookup would only confuse a future reader.
+
+**`src/data/defaults.json`:** `templates`' exercises converted from flat
+`{ type, duration, ... }` to `{ id, typeId, prescribed: { duration, ... } }`
+(exact `type` name → `typeId` mapping taken from the file's own
+`exerciseTypes` list). `exerciseTypes` itself was deliberately *not*
+touched - it still uses some pre-migration parameter names
+(`boulderingGrades` instead of `grades`, etc.), a separate pre-existing
+drift issue out of this phase's scope (same reasoning as the "Deload"
+fallback finding: `defaults.json` doesn't automatically track schema
+changes made elsewhere, and fixing that fully is bigger than this
+decision covers).
+
+**Components rewired to `typeId`/`categoryId`/`prescribed`/`logged`:**
+`ExerciseForm.svelte` (now takes `initialSlot`/`mode` instead of
+`initialData`, and returns `{ typeId, categoryId?, activeParameters,
+values }` from `onSave` instead of a flat object - the `variant` param UI
+was dropped entirely since `ExerciseValues` has no field for it, matching
+that `variant` was already fully purged by the committed `3.8→3.9` step);
+`WorkoutForm.svelte` (mode is derived directly from `workout.status`
+exactly as `PLAN.md` specified, via the label at what's now
+`WorkoutForm.svelte`'s status line; added `ensureLoggedInitialized`,
+called at both places a workout can transition `planned → completed`
+- `handleSelectPlanned` and `handleComplete` - so `logged` is always a
+populated starting point, never left undefined, once a workout is
+actively being logged); `Settings.svelte`'s template editor (templates
+only ever populate `prescribed`, `mode="prescribed"` hardcoded on that
+`ExerciseForm` instance); `Analytics.svelte`, `History.svelte`,
+`WorkoutShareImage.svelte` (confirmed dead/unreferenced by any importer -
+still fixed for type-correctness since `svelte-check` type-checks it
+regardless), `AIPromptModal.svelte`, `PDFExportModal.svelte`,
+`state.svelte.ts` (CSV export, `saveWorkout`'s `plannedLoad` aggregate,
+the NaN-bug-fix dedupe loop in `refresh()`), `App.svelte` (the
+`FatigueModal` duration sum), `ics.ts` (calendar-event duration).
+`TrainingPlan.svelte` and `BenchmarkForm.svelte` needed no changes - the
+former only reads `workout.exercises.length`, the latter never touches
+`ExerciseSlot` at all.
+
+**New fixture tests** (`src/lib/storage.phase1.test.ts`, 8 tests) cover
+every scenario `PLAN.md`'s Definition of Done calls out by letter: (a)
+pre-3.12 completed workout, no `plannedDuration` → `prescribed === logged`;
+(b) post-3.12 workout with both `plannedDuration` and `actualReps` →
+correctly split; (c) planned workout → `logged` stays `undefined`; (d)
+unresolvable type/category names → archived placeholders, deduped per
+name; (e) full `old_backup.json` roundtrip + `assertMigrationInvariants`
++ every slot's `typeId` resolves; (f) `DEFAULT_TEMPLATES` (no migration
+involved - the actual fresh-install/reset-to-default path) already valid;
+(g) the frozen-Deload-fallback regression test, including the
+run-twice-in-one-process case that caught the shared-mutable-reference
+bug above. Existing `storage.migrations.test.ts`/`storage.invariants.test.ts`
+assertions that checked the old flat shape or `DATA_EXPORT_VERSION ===
+"3.14"` were updated to check the new `prescribed`/`logged`/`typeId`
+locations and `"3.19"` - not rewritten to test something different, same
+behavior, correct location.
+
+**Verification performed:**
+- `npm run test` → 43/43 pass (34 prior, updated in place where the final
+  shape changed + 9 new).
+- `npm run check` → 0 errors, 0 warnings, 355 files.
+- `npx vite build` → production build succeeds (pre-existing >500kB chunk
+  warning, unrelated to this phase).
+- **Manual verification (unlike the Prerequisite/Phase 0 steps, a
+  display and Chrome were actually available this session):** started
+  the dev server (`npm run dev`, confirmed serving at
+  `http://localhost:5173/climbing-tracker/`) intending to drive it via
+  browser automation for the two `PLAN.md` manual-test bullets (import
+  `old_backup.json` and spot-check values; create/complete a workout with
+  edited logged values and confirm prescribed survives). The user
+  explicitly asked to do this verification manually themselves instead
+  and told me to continue without it. Left the dev server running for
+  them. This is a deliberate handoff, not a gap being silently claimed as
+  done - flagging explicitly per this session's own convention for that
+  distinction.
+
+**Commit:** made as its own commit, referencing "Phase 1" per the plan's
+convention.
+
 

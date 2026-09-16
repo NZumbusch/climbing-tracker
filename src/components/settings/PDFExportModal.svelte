@@ -2,8 +2,18 @@
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import type { ExerciseSlot } from '../../lib/types';
   import Icon from '@iconify/svelte';
   import html2pdf from 'html2pdf.js';
+
+  /** Resolves a slot's effective category name: its override if set, else its type's default. */
+  function resolveSlotCategory(e: ExerciseSlot): string {
+    const cat = e.categoryId
+      ? trainingState.analyticsCategories.find(c => c.id === e.categoryId)?.name
+      : trainingState.exerciseTypes.find(t => t.id === e.typeId)?.category;
+    return cat || 'Other';
+  }
 
   let { onClose } = $props<{ onClose: () => void }>();
 
@@ -177,24 +187,25 @@
                   <p class="text-sm" style="color: #6b7280;">No exercises added.</p>
                 {:else}
                   <ul class="space-y-4">
-                    {#each workout.exercises as ex, idx}
+                    {#each workout.exercises as slot, idx}
+                      {@const ex = slotValues(slot)}
                       <li class="flex gap-4">
                         <div class="font-black mt-1" style="color: #9ca3af;">{idx + 1}.</div>
                         <div class="flex-1">
-                          <p class="font-bold text-lg">{ex.type} <span class="text-sm font-normal ml-2" style="color: #6b7280;">({ex.category || 'Other'})</span></p>
-                          
+                          <p class="font-bold text-lg">{slotTypeName(slot, trainingState.exerciseTypes)} <span class="text-sm font-normal ml-2" style="color: #6b7280;">({resolveSlotCategory(slot)})</span></p>
+
                           <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style="color: #374151;">
                             {#if ex.duration}<span class="font-bold">⏱️ {ex.duration} min</span>{/if}
                             {#if ex.sets}<span class="font-bold">🔄 {ex.sets} sets</span>{/if}
                             {#if ex.reps}<span class="font-bold">x{ex.reps} reps</span>{/if}
-                            {#if ex.boulderingGrades}<span>Grades: {ex.boulderingGrades.join(', ')}</span>{/if}
+                            {#if ex.minGrade || ex.maxGrade}<span>Grades: {ex.minGrade}{ex.minGrade && ex.maxGrade ? '-' : ''}{ex.maxGrade}</span>{/if}
                             {#if ex.timeOn && ex.timeOff}<span>{ex.timeOn}s ON / {ex.timeOff}s OFF</span>{/if}
                             {#if ex.routeDifficulty}<span>Route Diff: {ex.routeDifficulty}</span>{/if}
                             {#if ex.weight}<span>Weight: +{ex.weight}kg</span>{/if}
                             {#if ex.bodyweightPercent}<span>BW %: {ex.bodyweightPercent}%</span>{/if}
                             {#if ex.maxWeightPercent}<span>Max Weight %: {ex.maxWeightPercent}%</span>{/if}
                           </div>
-                          
+
                           {#if ex.notes}
                             <div style="position: relative; margin-top: 12px; min-height: 20px;">
                               <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background-color: #9ca3af; border-radius: 9999px;"></div>

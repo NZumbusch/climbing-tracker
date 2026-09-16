@@ -2,6 +2,7 @@
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId } from '../../lib/dateUtils';
   import type { Workout, ExerciseTypeDef, Benchmark, ExerciseCategory } from '../../lib/types';
+  import { slotValues } from '../../lib/exerciseSlot';
   import Icon from "@iconify/svelte";
 
   // --- State ---
@@ -34,7 +35,7 @@
     
     // Quick lookup for assigning categories to recorded exercises
     const typeToCategory = new Map<string, ExerciseCategory>();
-    types.forEach((t: ExerciseTypeDef) => typeToCategory.set(t.name.toLowerCase(), t.category));
+    types.forEach((t: ExerciseTypeDef) => typeToCategory.set(t.id, t.category));
 
     const completedWorkouts = data
       .filter((w: Workout) => w.status === 'completed' && w.date)
@@ -87,29 +88,25 @@
       }
       
       // Count exercises for both planned and completed to show Training Mix
-      w.exercises?.forEach(e => {
-        let categoryName = e.category;
-        
-        if (!categoryName) {
-          const typeKey = (e.type || '').trim().toLowerCase();
-          categoryName = typeToCategory.get(typeKey);
-          
-          if (!categoryName) {
-            if (typeKey.includes('hang')) categoryName = 'Fingers';
-            else if (typeKey.includes('pull')) categoryName = 'Arms';
-            else if (typeKey.includes('core')) categoryName = 'Core';
-            else if (typeKey.includes('board') || typeKey.includes('boulder')) categoryName = 'Power Bouldering';
-            else categoryName = 'Other';
-          }
-        }
-        
+      w.exercises?.forEach(slot => {
+        let categoryName = slot.categoryId
+          ? categories.find(c => c.id === slot.categoryId)?.name
+          : typeToCategory.get(slot.typeId);
+
+        // Every typeId is guaranteed resolvable to some ExerciseTypeDef
+        // (Phase 1's migration creates an archived placeholder for any
+        // that can't resolve a real one), so this is just a final
+        // safety net, not name-matching guesswork.
+        if (!categoryName) categoryName = 'Other';
+
         // Ensure category exists in map (if user deleted a category)
         if (!categories.find(c => c.name === categoryName)) {
            categoryName = categories.length > 0 ? categories[0].name : 'Other';
         }
-        
+
         // Weight the ratio by duration (default to 30 mins if not specified)
-        const durationWeight = e.duration ? e.duration : 30;
+        const exValues = slotValues(slot);
+        const durationWeight = exValues.duration ? exValues.duration : 30;
         
         if (week.categories[categoryName] !== undefined) {
           week.categories[categoryName] += durationWeight;

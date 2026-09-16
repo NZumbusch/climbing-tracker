@@ -1,51 +1,49 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { storage } from '../../lib/storage';
-  import { generateId, showAlert } from '../../lib/utils';
   import { trainingState } from '../../lib/state.svelte';
-  import type { Exercise, ExerciseTypeDef, ParameterBlock } from '../../lib/types';
+  import type { ExerciseSlot, ExerciseTypeDef, ExerciseValues, ParameterBlock } from '../../lib/types';
   import { PARAMETER_LABELS } from '../../lib/constants';
   import Icon from '@iconify/svelte';
 
   // --- Props ---
-  let { 
-    initialData = null,
+  let {
+    initialSlot = null,
+    mode = 'prescribed',
     onSave
-  } = $props<{ 
-    initialData?: Partial<Exercise> | null,
-    onSave: (data: Omit<Exercise, 'id'>) => void
+  } = $props<{
+    initialSlot?: ExerciseSlot | null,
+    /** Which ExerciseValues bucket on the slot this form edits - "prescribed" (the plan) or "logged" (what happened). */
+    mode?: 'prescribed' | 'logged',
+    onSave: (data: { typeId: string; categoryId?: string; activeParameters: ParameterBlock[]; values: ExerciseValues }) => void
   }>();
 
   // --- State ---
   let exerciseTypes = $state<ExerciseTypeDef[]>([]);
   let selectedTypeId = $state<string>('');
   let activeLoadTab = $state<'weight' | 'bodyweightPercent' | 'maxWeightPercent'>('weight');
-  
+
   // Local form state - Initialized with defaults, updated via $effect
-  let typeName = $state('');
   let duration = $state(60);
   let minGrade = $state('6A');
   let maxGrade = $state('6B');
-  let minRouteGrade = $state('6a');
-  let maxRouteGrade = $state('6b');
   let cadence = $state(5);
-  let climbingStyle = $state<NonNullable<Exercise['climbingStyle']>>(['Power']);
-  let boardType = $state<Exercise['boardType']>('Kilterboard');
+  let climbingStyle = $state<NonNullable<ExerciseValues['climbingStyle']>>(['Power']);
+  let boardType = $state<ExerciseValues['boardType']>('Kilterboard');
   let boardAngle = $state(40);
-  let variant = $state('none');
   let sets = $state<number | undefined>(4);
   let reps = $state<number | undefined>(1);
   let movesPerRoute = $state<number | undefined>();
-  let holdType = $state<Exercise['holdType']>('Half Crimp');
+  let holdType = $state<ExerciseValues['holdType']>('Half Crimp');
   let timeOn = $state(7);
   let timeOff = $state(3);
   let timeBetweenSets = $state(180);
   let weight = $state(0);
   let holdSize = $state(20);
   let distance = $state(0);
-  let campusType = $state<Exercise['campusType']>('Jumps');
-  let mobilityType = $state<NonNullable<Exercise['mobilityType']>>(['Hamstrings']);
-  let leadStyle = $state<NonNullable<Exercise['leadStyle']>>(['Redpoint']);
+  let campusType = $state<ExerciseValues['campusType']>('Jumps');
+  let mobilityType = $state<NonNullable<ExerciseValues['mobilityType']>>(['Hamstrings']);
+  let leadStyle = $state<NonNullable<ExerciseValues['leadStyle']>>(['Redpoint']);
   let difficulty = $state(5);
   let routeDifficulty = $state<"Easy" | "Moderate" | "Hard">("Moderate");
   let bodyweightPercent = $state(100);
@@ -57,68 +55,28 @@
   // --- Lifecycle ---
   onMount(async () => {
     exerciseTypes = await storage.getExerciseTypes();
-    syncInitialSelection();
+    if (initialSlot) {
+      selectedTypeId = initialSlot.typeId;
+    } else if (exerciseTypes.length > 0) {
+      selectedTypeId = exerciseTypes[0].id;
+    }
   });
 
   let activeParams = $state<ParameterBlock[]>([]);
 
-  function syncInitialSelection() {
-    const currentName = initialData?.type || typeName;
-    const activeType = exerciseTypes.find(t => t.name === currentName);
-    
-    if (activeType) {
-      selectedTypeId = activeType.id;
-    } else if (currentName) {
-      // Legacy fallback: Only show parameters that have non-default data in initialData
-      const activeParams: string[] = [];
-      if (initialData) {
-        if (initialData.duration !== undefined) activeParams.push('duration');
-        if (initialData.minGrade || initialData.maxGrade) activeParams.push('boulderingGrades');
-        if (initialData.minRouteGrade || initialData.maxRouteGrade) activeParams.push('routeGrades');
-        if (initialData.cadence !== undefined) activeParams.push('cadence');
-        if (initialData.climbingStyle !== undefined) activeParams.push('climbingStyle');
-        if (initialData.boardType !== undefined) activeParams.push('boardType');
-        if (initialData.boardAngle !== undefined) activeParams.push('boardAngle');
-        if (initialData.variant !== undefined) activeParams.push('variant');
-        if (initialData.sets !== undefined) activeParams.push('sets');
-        if (initialData.reps !== undefined) activeParams.push('reps');
-        if (initialData.movesPerRoute !== undefined) activeParams.push('movesPerRoute');
-        if (initialData.holdType !== undefined) activeParams.push('holdType');
-        if (initialData.timeOn !== undefined) activeParams.push('timeOn');
-        if (initialData.timeOff !== undefined) activeParams.push('timeOff');
-        if (initialData.timeBetweenSets !== undefined) activeParams.push('restTime');
-        if (initialData.holdSize !== undefined) activeParams.push('holdSize');
-        if (initialData.weight !== undefined) activeParams.push('weight');
-        if (initialData.distance !== undefined) activeParams.push('distance');
-        if (initialData.campusType !== undefined) activeParams.push('campusStyle');
-        if (initialData.mobilityType !== undefined) activeParams.push('mobilityType');
-        if (initialData.leadStyle !== undefined) activeParams.push('leadStyle');
-        if (initialData.difficulty !== undefined) activeParams.push('difficulty');
-        if (initialData.routeDifficulty !== undefined) activeParams.push('routeDifficulty');
-        if (initialData.bodyweightPercent !== undefined) activeParams.push('bodyweightPercent');
-        if (initialData.maxWeightPercent !== undefined) activeParams.push('maxWeightPercent');
-      }
-
-      const legacyType: ExerciseTypeDef = {
-        id: 'legacy',
-        name: currentName,
-        category: initialData?.category || 'Other',
-        parameters: activeParams as any
-      };
-      exerciseTypes = [legacyType, ...exerciseTypes];
-      selectedTypeId = 'legacy';
-    } else if (exerciseTypes.length > 0) {
-      selectedTypeId = exerciseTypes[0].id;
-    }
-  }
-
   // --- Derived State ---
   const activeTypeDef = $derived(exerciseTypes.find(t => t.id === selectedTypeId));
 
-  // Sync internal state with incoming props
+  // The values bucket being edited - the current mode's bucket if it has
+  // data, else fall back to prescribed as a sensible starting point (e.g.
+  // adding a brand-new exercise directly onto an already-active session).
+  const editingValues = $derived<ExerciseValues>(
+    (initialSlot?.[mode as 'prescribed' | 'logged']) ?? initialSlot?.prescribed ?? {},
+  );
+
   $effect(() => {
-    if (initialData?.activeParameters) {
-      activeParams = initialData.activeParameters;
+    if (initialSlot?.activeParameters) {
+      activeParams = initialSlot.activeParameters;
     } else if (activeTypeDef) {
       activeParams = [...activeTypeDef.parameters];
     }
@@ -126,47 +84,39 @@
 
   // Sync internal state with incoming props
   $effect(() => {
-    if (initialData) {
-      typeName = initialData.type || '';
-      duration = initialData.duration || 60;
-      minGrade = initialData.minGrade || '6A';
-      maxGrade = initialData.maxGrade || '6B';
-      minRouteGrade = initialData.minRouteGrade || '6a';
-      maxRouteGrade = initialData.maxRouteGrade || '6b';
-      cadence = initialData.cadence || 5;
-      climbingStyle = Array.isArray(initialData.climbingStyle) ? initialData.climbingStyle : (initialData.climbingStyle ? [initialData.climbingStyle as any] : ['Power']);
-      boardType = initialData.boardType || 'Kilterboard';
-      boardAngle = initialData.boardAngle || 40;
-      variant = initialData.variant || 'none';
-      sets = initialData.sets ?? 4;
-      reps = initialData.reps ?? 1;
-      movesPerRoute = initialData.movesPerRoute;
-      holdType = initialData.holdType || 'Half Crimp';
-      timeOn = initialData.timeOn || 7;
-      timeOff = initialData.timeOff || 3;
-      timeBetweenSets = initialData.timeBetweenSets || 180;
-      weight = initialData.weight || 0;
-      holdSize = initialData.holdSize || 20;
-      distance = initialData.distance || 0;
-      campusType = initialData.campusType || 'Jumps';
-      mobilityType = Array.isArray(initialData.mobilityType) ? initialData.mobilityType : (initialData.mobilityType ? [initialData.mobilityType as any] : ['Hamstrings']);
-      leadStyle = Array.isArray(initialData.leadStyle) ? initialData.leadStyle : (initialData.leadStyle ? [initialData.leadStyle as any] : ['Redpoint']);
-      difficulty = initialData.difficulty || 5;
-      routeDifficulty = initialData.routeDifficulty || 'Moderate';
-      bodyweightPercent = initialData.bodyweightPercent || 100;
-      maxWeightPercent = initialData.maxWeightPercent || 80;
-      plannedLoad = initialData.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
-      notes = initialData.notes || '';
-      categoryOverride = initialData.category || '';
-      
-      const activeType = exerciseTypes.find(t => t.name === typeName);
-      if (activeType) selectedTypeId = activeType.id;
-    }
+    const v = editingValues;
+    duration = v.duration ?? 60;
+    minGrade = v.minGrade || '6A';
+    maxGrade = v.maxGrade || '6B';
+    cadence = v.cadence ?? 5;
+    climbingStyle = Array.isArray(v.climbingStyle) ? v.climbingStyle : ['Power'];
+    boardType = v.boardType || 'Kilterboard';
+    boardAngle = v.boardAngle ?? 40;
+    sets = v.sets ?? 4;
+    reps = v.reps ?? 1;
+    movesPerRoute = v.movesPerRoute;
+    holdType = v.holdType || 'Half Crimp';
+    timeOn = v.timeOn ?? 7;
+    timeOff = v.timeOff ?? 3;
+    timeBetweenSets = v.timeBetweenSets ?? 180;
+    weight = v.weight ?? 0;
+    holdSize = v.holdSize ?? 20;
+    distance = v.distance ?? 0;
+    campusType = v.campusType || 'Jumps';
+    mobilityType = Array.isArray(v.mobilityType) ? v.mobilityType : ['Hamstrings'];
+    leadStyle = Array.isArray(v.leadStyle) ? v.leadStyle : ['Redpoint'];
+    difficulty = v.difficulty ?? 5;
+    routeDifficulty = v.routeDifficulty || 'Moderate';
+    bodyweightPercent = v.bodyweightPercent ?? 100;
+    maxWeightPercent = v.maxWeightPercent ?? 80;
+    plannedLoad = v.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
+    notes = v.notes || '';
+    categoryOverride = initialSlot?.categoryId || '';
   });
 
   // Watch for modality changes to set default planned load
   $effect(() => {
-    if (!initialData && activeTypeDef) {
+    if (!initialSlot && activeTypeDef) {
       plannedLoad = activeTypeDef.defaultPlannedLoad ?? 5;
     }
   });
@@ -197,66 +147,63 @@
     const cleanWeight = weight; // Weight can be negative (assisted)
     const cleanSize = Math.max(0, holdSize);
 
-    const data: any = { 
-      type: activeTypeDef.name,
+    const values: ExerciseValues = {
       plannedLoad: Number(plannedLoad),
       notes: notes
     };
-    if (categoryOverride) {
-      data.category = categoryOverride;
-    }
-    
+
     const params = activeParams;
 
-    if (params.includes('duration')) data.duration = cleanDuration;
-    if (params.includes('boulderingGrades')) {
-      data.minGrade = minGrade;
-      data.maxGrade = maxGrade;
+    if (params.includes('duration')) values.duration = cleanDuration;
+    if (params.includes('boulderingGrades') || params.includes('grades')) {
+      values.minGrade = minGrade;
+      values.maxGrade = maxGrade;
     }
     if (params.includes('routeGrades')) {
-      data.minRouteGrade = minRouteGrade;
-      data.maxRouteGrade = maxRouteGrade;
+      values.minGrade = minGrade;
+      values.maxGrade = maxGrade;
     }
-    if (params.includes('cadence')) data.cadence = cadence;
-    if (params.includes('climbingStyle')) data.climbingStyle = climbingStyle;
-    if (params.includes('boardType')) data.boardType = boardType;
-    if (params.includes('boardAngle')) data.boardAngle = boardAngle;
-    if (params.includes('variant')) data.variant = variant;
-    if (params.includes('sets')) data.sets = sets;
-    if (params.includes('reps')) data.reps = reps;
-    if (params.includes('movesPerRoute')) data.movesPerRoute = movesPerRoute;
-    
-    if (params.includes('holdType')) data.holdType = holdType;
-    if (params.includes('timeOn')) data.timeOn = timeOn;
-    if (params.includes('timeOff')) data.timeOff = timeOff;
-    if (params.includes('restTime')) data.timeBetweenSets = timeBetweenSets;
-    if (params.includes('holdSize')) data.holdSize = cleanSize;
-    if (params.includes('weight')) data.weight = cleanWeight;
-    if (params.includes('distance')) data.distance = distance;
-    if (params.includes('campusStyle')) data.campusType = campusType;
-    if (params.includes('mobilityType')) data.mobilityType = mobilityType;
-    if (params.includes('leadStyle')) data.leadStyle = leadStyle;
-    if (params.includes('difficulty')) data.difficulty = difficulty;
-    if (params.includes('routeDifficulty')) data.routeDifficulty = routeDifficulty;
-    if (params.includes('bodyweightPercent')) data.bodyweightPercent = bodyweightPercent;
-    if (params.includes('maxWeightPercent')) data.maxWeightPercent = maxWeightPercent;
+    if (params.includes('cadence')) values.cadence = cadence;
+    if (params.includes('climbingStyle')) values.climbingStyle = climbingStyle;
+    if (params.includes('boardType')) values.boardType = boardType;
+    if (params.includes('boardAngle')) values.boardAngle = boardAngle;
+    if (params.includes('sets')) values.sets = sets;
+    if (params.includes('reps')) values.reps = reps;
+    if (params.includes('movesPerRoute')) values.movesPerRoute = movesPerRoute;
 
-    data.activeParameters = activeParams;
+    if (params.includes('holdType')) values.holdType = holdType;
+    if (params.includes('timeOn')) values.timeOn = timeOn;
+    if (params.includes('timeOff')) values.timeOff = timeOff;
+    if (params.includes('restTime')) values.timeBetweenSets = timeBetweenSets;
+    if (params.includes('holdSize')) values.holdSize = cleanSize;
+    if (params.includes('weight')) values.weight = cleanWeight;
+    if (params.includes('distance')) values.distance = distance;
+    if (params.includes('campusStyle')) values.campusType = campusType;
+    if (params.includes('mobilityType')) values.mobilityType = mobilityType;
+    if (params.includes('leadStyle')) values.leadStyle = leadStyle;
+    if (params.includes('difficulty')) values.difficulty = difficulty;
+    if (params.includes('routeDifficulty')) values.routeDifficulty = routeDifficulty;
+    if (params.includes('bodyweightPercent')) values.bodyweightPercent = bodyweightPercent;
+    if (params.includes('maxWeightPercent')) values.maxWeightPercent = maxWeightPercent;
 
-    onSave(data);
+    onSave({
+      typeId: activeTypeDef.id,
+      categoryId: categoryOverride || undefined,
+      activeParameters: activeParams,
+      values
+    });
   }
 
   // Constants
   const bGrades = ['5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C'];
   const rGrades = ['5a', '5b', '5c', '6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a', '8a+', '8b', '8b+', '8c', '8c+', '9a', '9a+', '9b', '9b+', '9c'];
-  const climbingStyles: NonNullable<Exercise['climbingStyle']>[number][] = ['Slab', 'Coordination', 'Power', 'Board'];
-  const boardTypes: Exercise['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
+  const climbingStyles: NonNullable<ExerciseValues['climbingStyle']>[number][] = ['Slab', 'Coordination', 'Power', 'Board'];
+  const boardTypes: ExerciseValues['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
   const boardAngles = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
-  const variants = [{ id: 'none', label: 'None (Standard)' }, { id: '4x4', label: '4x4' }, { id: 'emom', label: 'One every 60s (EMOM)' }, { id: 'pyramid', label: 'Pyramid' }, { id: 'intervals', label: 'Intervals' }, { id: 'circuit', label: 'Circuit' }];
-  const holdTypes: Exercise['holdType'][] = ['Crimp', 'Half Crimp', 'Full Crimp', 'Open Hand', 'Sloper', 'Pocket'];
-  const campusStyles: Exercise['campusType'][] = ['Jumps', 'One Arm Ladders'];
-  const mobilityTypes: NonNullable<Exercise['mobilityType']>[number][] = ['Hamstrings', 'Shoulders', 'Hips', 'Spine', 'Ankles', 'Wrists'];
-  const leadStyles: NonNullable<Exercise['leadStyle']>[number][] = ['Onsight', 'Flash', 'Redpoint', 'Projecting'];
+  const holdTypes: ExerciseValues['holdType'][] = ['Crimp', 'Half Crimp', 'Full Crimp', 'Open Hand', 'Sloper', 'Pocket'];
+  const campusStyles: ExerciseValues['campusType'][] = ['Jumps', 'One Arm Ladders'];
+  const mobilityTypes: NonNullable<ExerciseValues['mobilityType']>[number][] = ['Hamstrings', 'Shoulders', 'Hips', 'Spine', 'Ankles', 'Wrists'];
+  const leadStyles: NonNullable<ExerciseValues['leadStyle']>[number][] = ['Onsight', 'Flash', 'Redpoint', 'Projecting'];
 </script>
 
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-5 backdrop-blur-sm animate-in zoom-in-95 duration-300">
@@ -278,7 +225,7 @@
   {/if}
 
   <div class="grid grid-cols-1 gap-5 pt-1">
-    {#if activeParams.includes('boulderingGrades')}
+    {#if activeParams.includes('boulderingGrades') || activeParams.includes('grades')}
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1.5"><label for="ex-min-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-grade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
         <div class="space-y-1.5"><label for="ex-max-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-grade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
@@ -287,8 +234,8 @@
 
     {#if activeParams.includes('routeGrades')}
       <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minRouteGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
-        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxRouteGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
       </div>
     {/if}
 
@@ -298,7 +245,7 @@
         <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Climbing Style</p>
         <div class="flex flex-wrap gap-2">
           {#each climbingStyles as style}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (climbingStyle.includes(style)) {
@@ -317,8 +264,7 @@
     {/if}
     {#if activeParams.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
     {#if activeParams.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('variant')}<div class="space-y-1.5"><label for="ex-variant" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Variant</label><select id="ex-variant" bind:value={variant} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each variants as v} <option value={v.id}>{v.label}</option> {/each}</select></div>{/if}
-    
+
     <div class="grid grid-cols-2 gap-3">
       {#if activeParams.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Sets</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.sets ? 'border-danger/50' : ''}" />{#if validationErrors.sets}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.sets}</p>{/if}</div>{/if}
       {#if activeParams.includes('reps')}<div class="space-y-1.5"><label for="ex-reps" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Reps</label><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
@@ -339,7 +285,7 @@
         <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Mobility Focus</p>
         <div class="flex flex-wrap gap-2">
           {#each mobilityTypes as type}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (mobilityType.includes(type)) {
@@ -361,7 +307,7 @@
         <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Style</p>
         <div class="flex flex-wrap gap-2">
           {#each leadStyles as style}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (leadStyle.includes(style)) {
@@ -388,7 +334,7 @@
       </summary>
       <div class="grid grid-cols-2 gap-2 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
         {#each activeTypeDef?.possibleParameters || activeTypeDef?.parameters || [] as id}
-          <button 
+          <button
             type="button"
             onclick={() => {
               if (activeParams.includes(id)) {
@@ -411,7 +357,7 @@
       <select id="ex-category" bind:value={categoryOverride} class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none cursor-pointer">
         <option value="">Default ({activeTypeDef?.category || 'Other'})</option>
         {#each trainingState.analyticsCategories as cat}
-          <option value={cat.name}>{cat.name}</option>
+          <option value={cat.id}>{cat.name}</option>
         {/each}
       </select>
     </div>
@@ -431,11 +377,11 @@
     </div>
   </div>
 
-  <button 
+  <button
     onclick={handleSubmit}
     disabled={!isValid}
     class="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/20 transition-all active:scale-[0.98]"
   >
-    {initialData ? 'Update Exercise' : 'Add Exercise'}
+    {initialSlot ? 'Update Exercise' : 'Add Exercise'}
   </button>
 </div>

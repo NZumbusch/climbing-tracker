@@ -2,6 +2,7 @@
   import { trainingState } from '../../lib/state.svelte';
   import type { Workout } from '../../lib/types';
   import { formatDate } from '../../lib/dateUtils';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
   import Icon from "@iconify/svelte";
 
   const completedWorkouts = $derived(trainingState.completedWorkouts);
@@ -23,19 +24,17 @@
   }).reverse().filter(w => {
     if (filterFromDate && w.date && w.date < filterFromDate) return false;
     
-    const totalDuration = w.exercises?.reduce((acc, e) => acc + (e.duration || 0), 0) || 0;
+    const totalDuration = w.exercises?.reduce((acc, e) => acc + (slotValues(e).duration || 0), 0) || 0;
     if (filterMinDuration !== '' && totalDuration < filterMinDuration) return false;
     if (filterMaxDuration !== '' && totalDuration > filterMaxDuration) return false;
-    
+
     if (filterAnalyticsType) {
       if (!w.exercises || w.exercises.length === 0) return false;
       const hasCategory = w.exercises.some(e => {
-        if (e.category === filterAnalyticsType) return true;
-        if (!e.category) {
-          const typeDef = trainingState.exerciseTypes.find(t => t.name === e.type);
-          if (typeDef && typeDef.category === filterAnalyticsType) return true;
-        }
-        return false;
+        const catName = e.categoryId
+          ? trainingState.analyticsCategories.find(c => c.id === e.categoryId)?.name
+          : trainingState.exerciseTypes.find(t => t.id === e.typeId)?.category;
+        return catName === filterAnalyticsType;
       });
       if (!hasCategory) return false;
     }
@@ -123,7 +122,7 @@
               <div class="flex flex-wrap gap-1.5 mt-1.5">
                 {#each workout.exercises as exercise}
                   <span class="text-[9px] px-2 py-0.5 bg-surface-elevated text-content-muted rounded-lg border border-border-strong">
-                    {exercise.type}
+                    {slotTypeName(exercise, trainingState.exerciseTypes)}
                   </span>
                 {/each}
               </div>

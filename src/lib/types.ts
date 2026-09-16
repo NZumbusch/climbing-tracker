@@ -31,6 +31,7 @@ export interface AnalyticsCategory {
   id: string;
   name: string;
   color: string;
+  archived?: boolean;
 }
 
 /**
@@ -80,18 +81,19 @@ export interface ExerciseTypeDef {
   possibleParameters?: ParameterBlock[];
   /** Expected stress scale (1-10) for a standard session of this type */
   defaultPlannedLoad?: number;
+  /** Never hard-delete a type once referenced by history - archive it instead. */
+  archived?: boolean;
 }
 
 /**
- * Represents a single instance of an exercise within a workout.
+ * The tracked-parameter values for a single exercise instance - everything
+ * about it except which exercise type it is and whether it's the plan or
+ * the log (see `ExerciseSlot`). The whole set moves together: a field never
+ * got individually split into "planned" vs "actual" here, so none of them
+ * are split differently than any other by this interface.
  */
-export interface Exercise {
-  id: string;
-  type: string;
-  category?: string; // Overrides the default AnalyticsCategory of the type
+export interface ExerciseValues {
   notes?: string;
-  /** Explicitly tracks which parameters are active for this specific instance */
-  activeParameters?: ParameterBlock[];
   duration?: number;
   /** The specific planned load (1-10) assigned for this instance */
   plannedLoad?: number;
@@ -105,12 +107,9 @@ export interface Exercise {
   boardAngle?: number; // 20-70
 
   // Lead Climbing
-  minRouteGrade?: string;
-  maxRouteGrade?: string;
   leadStyle?: ("Onsight" | "Flash" | "Redpoint" | "Projecting")[];
 
   // Non-Free / General
-  variant?: string; // 4x4, EMOM, etc.
   sets?: number;
   reps?: number;
   movesPerRoute?: number;
@@ -143,6 +142,30 @@ export interface Exercise {
   mobilityType?: ("Hamstrings" | "Shoulders" | "Hips" | "Spine" | "Ankles" | "Wrists")[];
 }
 
+/**
+ * A single exercise "row" within a workout or template. References its
+ * exercise type and (optional) category override by id, never by name -
+ * renaming a type/category never requires touching any historical data.
+ *
+ * Separates the goal from the log: `prescribed` is set at plan time and
+ * stays stable; `logged` is what actually happened, edited during/after
+ * the session. Editing a workout after the fact no longer silently
+ * overwrites the plan it should be compared against.
+ */
+export interface ExerciseSlot {
+  id: string;
+  /** -> ExerciseTypeDef.id */
+  typeId: string;
+  /** -> AnalyticsCategory.id. Overrides the type's default category. */
+  categoryId?: string;
+  /** Explicitly tracks which parameters are active for this specific instance */
+  activeParameters?: ParameterBlock[];
+  /** The goal, set at plan time, stable */
+  prescribed?: ExerciseValues;
+  /** What happened, edited during/after the session */
+  logged?: ExerciseValues;
+}
+
 export type DayOfWeek =
   | "Monday"
   | "Tuesday"
@@ -170,10 +193,11 @@ export interface Workout {
   loadFactor: number;
   /** Pre-calculated planned stress score based on scheduled exercises */
   plannedLoad?: number;
-  exercises: Exercise[];
+  exercises: ExerciseSlot[];
 
   // Fatigue Metrics (Perceived Exertion after completion)
   fingers?: number; // 1-10
+  arms?: number; // 1-10
   core?: number; // 1-10
   systemic?: number; // 1-10
 }
@@ -236,6 +260,7 @@ export interface BenchmarkTypeDef {
   id: string;
   name: string;
   unit: string;
+  archived?: boolean;
 }
 
 /**
@@ -255,6 +280,47 @@ export interface Benchmark {
 }
 
 /**
+ * Defines a type of daily metric that can be tracked (e.g. sleep score,
+ * HRV, bodyweight). "What can be tracked" is data, not code - replaces the
+ * old fixed-shape `DailyReadiness`.
+ */
+export interface MetricDef {
+  id: string;
+  name: string;
+  unit: string;
+  archived?: boolean;
+}
+
+/**
+ * A single recorded value for a `MetricDef` on a given day.
+ */
+export interface DailyMetricEntry {
+  id: string;
+  /** -> MetricDef.id */
+  metricId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  value: number;
+  note?: string;
+}
+
+/**
+ * A logged instance of pain/discomfort. Deliberately a dedicated entity
+ * rather than folded into the generic `MetricDef`/`DailyMetricEntry`
+ * system - pain tracking has its own shape (body part, severity, week
+ * linkage) that doesn't fit a single numeric value per day.
+ */
+export interface PainLog {
+  id: string;
+  date: string;
+  weekId: string;
+  bodyPart: string;
+  /** 1-10 */
+  severity: number;
+  notes?: string;
+}
+
+/**
  * The complete schema for all local user data.
  * Used for exporting and importing full database backups.
  */
@@ -266,4 +332,7 @@ export interface TrainingData {
   benchmarks: Benchmark[];
   benchmarkTypes: BenchmarkTypeDef[];
   analyticsCategories: AnalyticsCategory[];
+  metricDefs: MetricDef[];
+  dailyMetrics: DailyMetricEntry[];
+  painLogs: PainLog[];
 }

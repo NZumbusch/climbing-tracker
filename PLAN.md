@@ -373,6 +373,11 @@ interface ExerciseValues { /* ...existing Exercise parameter fields... */ }
 interface ExerciseSlot {
   id: string;                     // stable for the life of this slot
   typeId: string;                 // -> ExerciseTypeDef.id (was: type: string, by name)
+  categoryId?: string;            // -> AnalyticsCategory.id, overrides the type's default category
+                                   // (was: category?: string, by name). Added during implementation:
+                                   // this code block originally omitted it, but the migration scope
+                                   // below always required resolving Exercise.category the same way
+                                   // as typeId - see PROGRESS.md 2026-09-16 "Phase 1 scope gap-fills".
   activeParameters?: ParameterBlock[];
   prescribed?: ExerciseValues;    // the goal, set at plan time, stable
   logged?: ExerciseValues;        // what happened, edited during/after session
@@ -487,6 +492,35 @@ using the Phase 0 registry):**
 - Fix `duplicateWorkout` (`state.svelte.ts`) to regenerate a new `id` for
   every `ExerciseSlot` when duplicating a workout, not just for the workout
   itself.
+- **`src/data/defaults.json`'s `templates` must also convert to the new
+  `typeId`/`prescribed` shape** (added during implementation - see
+  PROGRESS.md 2026-09-16 "Phase 1 scope gap-fills"). This file isn't just
+  seed content: `DEFAULT_TEMPLATES` (built from it) is live fallback data
+  for fresh installs, "Reset to Default Library," and two *existing*
+  historical migration steps (`2.3→2.4`'s "Ensure Deload is in templates"
+  and `3.7→3.8`'s per-phase fallback fill). Those two steps reference the
+  live `DEFAULT_TEMPLATES` constant as a fallback source for **old-shape**
+  data - once `defaults.json` moves to the new shape, that reference would
+  inject new-shape `ExerciseSlot`s mid-chain into what the rest of that
+  historical step still assumes is a flat `Exercise[]`, corrupting the
+  result (double-nested `prescribed`). Confirmed reachable, not
+  theoretical: the real `backup-2.1.json` fixture is missing a `"Deload"`
+  key and hits exactly this fallback. Fix: freeze the *current* (pre-this-
+  change) old-shape `"Deload"` template content as an inline constant used
+  only by that one historical step, decoupling it from the live
+  `DEFAULT_TEMPLATES`/`defaults.json`. (The `3.7→3.8` step's own fallback
+  for `Capacity`/`Strength`/`Performance`/`Taper` turns out to already be
+  dead today - `defaults.json` has never had those post-rename key names,
+  so it already resolves to `[]` before and after this change - so no fix
+  needed there, just noted.)
+- **`DailyReadiness`'s shape isn't declared anywhere in the currently
+  committed `types.ts`** (it predates being typed - `dailyReadiness` is
+  untyped `any[]`, and no committed UI reads or writes it today). Use
+  `{ date: string; sleepScore?: number; hrv?: number; rhr?: number }` -
+  confirmed via the stashed/deferred dashboard WIP's own (unmerged)
+  `DailyReadiness` interface, which matches this plan's own `sleep-score`/
+  `hrv`/`rhr` `MetricDef` ids. This is used only to confirm field-name
+  shape for the migration, not to reuse any stashed code.
 
 **Concrete scope — component changes:**
 - `ExerciseForm.svelte`, `WorkoutForm.svelte`: read/write `typeId` instead
@@ -525,7 +559,12 @@ is deterministic and documented rather than improvised at migration time.
   longer matches any current `ExerciseTypeDef` (tests the archived-
   placeholder fallback), (e) the full old-to-new roundtrip invariant check
   (workout/benchmark counts preserved, every slot has a resolvable
-  `typeId`).
+  `typeId`), (f) a dedicated fresh-install/reset-to-default-library test
+  asserting `DEFAULT_TEMPLATES` (from `defaults.json`, no migration
+  involved) already has valid `typeId`/`prescribed` shaped exercises
+  resolving against `DEFAULT_EXERCISE_TYPES`, and (g) the frozen-`Deload`-
+  fallback regression test described above (old data missing a `"Deload"`
+  template key migrates to a valid, non-double-nested `ExerciseSlot`).
 - `npm run check` passes.
 - Manual test: export your real current backup, run it through the new
   migration chain, re-import, and manually spot-check several historical

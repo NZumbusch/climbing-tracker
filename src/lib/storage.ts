@@ -56,7 +56,9 @@ async function initDB() {
       benchmarks: await localforage.getItem("benchmarks"),
       benchmarkTypes: await localforage.getItem("benchmarkTypes"),
       analyticsCategories: await localforage.getItem("analyticsCategories"),
-      dailyReadiness: await localforage.getItem("dailyReadiness"),
+      metricDefs: await localforage.getItem("metricDefs"),
+      dailyMetrics: await localforage.getItem("dailyMetrics"),
+      painLogs: await localforage.getItem("painLogs"),
       exportVersion: await localforage.getItem("database_version"),
     };
   }
@@ -69,7 +71,9 @@ async function initDB() {
     benchmarks: rawData.benchmarks || [],
     benchmarkTypes: rawData.benchmarkTypes || DEFAULT_BENCHMARK_TYPES,
     analyticsCategories: rawData.analyticsCategories || DEFAULT_ANALYTICS_CATEGORIES,
-    dailyReadiness: rawData.dailyReadiness || [],
+    metricDefs: rawData.metricDefs || [],
+    dailyMetrics: rawData.dailyMetrics || [],
+    painLogs: rawData.painLogs || [],
     exportVersion: rawData.exportVersion || "1.0",
   };
 }
@@ -96,7 +100,9 @@ async function flushDB() {
     await localforage.setItem("benchmarks", _dbState.benchmarks);
     await localforage.setItem("benchmarkTypes", _dbState.benchmarkTypes);
     await localforage.setItem("analyticsCategories", _dbState.analyticsCategories);
-    await localforage.setItem("dailyReadiness", _dbState.dailyReadiness);
+    await localforage.setItem("metricDefs", _dbState.metricDefs);
+    await localforage.setItem("dailyMetrics", _dbState.dailyMetrics);
+    await localforage.setItem("painLogs", _dbState.painLogs);
     await localforage.setItem("database_version", _dbState.exportVersion);
   }
 }
@@ -119,6 +125,33 @@ const migratePre21 = (data: any) => {
   data.benchmarks = data.benchmarks || [];
   data.benchmarkTypes = data.benchmarkTypes || DEFAULT_BENCHMARK_TYPES;
 };
+
+// Frozen old-shape snapshot of defaults.json's pre-Phase-1 "Deload" template,
+// used only by the 2.3->2.4 step below. That step's fallback historically
+// pulled from the live DEFAULT_TEMPLATES constant, which is fine as long as
+// DEFAULT_TEMPLATES stays old-shape - but Phase 1 converts defaults.json's
+// templates to the new typeId/prescribed ExerciseSlot shape, so this step
+// needs its own frozen copy of what DEFAULT_TEMPLATES["Deload"] produced
+// before that change, or it would inject new-shape data into what the rest
+// of this (old-shape) migration step still assumes is a flat Exercise[].
+// Confirmed reachable, not theoretical: backup-2.1.json is missing a
+// "Deload" key and hits this fallback (see PROGRESS.md 2026-09-16).
+const LEGACY_DEFAULT_DELOAD_TEMPLATE = [
+  {
+    notes: "Light Activation Session",
+    dayOfWeek: "Tuesday",
+    exercises: [
+      { id: "1", type: "Free Bouldering", duration: 60, climbingStyle: ["Slab"], cadence: 6, plannedLoad: 2 },
+    ],
+  },
+  {
+    notes: "Light Activation Session",
+    dayOfWeek: "Thursday",
+    exercises: [
+      { id: "2", type: "Free Bouldering", duration: 60, climbingStyle: ["Power"], cadence: 4, plannedLoad: 2 },
+    ],
+  },
+];
 
 const MIGRATIONS: MigrationStep[] = [
   // The original if-chain treated missing/"1.0"/"2.0" as one compound
@@ -228,7 +261,13 @@ const MIGRATIONS: MigrationStep[] = [
 
       // Ensure Deload is in templates
       if (data.templates && !data.templates["Deload"]) {
-        data.templates["Deload"] = DEFAULT_TEMPLATES["Deload"];
+        // Deep-clone: later migration steps mutate this in place (e.g. the
+        // Phase 1 restructuring step reassigns w.exercises), and the source
+        // is a shared module-level constant - assigning it by reference
+        // would corrupt it for any later migration run in this process that
+        // hits this same fallback (confirmed via a test that runs this path
+        // twice in one process - see storage.phase1.test.ts).
+        data.templates["Deload"] = JSON.parse(JSON.stringify(LEGACY_DEFAULT_DELOAD_TEMPLATE));
       }
     },
   },
@@ -792,6 +831,182 @@ const MIGRATIONS: MigrationStep[] = [
       }
     },
   },
+  {
+    from: "3.14",
+    to: "3.15",
+    describe:
+      "Phase 1: resolve Exercise.type (name) to typeId, creating an archived placeholder ExerciseTypeDef for any unresolvable name",
+    migrate: (data: any) => {
+      data.exerciseTypes = data.exerciseTypes || [];
+      const placeholderIds = new Map<string, string>();
+
+      const findOrCreateTypeId = (name: string, categoryHint?: string): string => {
+        const existing = data.exerciseTypes.find((t: any) => t.name === name);
+        if (existing) return existing.id;
+        if (placeholderIds.has(name)) return placeholderIds.get(name)!;
+        const id = generateId();
+        data.exerciseTypes.push({
+          id,
+          name,
+          category: categoryHint || "Other",
+          parameters: [],
+          archived: true,
+        });
+        placeholderIds.set(name, id);
+        return id;
+      };
+
+      const resolveTypeId = (e: any) => {
+        if (e.typeId) return;
+        const name = e.type || "Unknown Exercise";
+        e.typeId = findOrCreateTypeId(name, e.category);
+      };
+
+      data.workouts?.forEach((w: any) => w.exercises?.forEach(resolveTypeId));
+      if (data.templates) {
+        Object.values(data.templates).forEach((phase: any) =>
+          phase?.forEach((t: any) => t.exercises?.forEach(resolveTypeId)),
+        );
+      }
+    },
+  },
+  {
+    from: "3.15",
+    to: "3.16",
+    describe:
+      "Phase 1: resolve Exercise.category (name override) to categoryId, creating an archived placeholder AnalyticsCategory for any unresolvable name",
+    migrate: (data: any) => {
+      data.analyticsCategories = data.analyticsCategories || [];
+      const placeholderIds = new Map<string, string>();
+
+      const findOrCreateCategoryId = (name: string): string => {
+        const existing = data.analyticsCategories.find((c: any) => c.name === name);
+        if (existing) return existing.id;
+        if (placeholderIds.has(name)) return placeholderIds.get(name)!;
+        const id = generateId();
+        data.analyticsCategories.push({ id, name, color: "bg-zinc-500", archived: true });
+        placeholderIds.set(name, id);
+        return id;
+      };
+
+      const resolveCategoryId = (e: any) => {
+        if (!e.category) return;
+        e.categoryId = findOrCreateCategoryId(e.category);
+        delete e.category;
+      };
+
+      data.workouts?.forEach((w: any) => w.exercises?.forEach(resolveCategoryId));
+      if (data.templates) {
+        Object.values(data.templates).forEach((phase: any) =>
+          phase?.forEach((t: any) => t.exercises?.forEach(resolveCategoryId)),
+        );
+      }
+    },
+  },
+  {
+    from: "3.16",
+    to: "3.17",
+    describe:
+      "Phase 1: restructure flat Exercise[] into ExerciseSlot[] (typeId/categoryId already resolved), splitting duration/reps into prescribed vs logged",
+    migrate: (data: any) => {
+      // Every ExerciseValues field except duration/reps, which are the only
+      // two fields that ever had a real prescribed-vs-actual split
+      // historically (plannedDuration/duration since 3.11->3.12,
+      // actualReps/reps since 3.9->3.10). No other field (sets, weight,
+      // grades, holdSize, notes, plannedLoad, ...) ever got that treatment,
+      // so for completed workouts the only honest choice is to carry the
+      // single historical value into both prescribed and logged unchanged -
+      // never fabricate a different "prescribed" value for them.
+      const splitValues = (e: any, isCompleted: boolean) => {
+        const {
+          id, type, category, typeId, categoryId, activeParameters,
+          duration, plannedDuration, reps, actualReps,
+          ...rest
+        } = e;
+
+        const prescribed: any = { ...rest };
+        const prescribedDuration = plannedDuration !== undefined ? plannedDuration : duration;
+        if (prescribedDuration !== undefined) prescribed.duration = prescribedDuration;
+        if (reps !== undefined) prescribed.reps = reps;
+
+        let logged: any | undefined;
+        if (isCompleted) {
+          logged = { ...rest };
+          if (duration !== undefined) logged.duration = duration;
+          const loggedReps = actualReps !== undefined ? actualReps : reps;
+          if (loggedReps !== undefined) logged.reps = loggedReps;
+        }
+
+        return { prescribed, logged };
+      };
+
+      const seenSlotIds = new Set<string>();
+
+      const restructure = (w: any) => {
+        if (!w.exercises) return;
+        const isCompleted = w.status === "completed";
+        w.exercises = w.exercises.map((e: any) => {
+          let id = e.id;
+          if (seenSlotIds.has(id)) id = generateId();
+          seenSlotIds.add(id);
+
+          const { prescribed, logged } = splitValues(e, isCompleted);
+          const slot: any = { id, typeId: e.typeId, prescribed };
+          if (e.activeParameters) slot.activeParameters = e.activeParameters;
+          if (e.categoryId) slot.categoryId = e.categoryId;
+          if (logged) slot.logged = logged;
+          return slot;
+        });
+      };
+
+      data.workouts?.forEach(restructure);
+      if (data.templates) {
+        Object.values(data.templates).forEach((phase: any) => phase?.forEach(restructure));
+      }
+    },
+  },
+  {
+    from: "3.17",
+    to: "3.18",
+    describe:
+      "Phase 1: convert dailyReadiness into metricDefs + dailyMetrics (seeding built-in sleep-score/hrv/rhr MetricDefs)",
+    migrate: (data: any) => {
+      const BUILTIN_METRIC_DEFS = [
+        { id: "sleep-score", name: "Sleep Score", unit: "pts" },
+        { id: "hrv", name: "HRV", unit: "ms" },
+        { id: "rhr", name: "Resting Heart Rate", unit: "bpm" },
+      ];
+
+      data.metricDefs = data.metricDefs || [];
+      BUILTIN_METRIC_DEFS.forEach((def) => {
+        if (!data.metricDefs.some((m: any) => m.id === def.id)) {
+          data.metricDefs.push(def);
+        }
+      });
+
+      data.dailyMetrics = data.dailyMetrics || [];
+      (data.dailyReadiness || []).forEach((r: any) => {
+        if (!r || !r.date) return;
+        const pushEntry = (metricId: string, value: any) => {
+          if (value === undefined || value === null) return;
+          data.dailyMetrics.push({ id: generateId(), metricId, date: r.date, value });
+        };
+        pushEntry("sleep-score", r.sleepScore);
+        pushEntry("hrv", r.hrv);
+        pushEntry("rhr", r.rhr);
+      });
+
+      delete data.dailyReadiness;
+    },
+  },
+  {
+    from: "3.18",
+    to: "3.19",
+    describe: "Phase 1: add painLogs (empty by default, purely additive)",
+    migrate: (data: any) => {
+      data.painLogs = data.painLogs || [];
+    },
+  },
 ];
 
 /**
@@ -824,9 +1039,9 @@ export function runDataMigrations(data: any): void {
  * running migrations and throws if it looks corrupted, so the caller can
  * roll back to the pre-migration snapshot instead of persisting bad data.
  * Deliberately conservative/cheap checks, not exhaustive validation:
- * workout/benchmark counts must be preserved, and every still-name-based
- * `Exercise.type` (pre-Phase-1 — Phase 1 replaces this with `typeId`) must
- * resolve against the migrated `exerciseTypes` list.
+ * workout/benchmark counts must be preserved, and every exercise's
+ * `typeId` (Phase 1 - was the name-based `Exercise.type`) must resolve
+ * against the migrated `exerciseTypes` list.
  */
 export function assertMigrationInvariants(before: any, after: any): void {
   const problems: string[] = [];
@@ -847,14 +1062,14 @@ export function assertMigrationInvariants(before: any, after: any): void {
     );
   }
 
-  const knownTypeNames = new Set(
-    (after.exerciseTypes || []).map((t: any) => t.name),
+  const knownTypeIds = new Set(
+    (after.exerciseTypes || []).map((t: any) => t.id),
   );
   after.workouts?.forEach((w: any) => {
     w.exercises?.forEach((e: any) => {
-      if (e.type && !knownTypeNames.has(e.type)) {
+      if (e.typeId && !knownTypeIds.has(e.typeId)) {
         problems.push(
-          `workout ${w.id} has exercise with unresolvable type "${e.type}"`,
+          `workout ${w.id} has exercise with unresolvable typeId "${e.typeId}"`,
         );
       }
     });
@@ -902,7 +1117,6 @@ export const storage = {
   async _getBenchmarks(): Promise<Benchmark[]> { await initDB(); return _dbState.benchmarks; },
   async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> { await initDB(); return _dbState.benchmarkTypes; },
   async _getAnalyticsCategories(): Promise<AnalyticsCategory[]> { await initDB(); return _dbState.analyticsCategories; },
-  async _getDailyReadiness(): Promise<any[]> { await initDB(); return _dbState.dailyReadiness; },
   async _getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> { await initDB(); return _dbState.templates; },
   async _getExerciseTypes(): Promise<ExerciseTypeDef[]> { await initDB(); return _dbState.exerciseTypes; },
 
@@ -911,7 +1125,6 @@ export const storage = {
   async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> { await initDB(); _dbState.benchmarks = benchmarks; await flushDB(); },
   async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> { await initDB(); _dbState.benchmarkTypes = types; await flushDB(); },
   async _saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> { await initDB(); _dbState.analyticsCategories = categories; await flushDB(); },
-  async _saveDailyReadiness(readiness: any[]): Promise<void> { await initDB(); _dbState.dailyReadiness = readiness; await flushDB(); },
   async _saveTemplates(templates: Record<PhaseType, Partial<Workout>[]>): Promise<void> { await initDB(); _dbState.templates = templates; await flushDB(); },
   async _saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> { await initDB(); _dbState.exerciseTypes = types; await flushDB(); },
 
@@ -1023,21 +1236,6 @@ export const storage = {
     await this._saveAnalyticsCategories(categories);
   },
 
-  async getDailyReadiness(): Promise<any[]> {
-    return this._getDailyReadiness();
-  },
-
-  async saveDailyReadiness(readiness: any): Promise<void> {
-    const all = await this._getDailyReadiness();
-    const index = all.findIndex((r) => r.date === readiness.date);
-    if (index !== -1) {
-      all[index] = readiness;
-    } else {
-      all.push(readiness);
-    }
-    await this._saveDailyReadiness(all);
-  },
-
   async getPeriodization(): Promise<PeriodizationWeek[]> {
     return this._getPeriodization();
   },
@@ -1081,51 +1279,15 @@ export const storage = {
   },
 
   async saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> {
-    const oldTypes = await this.getExerciseTypes();
-
     // Prevent duplicate names
     const names = types.map((t) => t.name.trim().toLowerCase());
     if (new Set(names).size !== names.length) {
       throw new Error("Duplicate modality names are not allowed.");
     }
 
-    const renames = new Map<string, string>();
-    types.forEach((newType) => {
-      const oldType = oldTypes.find((t) => t.id === newType.id);
-      if (oldType && oldType.name !== newType.name) {
-        renames.set(oldType.name, newType.name);
-      }
-    });
-
+    // No rename-propagation needed: exercises reference types by typeId
+    // (Phase 1), which doesn't change when a type's display name does.
     await this._saveExerciseTypes(types);
-
-    if (renames.size > 0) {
-      const workouts = await this._getWorkouts();
-      let workoutsChanged = false;
-      workouts.forEach((w) => {
-        w.exercises.forEach((e) => {
-          if (renames.has(e.type)) {
-            e.type = renames.get(e.type)!;
-            workoutsChanged = true;
-          }
-        });
-      });
-      if (workoutsChanged) await this._saveWorkouts(workouts);
-
-      const templates = await this.getTemplates();
-      let templatesChanged = false;
-      Object.entries(templates).forEach(([_, phaseTemplates]) => {
-        phaseTemplates.forEach((t) => {
-          t.exercises?.forEach((e) => {
-            if (renames.has(e.type)) {
-              e.type = renames.get(e.type)!;
-              templatesChanged = true;
-            }
-          });
-        });
-      });
-      if (templatesChanged) await this.saveTemplates(templates);
-    }
   },
 
   async assignPhaseToWeek(weekId: string, phase: PhaseType): Promise<void> {
@@ -1149,7 +1311,7 @@ export const storage = {
       const templates = await this.getTemplates();
       const phaseTemplates = templates[phase];
 
-      const newWorkouts: Workout[] = phaseTemplates.map((t, i) => ({
+      const newWorkouts: Workout[] = phaseTemplates.map((t) => ({
         id: generateId(),
         status: "planned",
         date: null,
@@ -1157,8 +1319,14 @@ export const storage = {
         weekId,
         notes: t.notes || "",
         loadFactor: 0,
-        plannedLoad: t.exercises?.reduce((acc, e) => acc + calculatePlannedLoad(e), 0) || 0,
-        exercises: t.exercises || [],
+        plannedLoad: t.exercises?.reduce((acc, e) => acc + calculatePlannedLoad(e.prescribed ?? {}), 0) || 0,
+        // Regenerate slot ids: exercises are copied from the template, and
+        // assigning the same phase to multiple weeks would otherwise give
+        // every generated workout's exercises the same ids as the template
+        // (and as each other) - the same id-collision bug class the plan
+        // calls out for duplicateWorkout, hit here too since this is
+        // another place exercises get copied rather than created fresh.
+        exercises: (t.exercises || []).map((e) => ({ ...e, id: generateId() })),
       }));
 
       await this._saveWorkouts([...filteredWorkouts, ...newWorkouts]);
@@ -1243,6 +1411,9 @@ export const storage = {
           if (data.benchmarks) _dbState.benchmarks = data.benchmarks;
           if (data.benchmarkTypes) _dbState.benchmarkTypes = data.benchmarkTypes;
           if (data.analyticsCategories) _dbState.analyticsCategories = data.analyticsCategories;
+          if (data.metricDefs) _dbState.metricDefs = data.metricDefs;
+          if (data.dailyMetrics) _dbState.dailyMetrics = data.dailyMetrics;
+          if (data.painLogs) _dbState.painLogs = data.painLogs;
           _dbState.exportVersion = data.exportVersion || "1.0";
           
           await flushDB();

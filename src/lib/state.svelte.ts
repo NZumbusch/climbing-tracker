@@ -2,6 +2,7 @@ import { storage } from './storage';
 import { calculatePlannedLoad, type Workout, type PeriodizationWeek, type PhaseType, type ExerciseTypeDef, type ViewType, type Benchmark, type BenchmarkTypeDef, type AnalyticsCategory } from './types';
 import { getWeekId } from './dateUtils';
 import { generateId, showAlert, showConfirm } from './utils';
+import { slotValues, slotTypeName } from './exerciseSlot';
 
 /**
  * Global reactive state for the application using Svelte 5's $state.
@@ -58,7 +59,7 @@ class TrainingState {
       let changed = false;
       w.forEach(workout => {
         if ((!workout.plannedLoad || workout.plannedLoad === 0) && workout.exercises.length > 0) {
-          workout.plannedLoad = workout.exercises.reduce((acc, ex) => acc + calculatePlannedLoad(ex), 0);
+          workout.plannedLoad = workout.exercises.reduce((acc, ex) => acc + calculatePlannedLoad(ex.prescribed ?? {}), 0);
           changed = true;
         }
       });
@@ -224,9 +225,10 @@ class TrainingState {
       if (!w.exercises || w.exercises.length === 0) {
         rows.push([...baseInfo, ...Array(16).fill('')].join(','));
       } else {
-        w.exercises.forEach(e => {
+        w.exercises.forEach(slot => {
+          const e = slotValues(slot);
           const exInfo = [
-            `"${e.type}"`,
+            `"${slotTypeName(slot, this.exerciseTypes)}"`,
             `"${(e.notes || '').replace(/"/g, '""')}"`,
             e.duration || 0,
             e.plannedLoad || 0,
@@ -266,7 +268,7 @@ class TrainingState {
     const data = $state.snapshot(workout);
     
     // Calculate aggregate planned load from exercises
-    data.plannedLoad = data.exercises.reduce((acc, e) => acc + calculatePlannedLoad(e), 0);
+    data.plannedLoad = data.exercises.reduce((acc, e) => acc + calculatePlannedLoad(e.prescribed ?? {}), 0);
     
     await storage.saveWorkout(data);
     await this.refresh();
@@ -306,7 +308,10 @@ class TrainingState {
       ...data,
       id: generateId(),
       status: 'planned',
-      date: null
+      date: null,
+      // Regenerate every exercise slot's id too, not just the workout's -
+      // otherwise the duplicate's slots collide with the original's.
+      exercises: data.exercises.map(e => ({ ...e, id: generateId() }))
     };
     await storage.saveWorkout(duplicated);
     await this.refresh();

@@ -4,7 +4,8 @@
   import { onMount } from 'svelte';
   import { storage } from '../../lib/storage';
   import { generateId, showAlert, showConfirm } from '../../lib/utils';
-  import type { Exercise, ExerciseTypeDef, ExerciseCategory, ParameterBlock, PhaseType, Workout, BenchmarkTypeDef } from '../../lib/types';
+  import type { ExerciseSlot, ExerciseTypeDef, ExerciseCategory, ExerciseValues, ParameterBlock, PhaseType, Workout, BenchmarkTypeDef } from '../../lib/types';
+  import { slotTypeName } from '../../lib/exerciseSlot';
   import ExerciseForm from '../workout/ExerciseForm.svelte';
   import PDFExportModal from './PDFExportModal.svelte';
   import Icon from "@iconify/svelte";
@@ -64,6 +65,13 @@
 
   const parameterBlocks = Object.entries(PARAMETER_LABELS).map(([id, label]) => ({ id: id as ParameterBlock, label }));
 
+  /** Resolves a slot's effective category name: its override if set, else its type's default. */
+  function resolveSlotCategory(e: ExerciseSlot): string | undefined {
+    return e.categoryId
+      ? analyticsCategories.find(c => c.id === e.categoryId)?.name
+      : trainingState.exerciseTypes.find(t => t.id === e.typeId)?.category;
+  }
+
   const phases: PhaseType[] = ['Work Capacity', 'Max Strength', 'Power', 'Power Endurance', 'Performance / Taper', 'Deload'];
   const days: import('../../lib/types').DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -78,7 +86,7 @@
 
     trainingState.workouts.forEach(w => {
       w.exercises?.forEach(e => {
-        const cat = e.category || trainingState.exerciseTypes.find(t => t.name === e.type)?.category;
+        const cat = resolveSlotCategory(e);
         if (cat && !existingCats.has(cat)) missing.add(cat);
       });
     });
@@ -87,7 +95,7 @@
       Object.values(templates).forEach(phase => {
         phase?.forEach(t => {
           t.exercises?.forEach(e => {
-            const cat = e.category || trainingState.exerciseTypes.find(type => type.name === e.type)?.category;
+            const cat = resolveSlotCategory(e);
             if (cat && !existingCats.has(cat)) missing.add(cat);
           });
         });
@@ -138,16 +146,29 @@
     templates[selectedPhase] = templates[selectedPhase].filter((_, i: number) => i !== index);
   }
 
-  function saveExerciseToTemplate(data: Omit<Exercise, 'id'>) {
+  function saveExerciseToTemplate(data: { typeId: string; categoryId?: string; activeParameters: ParameterBlock[]; values: ExerciseValues }) {
     if (!selectedPhase || !templates || editingWorkoutIndex === null) return;
     const workout = templates[selectedPhase][editingWorkoutIndex];
+    // Templates are pure plans - `logged` is always undefined for them.
     if (editingExerciseId) {
       const index = workout.exercises!.findIndex((e: any) => e.id === editingExerciseId);
       if (index !== -1) {
-        workout.exercises![index] = { ...data, id: editingExerciseId };
+        workout.exercises![index] = {
+          id: editingExerciseId,
+          typeId: data.typeId,
+          categoryId: data.categoryId,
+          activeParameters: data.activeParameters,
+          prescribed: data.values
+        };
       }
     } else {
-      const newExercise = { ...data, id: generateId() };
+      const newExercise: ExerciseSlot = {
+        id: generateId(),
+        typeId: data.typeId,
+        categoryId: data.categoryId,
+        activeParameters: data.activeParameters,
+        prescribed: data.values
+      };
       workout.exercises = [...(workout.exercises || []), newExercise];
     }
     isAddingExercise = false;
@@ -166,24 +187,24 @@
     templates[selectedPhase] = [...templates[selectedPhase], duplicated];
   }
 
-  function duplicateExerciseInTemplate(workoutIndex: number, exercise: Exercise) {
+  function duplicateExerciseInTemplate(workoutIndex: number, exercise: ExerciseSlot) {
     if (!selectedPhase || !templates) return;
     const workout = templates[selectedPhase][workoutIndex];
     const duplicated = { ...$state.snapshot(exercise), id: generateId() };
     workout.exercises = [...(workout.exercises || []), duplicated];
   }
 
-  function handleTemplateDndConsider(workoutIndex: number, e: CustomEvent<DndEvent<Exercise>>) {
+  function handleTemplateDndConsider(workoutIndex: number, e: CustomEvent<DndEvent<ExerciseSlot>>) {
     if (!selectedPhase || !templates) return;
     templates[selectedPhase][workoutIndex].exercises = e.detail.items;
   }
 
-  function handleTemplateDndFinalize(workoutIndex: number, e: CustomEvent<DndEvent<Exercise>>) {
+  function handleTemplateDndFinalize(workoutIndex: number, e: CustomEvent<DndEvent<ExerciseSlot>>) {
     if (!selectedPhase || !templates) return;
     templates[selectedPhase][workoutIndex].exercises = e.detail.items;
   }
 
-  function editExerciseInTemplate(workoutIndex: number, exercise: Exercise) {
+  function editExerciseInTemplate(workoutIndex: number, exercise: ExerciseSlot) {
     editingWorkoutIndex = workoutIndex;
     editingExerciseId = exercise.id;
     isAddingExercise = true;
@@ -314,17 +335,15 @@
 
     trainingState.workouts.forEach(w => {
       w.exercises?.forEach(e => {
-        const cat = e.category || trainingState.exerciseTypes.find(t => t.name === e.type)?.category;
-        if (cat === catToDelete.name) inUseCount++;
+        if (resolveSlotCategory(e) === catToDelete.name) inUseCount++;
       });
     });
-    
+
     if (templates) {
       Object.values(templates).forEach(phase => {
         phase?.forEach(t => {
           t.exercises?.forEach(e => {
-            const cat = e.category || trainingState.exerciseTypes.find(type => type.name === e.type)?.category;
-            if (cat === catToDelete.name) inUseCount++;
+            if (resolveSlotCategory(e) === catToDelete.name) inUseCount++;
           });
         });
       });
@@ -658,7 +677,7 @@
                             <div class="flex flex-col items-center justify-center gap-0 opacity-40 group-hover/ex:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
                               <Icon icon="ic:baseline-drag-indicator" class="text-[16px]" />
                             </div>
-                            <span class="text-[10px] font-medium text-content-muted truncate">{exercise.type}</span>
+                            <span class="text-[10px] font-medium text-content-muted truncate">{slotTypeName(exercise, trainingState.exerciseTypes)}</span>
                           </div>
                           <div class="flex items-center gap-1 flex-shrink-0">
                             <button onclick={() => duplicateExerciseInTemplate(wIndex, exercise)} class="text-content-subtle hover:text-content transition-colors p-1" title="Duplicate Exercise"><Icon icon="ic:baseline-content-copy" class="text-xs" /></button>
@@ -670,9 +689,10 @@
                     </section>
                     {#if editingWorkoutIndex === wIndex && isAddingExercise}
                       <div class="mt-4 p-4 bg-surface/80 rounded-2xl border border-border-strong animate-in zoom-in-95">
-                        <ExerciseForm 
-                          initialData={editingExerciseId ? workout.exercises?.find((e: any) => e.id === editingExerciseId) : null} 
-                          onSave={saveExerciseToTemplate} 
+                        <ExerciseForm
+                          initialSlot={editingExerciseId ? workout.exercises?.find((e: any) => e.id === editingExerciseId) : null}
+                          mode="prescribed"
+                          onSave={saveExerciseToTemplate}
                         />
                         <button onclick={() => { isAddingExercise = false; editingWorkoutIndex = null; editingExerciseId = null; }} class="w-full mt-3 py-2 text-[9px] font-black text-content-subtle uppercase tracking-widest hover:text-content">Cancel</button>
                       </div>

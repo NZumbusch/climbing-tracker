@@ -15,9 +15,14 @@ function loadFixture(name: string): any {
   return JSON.parse(raw);
 }
 
+/** Every ExerciseValues bucket (prescribed and/or logged) present on a slot - for tests that just need to find a field "somewhere" without caring which bucket. */
+function valueBuckets(slot: any): any[] {
+  return [slot.prescribed, slot.logged].filter(Boolean);
+}
+
 describe("Prerequisite: DATA_EXPORT_VERSION", () => {
-  it("is bumped to 3.14", () => {
-    expect(DATA_EXPORT_VERSION).toBe("3.14");
+  it("is bumped to 3.19", () => {
+    expect(DATA_EXPORT_VERSION).toBe("3.19");
   });
 });
 
@@ -25,7 +30,7 @@ describe("Primary fixture: old_backup.json (exportVersion 2.1, real user data)",
   it("runs the full chain without throwing and lands on the current version", () => {
     const data = loadFixture("backup-2.1.json");
     expect(() => runDataMigrations(data)).not.toThrow();
-    expect(data.exportVersion).toBe("3.14");
+    expect(data.exportVersion).toBe("3.19");
   });
 
   it("preserves all 16 workouts", () => {
@@ -49,20 +54,21 @@ describe("Primary fixture: old_backup.json (exportVersion 2.1, real user data)",
     const data = loadFixture("backup-2.1.json");
     runDataMigrations(data);
 
-    const allExercises = [
+    const allSlots = [
       ...data.workouts.flatMap((w: any) => w.exercises || []),
       ...Object.values(data.templates || {}).flatMap((temps: any) =>
         temps.flatMap((t: any) => t.exercises || []),
       ),
     ];
 
-    // None should still carry a raw `variant` field.
-    allExercises.forEach((e: any) => {
+    // None should still carry a raw `variant` field (ExerciseSlot/ExerciseValues never had one).
+    allSlots.forEach((e: any) => {
       expect(e.variant).toBeUndefined();
+      valueBuckets(e).forEach((v) => expect(v.variant).toBeUndefined());
     });
 
-    const withPreservedVariant = allExercises.filter(
-      (e: any) => typeof e.notes === "string" && e.notes.includes("[Variant: 4x4]"),
+    const withPreservedVariant = allSlots.filter((e: any) =>
+      valueBuckets(e).some((v) => typeof v.notes === "string" && v.notes.includes("[Variant: 4x4]")),
     );
     expect(withPreservedVariant).toHaveLength(5);
   });
@@ -114,7 +120,7 @@ describe("Hand-built 1.0/2.0-era fixture (branch old_backup.json doesn't exercis
     expect(Array.isArray(data.benchmarks)).toBe(true);
     expect(Array.isArray(data.benchmarkTypes)).toBe(true);
     expect(data.benchmarkTypes.length).toBeGreaterThan(0);
-    expect(data.exportVersion).toBe("3.14");
+    expect(data.exportVersion).toBe("3.19");
   });
 
   it('treats "2.0" the same as no version at all', () => {
@@ -157,15 +163,15 @@ describe("Targeted boundary: 2.1 -> 2.2 field renames", () => {
     const [hangboardEx, kilterEx, slabEx] = data.workouts[0].exercises;
     expect(hangboardEx.addedWeight).toBeUndefined();
     expect(hangboardEx.rungSize).toBeUndefined();
-    expect(hangboardEx.weight).toBe(10);
-    expect(hangboardEx.holdSize).toBe(20);
+    expect(hangboardEx.prescribed.weight).toBe(10);
+    expect(hangboardEx.prescribed.holdSize).toBe(20);
 
     expect(kilterEx.boulderingType).toBeUndefined();
-    expect(kilterEx.boardType).toBe("Kilterboard");
-    expect(kilterEx.climbingStyle).toEqual(["Board"]);
+    expect(kilterEx.prescribed.boardType).toBe("Kilterboard");
+    expect(kilterEx.prescribed.climbingStyle).toEqual(["Board"]);
 
     expect(slabEx.boulderingType).toBeUndefined();
-    expect(slabEx.climbingStyle).toEqual(["Slab"]);
+    expect(slabEx.prescribed.climbingStyle).toEqual(["Slab"]);
   });
 });
 
@@ -193,8 +199,8 @@ describe("Targeted boundary: 2.8 -> 2.9 climbingStyle string -> array", () => {
 
     runDataMigrations(data);
 
-    expect(data.workouts[0].exercises[0].climbingStyle).toEqual(["Slab"]);
-    expect(data.templates.Capacity[0].exercises[0].climbingStyle).toEqual(["Overhang"]);
+    expect(data.workouts[0].exercises[0].prescribed.climbingStyle).toEqual(["Slab"]);
+    expect(data.templates.Capacity[0].exercises[0].prescribed.climbingStyle).toEqual(["Overhang"]);
   });
 });
 
@@ -224,10 +230,11 @@ describe("Targeted boundary: 3.4 -> 3.5 Boulder Intervals split", () => {
 
     runDataMigrations(data);
 
+    const typeName = (typeId: string) => data.exerciseTypes.find((t: any) => t.id === typeId)?.name;
     const [variantEx, repsEx, plainEx] = data.workouts[0].exercises;
-    expect(variantEx.type).toBe("Rep-Based Intervals");
-    expect(repsEx.type).toBe("Rep-Based Intervals");
-    expect(plainEx.type).toBe("Time-Based Intervals");
+    expect(typeName(variantEx.typeId)).toBe("Rep-Based Intervals");
+    expect(typeName(repsEx.typeId)).toBe("Rep-Based Intervals");
+    expect(typeName(plainEx.typeId)).toBe("Time-Based Intervals");
 
     const ids = data.exerciseTypes.map((t: any) => t.id);
     expect(ids).not.toContain("boulder-intervals");
@@ -266,9 +273,9 @@ describe("Targeted boundary: amended 3.8 -> 3.9 (grade merge + variant preservat
 
     const ex = data.workouts[0].exercises[0];
     expect(ex.variant).toBeUndefined();
-    expect(ex.notes).toBe("[Variant: 4x4]");
-    expect(ex.minGrade).toBe("V4");
-    expect(ex.maxGrade).toBe("V6");
+    expect(ex.prescribed.notes).toBe("[Variant: 4x4]");
+    expect(ex.prescribed.minGrade).toBe("V4");
+    expect(ex.prescribed.maxGrade).toBe("V6");
   });
 
   it("appends to existing notes rather than overwriting them", () => {
@@ -291,7 +298,7 @@ describe("Targeted boundary: amended 3.8 -> 3.9 (grade merge + variant preservat
     };
 
     runDataMigrations(data);
-    expect(data.workouts[0].exercises[0].notes).toBe("Felt strong [Variant: 4x4]");
+    expect(data.workouts[0].exercises[0].prescribed.notes).toBe("Felt strong [Variant: 4x4]");
   });
 
   it("is a no-op for already-migrated data with no variant field (data already past 3.9)", () => {
@@ -313,7 +320,7 @@ describe("Targeted boundary: amended 3.8 -> 3.9 (grade merge + variant preservat
 
     runDataMigrations(data);
     // The 3.8->3.9 step never ran (data started at 3.9) - notes untouched, no variant tag.
-    expect(data.workouts[0].exercises[0].notes).toBe("Felt strong");
+    expect(data.workouts[0].exercises[0].prescribed.notes).toBe("Felt strong");
   });
 });
 
@@ -417,7 +424,7 @@ describe("Full-chain: minimal 1.0-shaped fixture to current version", () => {
     };
 
     expect(() => runDataMigrations(data)).not.toThrow();
-    expect(data.exportVersion).toBe("3.14");
+    expect(data.exportVersion).toBe("3.19");
     expect(Array.isArray(data.workouts)).toBe(true);
     expect(Array.isArray(data.periodization)).toBe(true);
     expect(Array.isArray(data.exerciseTypes)).toBe(true);
@@ -425,14 +432,18 @@ describe("Full-chain: minimal 1.0-shaped fixture to current version", () => {
     expect(Array.isArray(data.benchmarks)).toBe(true);
     expect(Array.isArray(data.benchmarkTypes)).toBe(true);
     expect(Array.isArray(data.analyticsCategories)).toBe(true);
-    expect(Array.isArray(data.dailyReadiness)).toBe(true);
+    expect(Array.isArray(data.metricDefs)).toBe(true);
+    expect(data.metricDefs.map((m: any) => m.id).sort()).toEqual(["hrv", "rhr", "sleep-score"]);
+    expect(Array.isArray(data.dailyMetrics)).toBe(true);
+    expect(Array.isArray(data.painLogs)).toBe(true);
+    expect(data.dailyReadiness).toBeUndefined();
   });
 });
 
 describe("No-op: data already at the current version", () => {
   it("leaves already-current data untouched", () => {
     const original = {
-      exportVersion: "3.14",
+      exportVersion: "3.19",
       workouts: [
         { id: "w1", status: "completed", date: "2026-01-01", weekId: "2026-W01", loadFactor: 12, exercises: [] },
       ],
@@ -442,7 +453,9 @@ describe("No-op: data already at the current version", () => {
       benchmarks: [],
       benchmarkTypes: [],
       analyticsCategories: [],
-      dailyReadiness: [],
+      metricDefs: [],
+      dailyMetrics: [],
+      painLogs: [],
     };
     const data = JSON.parse(JSON.stringify(original));
 
@@ -455,7 +468,7 @@ describe("No-op: data already at the current version", () => {
 describe("Round-trip: export -> import preserves counts and fields", () => {
   it("survives a JSON export/import cycle followed by migration", () => {
     const original: any = {
-      exportVersion: "3.14",
+      exportVersion: "3.19",
       workouts: [
         {
           id: "w1",
@@ -463,7 +476,7 @@ describe("Round-trip: export -> import preserves counts and fields", () => {
           date: "2026-01-01",
           weekId: "2026-W01",
           loadFactor: 42,
-          exercises: [{ id: "e1", type: "Free Bouldering", duration: 90, notes: "good session" }],
+          exercises: [{ id: "e1", typeId: "free-bouldering", prescribed: { duration: 90, notes: "good session" } }],
         },
         {
           id: "w2",
@@ -480,7 +493,9 @@ describe("Round-trip: export -> import preserves counts and fields", () => {
       benchmarks: [{ id: "b1", typeId: "t1", type: "Max Hang", notes: "", value: 20, unit: "kg", date: "2026-01-01", weekId: "2026-W01" }],
       benchmarkTypes: [{ id: "t1", name: "Max Hang", unit: "kg" }],
       analyticsCategories: [],
-      dailyReadiness: [],
+      metricDefs: [],
+      dailyMetrics: [],
+      painLogs: [],
     };
 
     // Simulate export (serialize) -> import (parse + migrate).
@@ -489,9 +504,9 @@ describe("Round-trip: export -> import preserves counts and fields", () => {
     runDataMigrations(imported);
 
     expect(imported.workouts).toHaveLength(2);
-    expect(imported.workouts[0].exercises[0].notes).toBe("good session");
+    expect(imported.workouts[0].exercises[0].prescribed.notes).toBe("good session");
     expect(imported.benchmarks).toHaveLength(1);
     expect(imported.benchmarks[0].value).toBe(20);
-    expect(imported.exportVersion).toBe("3.14");
+    expect(imported.exportVersion).toBe("3.19");
   });
 });

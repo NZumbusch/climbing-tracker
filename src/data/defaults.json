@@ -104,16 +104,16 @@
         "notes": "Volume Day: Focus on perfect technique below flash level.",
         "dayOfWeek": "Monday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 120, "climbingStyle": ["Slab"], "cadence": 10, "plannedLoad": 5 },
-          { "id": "2", "type": "Core Training", "duration": 30, "difficulty": 6, "plannedLoad": 4 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 120, "climbingStyle": ["Slab"], "cadence": 10, "plannedLoad": 5 } },
+          { "id": "2", "typeId": "core-training", "prescribed": { "duration": 30, "difficulty": 6, "plannedLoad": 4 } }
         ]
       },
       {
         "notes": "Pulling Capacity & Capacity Bouldering",
         "dayOfWeek": "Wednesday",
         "exercises": [
-          { "id": "3", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 6 },
-          { "id": "4", "type": "Weighted Pull-ups", "weight": 10, "sets": 4, "plannedLoad": 5 }
+          { "id": "3", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 6 } },
+          { "id": "4", "typeId": "weighted-pullups", "prescribed": { "weight": 10, "sets": 4, "plannedLoad": 5 } }
         ]
       }
     ],
@@ -122,16 +122,16 @@
         "notes": "Limit Bouldering & Max Hangs",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 8 },
-          { "id": "2", "type": "Max Hangs", "holdType": "Half Crimp", "holdSize": 20, "bodyweightPercent": 125, "sets": 5, "plannedLoad": 6 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 8 } },
+          { "id": "2", "typeId": "max-hangs", "prescribed": { "holdType": "Half Crimp", "holdSize": 20, "bodyweightPercent": 125, "sets": 5, "plannedLoad": 6 } }
         ]
       },
       {
         "notes": "Heavy Board Session",
         "dayOfWeek": "Thursday",
         "exercises": [
-          { "id": "3", "type": "Board Session", "duration": 90, "boardType": "Kilterboard", "boardAngle": 45, "plannedLoad": 9 },
-          { "id": "4", "type": "Core Training", "duration": 20, "difficulty": 9, "plannedLoad": 4 }
+          { "id": "3", "typeId": "board-session", "prescribed": { "duration": 90, "boardType": "Kilterboard", "boardAngle": 45, "plannedLoad": 9 } },
+          { "id": "4", "typeId": "core-training", "prescribed": { "duration": 20, "difficulty": 9, "plannedLoad": 4 } }
         ]
       }
     ],
@@ -140,16 +140,16 @@
         "notes": "Explosive Power Day",
         "dayOfWeek": "Wednesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Coordination"], "plannedLoad": 7 },
-          { "id": "2", "type": "Campus Board", "duration": 20, "campusType": "Jumps", "plannedLoad": 9 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Coordination"], "plannedLoad": 7 } },
+          { "id": "2", "typeId": "campus-board", "prescribed": { "duration": 20, "campusType": "Jumps", "plannedLoad": 9 } }
         ]
       },
       {
         "notes": "Board Power",
         "dayOfWeek": "Friday",
         "exercises": [
-          { "id": "3", "type": "Board Session", "duration": 120, "boardType": "Moonboard", "boardAngle": 40, "plannedLoad": 9 },
-          { "id": "4", "type": "Weighted Pull-ups", "weight": 30, "sets": 3, "plannedLoad": 6 }
+          { "id": "3", "typeId": "board-session", "prescribed": { "duration": 120, "boardType": "Moonboard", "boardAngle": 40, "plannedLoad": 9 } },
+          { "id": "4", "typeId": "weighted-pullups", "prescribed": { "weight": 30, "sets": 3, "plannedLoad": 6 } }
         ]
       }
     ],
@@ -158,8 +158,8 @@
         "notes": "Lactic Tolerance",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Rep-Based Intervals", "reps": 4, "sets": 4, "duration": 60, "plannedLoad": 8 },
-          { "id": "2", "type": "Core Training", "duration": 25, "difficulty": 8, "plannedLoad": 4 }
+          { "id": "1", "typeId": "rep-based-intervals", "prescribed": { "reps": 4, "sets": 4, "duration": 60, "plannedLoad": 8 } },
+          { "id": "2", "typeId": "core-training", "prescribed": { "duration": 25, "difficulty": 8, "plannedLoad": 4 } }
         ]
       }
     ],
@@ -168,14 +168,14 @@
         "notes": "Projecting Day",
         "dayOfWeek": "Saturday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 120, "climbingStyle": ["Board"], "plannedLoad": 9 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 120, "climbingStyle": ["Board"], "plannedLoad": 9 } }
         ]
       },
       {
         "notes": "Active Recovery",
         "dayOfWeek": "Thursday",
         "exercises": [
-          { "id": "2", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Slab"], "plannedLoad": 3 }
+          { "id": "2", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Slab"], "plannedLoad": 3 } }
         ]
       }
     ],
@@ -184,14 +184,14 @@
         "notes": "Light Activation Session",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Slab"], "cadence": 6, "plannedLoad": 2 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Slab"], "cadence": 6, "plannedLoad": 2 } }
         ]
       },
       {
         "notes": "Light Activation Session",
         "dayOfWeek": "Thursday",
         "exercises": [
-          { "id": "2", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Power"], "cadence": 4, "plannedLoad": 2 }
+          { "id": "2", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Power"], "cadence": 4, "plannedLoad": 2 } }
         ]
       }
     ]
