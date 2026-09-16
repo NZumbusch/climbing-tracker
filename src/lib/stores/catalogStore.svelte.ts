@@ -1,0 +1,37 @@
+import { storage } from '../storage';
+import type { ExerciseTypeDef, AnalyticsCategory, BenchmarkTypeDef } from '../types';
+
+/**
+ * The archivable definition/catalog registries (Phase 1 principle 4 -
+ * "what can be tracked" is data): exercise types, analytics categories,
+ * and benchmark types. Distinct from `benchmarkStore`, which holds the
+ * actual logged `Benchmark` records ("what was tracked").
+ */
+export class CatalogStore {
+  exerciseTypes = $state<ExerciseTypeDef[]>([]);
+  analyticsCategories = $state<AnalyticsCategory[]>([]);
+  benchmarkTypes = $state<BenchmarkTypeDef[]>([]);
+
+  async load() {
+    const [exerciseTypes, analyticsCategories, benchmarkTypes] = await Promise.all([
+      storage.getExerciseTypes(),
+      storage.getAnalyticsCategories(),
+      storage.getBenchmarkTypes(),
+    ]);
+    this.exerciseTypes = exerciseTypes;
+    this.analyticsCategories = analyticsCategories;
+    this.benchmarkTypes = benchmarkTypes;
+  }
+
+  async updateExerciseTypes(types: ExerciseTypeDef[]) {
+    await storage.saveExerciseTypes(types);
+  }
+
+  async updateAnalyticsCategories(categories: AnalyticsCategory[]) {
+    await storage.saveAnalyticsCategories(categories);
+  }
+
+  async updateBenchmarkTypes(types: BenchmarkTypeDef[]) {
+    await storage.saveBenchmarkTypes(types);
+  }
+}

@@ -726,4 +726,169 @@ behavior, correct location.
 **Commit:** made as its own commit, referencing "Phase 1" per the plan's
 convention.
 
+---
+
+## 2026-09-16 — Phase 2 scoping: store list clarified with user before implementation
+
+Before writing any Phase 2 code, the kickoff instruction for this phase
+asked for domain stores "including painLogStore and bodyweightStore per the
+plan's scope." Checked this against `PLAN.md`'s actual Phase 2 store list
+and found a mismatch, not just an implementation detail:
+
+- `PLAN.md` names a single `metricsStore.svelte.ts` covering `metricDefs`,
+  `dailyMetrics`, **and** `painLogs` together — there is no separate
+  `painLogStore` anywhere in the plan.
+- `PLAN.md` names no `bodyweightStore` at all. Bodyweight tracking isn't an
+  entity that exists yet — Phase 6 is the phase that seeds a `bodyweight`
+  `MetricDef` (Phase 1's generic metric system already supports it, "no new
+  entity needed" per Phase 6's own scope text). There's nothing for Phase 2
+  to split out today.
+
+Asked the user directly rather than guessing. **Decision (user,
+2026-09-16): follow `PLAN.md` as written** — one `metricsStore.svelte.ts`
+for `metricDefs` + `dailyMetrics` + `painLogs`, no separate `painLogStore`,
+no `bodyweightStore` in this phase. Proceeding with the store list exactly
+as specified in `PLAN.md`'s Phase 2 section.
+
+**Further Phase 2 file-layout decisions, confirmed with the user before
+writing code:**
+- `storage.ts` (1428 lines) splits into `storage/persistence.ts` (init/flush
+  DB, localforage/Capacitor Filesystem adapters, `writeMigrationBackup`),
+  `storage/migrations.ts` (the `MIGRATIONS` registry, `runDataMigrations`,
+  `assertMigrationInvariants`, moved verbatim), and `storage/index.ts` (the
+  public `storage` object, re-exporting `runDataMigrations`/
+  `assertMigrationInvariants` so the existing `storage.migrations.test.ts`/
+  `storage.invariants.test.ts`/`storage.phase1.test.ts` imports from
+  `"./storage"` keep resolving unchanged).
+- `assignPhaseToWeek`'s inline "generate workouts from a phase's templates"
+  logic extracted to `src/lib/planning/generateWorkoutsFromTemplate.ts` as a
+  pure function, per `PLAN.md`'s explicit instruction; `storage` now only
+  persists.
+- Benchmark-related state splits into **two** stores, not one, matching
+  `PLAN.md`'s two separate bullets and principle 4 ("what can be tracked"
+  vs. "what was tracked"): `catalogStore` holds the archivable *definition*
+  registries (`exerciseTypes`, `analyticsCategories`, `benchmarkTypes`);
+  `benchmarkStore` holds the actual logged `Benchmark` records.
+- **Kept a `trainingState` facade** in `state.svelte.ts` composing all 7
+  domain stores, preserving the exact current public API (same property/
+  method names) rather than rewriting call sites — confirmed with the user.
+  Reason: 131 usages of `trainingState` across 12 components, frequently
+  mixing multiple domains in a single expression/file (e.g.
+  `TrainingPlan.svelte` touches workouts/periodization/benchmarks/
+  navigation together) — `PLAN.md`'s own Phase 2 "Assumptions" section
+  explicitly allows this call when rewriting every import site "isn't
+  worth doing." Domain stores are the real decomposition; the facade is
+  purely a compatibility shim, not new logic.
+- **Added storage accessors for `metricDefs`/`dailyMetrics`/`painLogs`**
+  (`getMetricDefs`/`saveMetricDefs`, `getDailyMetrics`/`saveDailyMetrics`,
+  `getPainLogs`/`savePainLogs`), mirroring the existing
+  `getBenchmarkTypes`/`saveBenchmarkTypes` pattern exactly. Phase 1
+  deliberately deferred these (see the 2026-09-16 "Phase 1 implemented"
+  entry, "no public accessors... nothing calls one yet") since nothing
+  consumed the data yet; Phase 2 needs `metricsStore` to be a real working
+  store like every other store rather than the one non-functional stub, so
+  confirmed with the user this additive plumbing (no schema change, no new
+  UI) is in scope now.
+
+---
+
+## 2026-09-16 — Phase 2 implemented: state & storage decomposition
+
+**Storage split** (`src/lib/storage.ts`, 1428 lines, deleted):
+- `src/lib/storage/persistence.ts` — `initDB`/`flushDB`, the localforage/
+  Capacitor Filesystem adapters, `writeMigrationBackup`. Exports the
+  mutable `_dbState` binding plus a `setDbState()` setter (needed because
+  `runStartupMigrations`'s rollback-on-invariant-failure path reassigns
+  `_dbState` wholesale from another module - an imported `let` binding
+  can be read live across modules but not reassigned from outside its own
+  module, so a setter function is required for that one case).
+- `src/lib/storage/migrations.ts` — the `MigrationStep`/`MIGRATIONS`
+  registry, `runDataMigrations`, `assertMigrationInvariants`, moved
+  verbatim, no logic changes.
+- `src/lib/storage/index.ts` — the public `storage` object, re-exporting
+  `runDataMigrations`/`assertMigrationInvariants` so the existing
+  `storage.migrations.test.ts`/`storage.invariants.test.ts`/
+  `storage.phase1.test.ts` imports from `"./storage"` keep resolving
+  unchanged (verified: all 3 test files pass with zero edits). Also adds
+  the new `getMetricDefs`/`saveMetricDefs`, `getDailyMetrics`/
+  `saveDailyMetrics`, `getPainLogs`/`savePainLogs` accessors decided above,
+  mirroring the existing `getBenchmarkTypes`/`saveBenchmarkTypes` pattern.
+- `src/lib/planning/generateWorkoutsFromTemplate.ts` — the "generate
+  workouts from a phase's templates" logic extracted out of
+  `assignPhaseToWeek` verbatim into a pure, synchronous function
+  (`(weekId, templates) => Workout[]`); `storage.assignPhaseToWeek` now
+  only persists (periodization + resulting workouts), it doesn't compute
+  what a phase assignment implies.
+
+**State split** (`src/lib/state.svelte.ts`, 406 lines) into
+`src/lib/stores/*.svelte.ts`:
+- `workoutStore` — `workouts` state, `load()` (including the legacy
+  0-`plannedLoad` cleanup, moved here since it only touches workouts),
+  `completedWorkouts`/`getPlannedWorkoutsForWeek`, `saveWorkout`/
+  `deleteWorkout`/`duplicateWorkout`.
+- `planningStore` — `periodization`/`templates` state, `assignPhase`,
+  `updateTemplates`/`resetTemplates`, `clearWeek`.
+- `catalogStore` — `exerciseTypes`/`analyticsCategories`/`benchmarkTypes`
+  (the archivable *definitions*), matching the principle-4 split decided
+  above.
+- `benchmarkStore` — the logged `Benchmark` *records*.
+- `metricsStore` — `metricDefs`/`dailyMetrics`/`painLogs`, wired to the
+  new storage accessors; still has zero UI consumers (Phase 4/6's job),
+  but is now a real working store instead of a stub.
+- `uiStore` — `view`/`activeWorkout`/`selectedWeekId`/`weekOffset`/
+  `showFatigue`/`theme`, `navigate`/`openFatigueModal`/
+  `closeFatigueModal`/`setTheme`.
+- `backupStore` — `exportData`/`importFile` (thin wrappers around
+  `storage`), `exportToCSV` (takes `workouts`/`periodization`/
+  `exerciseTypes` as parameters rather than owning that state itself,
+  since CSV export is a cross-domain read, not a domain of its own).
+
+**Facade decision, implemented as designed and confirmed with the user
+above:** `state.svelte.ts` now holds a `TrainingState` class that
+instantiates all 7 stores and re-exposes the exact same public shape
+`trainingState` had before (same property names via getters, same method
+names/signatures) - verified with a full `grep -c "trainingState\."`
+sweep across all 12 consuming components/`App.svelte` (131 usages) showing
+**zero call sites needed to change**. Two properties (`selectedWeekId`,
+`weekOffset`) needed get *and* set accessors on the facade (delegating to
+`uiStore`'s underlying `$state` fields) since components write to them
+directly (`TrainingPlan.svelte`); every other property is read-only from
+outside (written only via action methods), so those got plain getters.
+Cross-domain orchestration (the "mutate then full refresh" pattern every
+action already used pre-Phase-2, plus `confirmFatigue`/`processWorkoutSave`/
+`importData`/`clearWeek`, which each touch more than one store) stays at
+the facade level rather than being pushed into any one domain store -
+domain stores' own action methods call `storage` but deliberately do
+**not** self-refresh, so the facade's existing "call store method, then
+`await this.refresh()`" sequencing is unchanged from today's behavior
+(every store's `load()` runs in parallel via `Promise.all`, exactly
+mirroring the original `refresh()`'s `Promise.all` over 7 storage calls).
+This was a deliberate choice over letting each store self-refresh after
+its own mutations: several storage-layer calls have cross-store side
+effects already (e.g. `storage.saveWorkout` internally calls
+`markWeekAsCustomized`, mutating periodization) - a self-refresh scoped to
+only the acting store's slice would silently stop reflecting those side
+effects in other stores' reactive state, a real behavior regression this
+phase's "no behavior change" goal rules out. Full-refresh-after-every-
+mutation is less efficient than a scoped reload would be, but it's
+*exactly* today's behavior, preserved on purpose.
+
+**Verification performed:**
+- `npm run test` → 43/43 pass, unchanged from pre-Phase-2 (all 4 existing
+  test files needed zero edits).
+- `npm run check` → 0 errors, 0 warnings, 365 files (was 358 pre-Phase-2;
+  the 7 new store files + 3 new storage files + 1 new planning file account
+  for the difference net of the 1 deleted `storage.ts`).
+- `npx vite build` → production build succeeds (same pre-existing >500kB
+  chunk warning as before, unrelated to this phase).
+- **Manual smoke test performed by the user** (browser tooling wasn't
+  available this session - same gap as Phase 0/1, flagged rather than
+  silently skipped): dev server started and left running at
+  `http://localhost:5173/climbing-tracker/`; the user clicked through
+  plan/home, add workout, history, settings, and analytics themselves and
+  confirmed nothing regressed.
+
+**Commit:** made as its own commit, referencing "Phase 2" per the plan's
+convention.
+
 
