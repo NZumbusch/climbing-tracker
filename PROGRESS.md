@@ -194,3 +194,78 @@ this step's scope.
 
 **Commit:** made as its own commit, separate from any later Phase 0 work,
 per the plan's recommendation.
+
+---
+
+## 2026-09-16 — Pre-Phase-0: stashed unreviewed working-tree WIP
+
+Before starting Phase 0, `git status` showed a large uncommitted diff
+sitting in the working tree (15 modified files + 3 untracked: `old_backup.json`,
+`src/components/dashboard/`, `src/components/workout/TimerWidget.svelte`).
+Inspected file-by-file (via `git diff`, not applied) rather than assumed
+away, since Phase 0 needs a clean baseline and this diff was substantial
+enough to risk contaminating Phase 0's commit if left in place.
+
+**Finding:** the diff is two things tangled together in the same files,
+not one:
+
+1. **Schema-prep work that overlaps Phase 0/1's own scope** — `types.ts`
+   changes (merge `boulderingGrades`/`routeGrades` → `grades`, drop
+   `variant` param, add `arms` fatigue axis + `plannedDuration` +
+   `actualReps`, rename `PhaseType` values `Work Capacity`→`Capacity`,
+   `Max Strength`→`Strength`, `Performance / Taper` split into
+   `Performance`+`Taper`, rework `calculateLoadFactor`/`calculatePlannedLoad`
+   to a 4-axis/single-arg-object signature) plus the matching call-site
+   updates in `defaults.json`, `AIPromptModal.svelte`, `FatigueModal.svelte`,
+   and parts of `TrainingPlan.svelte`/`ExerciseForm.svelte`/`state.svelte.ts`.
+   This matches shapes the **already-committed** `storage.ts` migration
+   chain (steps 3.1→3.9, 3.7→3.8, 3.10→3.12) already produces at runtime
+   but that `types.ts` never caught up to declare — and matches PLAN.md's
+   own stated assumption (Context section, Phase 1 code block) that `arms`
+   is already a fixed fourth fatigue axis going into Phase 1.
+2. **Unrelated, unreviewed feature work**, not described anywhere in
+   PLAN.md: a new dashboard/home view (`src/components/dashboard/Dashboard.svelte`,
+   untracked — daily biometric entry, HRV baseline, ACWR sparklines,
+   readiness scoring, wired into `App.svelte`'s new `'home'` view) built on
+   top of the *old* `DailyReadiness` shape that Phase 1 is about to delete
+   in favor of `MetricDef`/`DailyMetricEntry`; a workout timer widget
+   (`TimerWidget.svelte`, untracked); drag-and-drop day-of-week scheduling
+   in `TrainingPlan.svelte` (`svelte-dnd-action`); a "log actual reps per
+   set" + "similar past sets" lookup UI in `ExerciseForm.svelte`; a
+   history "Share" button + exercise-type filter in `History.svelte`;
+   settings UI polish and category/benchmark-type rename propagation in
+   `Settings.svelte`; a large `Analytics.svelte` diff (179+/42-, presumably
+   radar-chart/ACWR display changes, not read in full); a new
+   "Sports Science Engine" doc section in `README.md` describing the
+   dashboard feature; and unrelated app-config tweaks in
+   `capacitor.config.json`/`vite.config.js` (display name, deploy base
+   path).
+
+   One line in the `state.svelte.ts` portion looked like leftover/unfinished
+   debugging code rather than finished work:
+   `this.dailyReadiness = arguments[0]?.[7] || await storage.getDailyReadiness();`
+   inside `refresh()` — using `arguments[0]` against what should be a
+   destructured `Promise.all` result. Flagged, not fixed, since the whole
+   diff is being deferred, not merged.
+
+   Because (1) and (2) share files (`ExerciseForm.svelte`, `state.svelte.ts`,
+   `TrainingPlan.svelte`), they couldn't be cleanly separated with a
+   per-file stash — would need per-hunk surgery to extract just the
+   schema-prep parts.
+
+**Decision (user, 2026-09-16):** stash the entire diff as-is (`git stash -u`,
+covering both tracked and untracked files) rather than cherry-pick or
+reuse any part of it. Commit: `63395c3db3015a9b7e37ffacd50259b28b7f4860`
+(`stash@{0}` at time of stashing — message: "Unreviewed pre-refactor WIP:
+schema-prep tangled with dashboard/timer/features (deferred, see
+PROGRESS.md)"). This is a deliberate deferral, not a discard: the stash is
+recoverable (`git stash list` / `git stash show -p stash@{0}`) and is
+intended to be revisited **after Phase 1 lands** — at that point the
+schema-prep portions will either already be superseded by Phase 1's own
+(properly migrated + tested) equivalent, or can be diffed against Phase
+1's result to see what's left to cherry-pick from the feature-work portion.
+Phase 0 proceeds from a clean tree; any `types.ts` changes Phase 0/1 need
+are being written fresh as part of those phases' own scope, not copied
+from this stash.
+
+
