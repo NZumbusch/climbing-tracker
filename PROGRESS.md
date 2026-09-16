@@ -268,4 +268,88 @@ Phase 0 proceeds from a clean tree; any `types.ts` changes Phase 0/1 need
 are being written fresh as part of those phases' own scope, not copied
 from this stash.
 
+---
+
+## 2026-09-16 — Pre-Phase-0: fixed a pre-existing type/schema drift bug (predates this plan)
+
+While confirming Phase 0's `npm run check` DoD on the now-clean tree,
+found 10 `svelte-check` errors. Verified (by reverting the in-progress
+Phase 0 `storage.ts` refactor and re-running check) that **none of these
+are caused by Phase 0's registry extraction** — same 10 errors, same
+logical spots, at the pre-Phase-0 committed state. Also confirmed they
+exist on `main` (`4486826`, the exact commit this branch forked from), so
+this predates the whole refactor plan and has been sitting unnoticed on
+the public release branch. It was invisible during the Prerequisite step
+only because the stashed WIP diff (see entry above) happened to patch
+exactly these gaps in `types.ts` while it sat uncommitted.
+
+**Root cause:** already-committed code in `storage.ts`/`constants.ts`
+assumed a newer schema than `types.ts` declared:
+- `calculatePlannedLoad` was called with a single `Exercise`-like object at
+  **7 real call sites** (`storage.ts`: 4 inside the migration chain, 1 in
+  `applyTemplate`; `state.svelte.ts`: 2), but its committed signature was
+  `calculatePlannedLoad(duration, plannedIntensity)` — two required
+  numbers. At runtime this passed the whole object as `duration`, so
+  `Number(duration)` → `NaN`, meaning **every one of those 7 call sites was
+  already producing `NaN` planned-load values in production**, not just a
+  type error.
+- `constants.ts`'s `PARAMETER_LABELS` had a `grades` key with no matching
+  `ParameterBlock` member (`boulderingGrades`/`routeGrades` existed
+  instead).
+- `storage.ts`'s committed `3.7→3.8` migration step writes phase values
+  `"Capacity"`/`"Strength"`/`"Performance"`/`"Taper"`, but `PhaseType`
+  only had the old 6 values — so a user whose data has already run this
+  migration step would render with no color band in `TrainingPlan.svelte`
+  (`phaseColors[week.phase]` → `undefined` for those keys), a second latent
+  UI bug found while fixing this.
+
+**Fix (kept strictly minimal, no schema rework — that stays Phase 1's job,
+decided with the user 2026-09-16):**
+- `calculatePlannedLoad` (`types.ts`) now takes the exercise object itself
+  (`{ duration?: number; plannedLoad?: number }`) instead of two positional
+  numbers — matching what every real call site already passed. Same
+  formula, same defaults (60/5), same rounding; only the parameter shape
+  changed. Updated the 2 call sites in `state.svelte.ts` that were using
+  the old two-arg form (the other 5, in `storage.ts`, already called it
+  the new way — that's what exposed the bug).
+- Added `"grades"` to `ParameterBlock` (`types.ts`) alongside the existing
+  `"boulderingGrades"`/`"routeGrades"`/`"variant"` — not replacing them,
+  since the currently-committed `ExerciseForm.svelte` still reads/writes
+  the old names. Filled in the 3 resulting missing keys
+  (`boulderingGrades`, `routeGrades`, `variant`) in `PARAMETER_LABELS`
+  (`constants.ts`) — `Record<ParameterBlock, string>` requires every
+  member present, so adding `"grades"` without also backfilling those 3
+  would just trade one compile error for three.
+- Added `"Capacity"`, `"Strength"`, `"Performance"`, `"Taper"` to
+  `PhaseType` (`types.ts`) alongside the existing 6 — same reasoning
+  (existing UI, e.g. `TrainingPlan.svelte`'s phase-picker, still keys off
+  the old names). Filled in colors for the 4 new keys in
+  `TrainingPlan.svelte`'s `phaseColors` map (reusing the equivalent old
+  phase's color for `Capacity`/`Strength`/`Performance`; `Taper` didn't
+  have a prior equivalent — assigned `bg-cyan-500`, a starting-point color
+  choice, not a considered design decision). Deliberately left the
+  `phases` picker array (`TrainingPlan.svelte`) and `Settings.svelte`'s
+  phase list untouched — arrays aren't exhaustiveness-checked by
+  `Record<PhaseType,...>`, so this was not required to make `check` pass,
+  and touching the phase-picker UI itself is out of this fix's scope.
+- Added `src/lib/types.test.ts`: a regression test that calls
+  `calculatePlannedLoad` the way the real call sites do (single object
+  arg) and asserts the result isn't `NaN`, plus tests for the documented
+  formula/defaults and (per Phase 0's own DoD, see PLAN.md) tests for
+  `calculateLoadFactor`.
+
+**Verification:** `npm run check` → 0 errors (was 10, all pre-existing).
+`npm run test` → 28/28 pass (21 prior + 7 new in `types.test.ts`).
+
+**Explicitly not done here** (deferred to Phase 1, per PLAN.md's own
+framing and the user's direction to keep this fix minimal): reconciling
+`ExerciseForm.svelte`/`Settings.svelte`/`defaults.json` to use the new
+`grades`/`Capacity`-style names instead of the old ones (that's the
+ID-reference/schema work Phase 1 already owns); removing the now-dead old
+`ParameterBlock`/`PhaseType` members once nothing references them; giving
+`Taper` a properly chosen color instead of the placeholder above.
+
+Committed separately from Phase 0's migration-registry refactor, since
+this bug predates and is independent of Phase 0's own scope.
+
 

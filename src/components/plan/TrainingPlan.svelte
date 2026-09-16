@@ -14,7 +14,14 @@
     'Power': 'bg-amber-500',
     'Power Endurance': 'bg-tertiary-hover',
     'Performance / Taper': 'bg-sky-500',
-    'Deload': 'bg-zinc-500'
+    'Deload': 'bg-zinc-500',
+    // Renamed targets of the 3.7->3.8 migration (storage.ts) - migrated data
+    // can carry these, so the color lookup needs to resolve them even though
+    // the phase-picker UI below still only offers the pre-migration names.
+    'Capacity': 'bg-success-hover',
+    'Strength': 'bg-rose-500',
+    'Performance': 'bg-sky-500',
+    'Taper': 'bg-cyan-500'
   };
 
   const phases: PhaseType[] = ['Work Capacity', 'Max Strength', 'Power', 'Power Endurance', 'Performance / Taper', 'Deload'];

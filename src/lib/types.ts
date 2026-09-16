@@ -7,7 +7,15 @@ export type PhaseType =
   | "Power"
   | "Power Endurance"
   | "Performance / Taper"
-  | "Deload";
+  | "Deload"
+  // "Capacity"/"Strength"/"Performance"/"Taper" are the 3.7->3.8 migration's
+  // renamed targets (see storage.ts) - added here so migrated data type-checks.
+  // The old names above stay too: existing UI (pre-Phase-3 PhaseDef work)
+  // still keys off them and migrating that display layer is out of scope here.
+  | "Capacity"
+  | "Strength"
+  | "Performance"
+  | "Taper";
 
 /**
  * Valid navigation views within the application.
@@ -32,6 +40,10 @@ export type ParameterBlock =
   | "duration"
   | "boulderingGrades"
   | "routeGrades"
+  // "grades" is the 3.8->3.9 migration's merged target for the two above
+  // (see storage.ts) - added here so PARAMETER_LABELS and migrated data
+  // type-check. The old names stay too; existing UI still keys off them.
+  | "grades"
   | "cadence"
   | "climbingStyle"
   | "boardType"
@@ -190,14 +202,19 @@ export function calculateLoadFactor(
 
 /**
  * Calculates the planned load for an exercise based on its duration and planned intensity.
+ *
+ * Takes the exercise itself (not two positional numbers) because every real
+ * call site already called it that way (`calculatePlannedLoad(exercise)`) -
+ * the previous two-arg signature didn't match, so `duration` silently
+ * received the whole exercise object and `Number(duration)` produced NaN.
  */
-export function calculatePlannedLoad(
-  duration: number | undefined,
-  plannedIntensity: number | undefined,
-): number {
+export function calculatePlannedLoad(exercise: {
+  duration?: number;
+  plannedLoad?: number;
+}): number {
   // Ensure we have numbers. "0" || 5 in JS is "0", which is a common bug source.
-  const d = duration !== undefined ? Number(duration) : 60;
-  const i = plannedIntensity !== undefined ? Number(plannedIntensity) : 5;
+  const d = exercise.duration !== undefined ? Number(exercise.duration) : 60;
+  const i = exercise.plannedLoad !== undefined ? Number(exercise.plannedLoad) : 5;
   const intensityScale = Math.pow(i, 1.2);
   return Math.round(d * intensityScale);
 }

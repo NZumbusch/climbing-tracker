@@ -58,7 +58,7 @@ class TrainingState {
       let changed = false;
       w.forEach(workout => {
         if ((!workout.plannedLoad || workout.plannedLoad === 0) && workout.exercises.length > 0) {
-          workout.plannedLoad = workout.exercises.reduce((acc, ex) => acc + calculatePlannedLoad(ex.duration, ex.plannedLoad), 0);
+          workout.plannedLoad = workout.exercises.reduce((acc, ex) => acc + calculatePlannedLoad(ex), 0);
           changed = true;
         }
       });
@@ -266,7 +266,7 @@ class TrainingState {
     const data = $state.snapshot(workout);
     
     // Calculate aggregate planned load from exercises
-    data.plannedLoad = data.exercises.reduce((acc, e) => acc + calculatePlannedLoad(e.duration, e.plannedLoad), 0);
+    data.plannedLoad = data.exercises.reduce((acc, e) => acc + calculatePlannedLoad(e), 0);
     
     await storage.saveWorkout(data);
     await this.refresh();

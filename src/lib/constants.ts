@@ -18,7 +18,10 @@ export const DEFAULT_EXERCISE_TYPES: ExerciseTypeDef[] = defaults.exerciseTypes 
 
 export const PARAMETER_LABELS: Record<ParameterBlock, string> = {
   duration: 'Duration',
+  boulderingGrades: 'Bouldering Grades',
+  routeGrades: 'Route Grades',
   grades: 'Grades',
+  variant: 'Variant',
   cadence: 'Cadence',
   climbingStyle: 'Climbing Style',
   boardType: 'Board Type',
