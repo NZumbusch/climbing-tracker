@@ -4,11 +4,9 @@
   import { storage } from '../../lib/storage';
   import { showAlert, showConfirm } from '../../lib/utils';
   import type { ExerciseTypeDef, PhaseDef, WorkoutTemplate, BenchmarkTypeDef, AnalyticsCategory } from '../../lib/types';
-  import ExerciseTypeSettings from './ExerciseTypeSettings.svelte';
+  import ExerciseSettings from './ExerciseSettings.svelte';
   import PhaseSettings from './PhaseSettings.svelte';
-  import TemplateSettings from './TemplateSettings.svelte';
   import BenchmarkTypeSettings from './BenchmarkTypeSettings.svelte';
-  import AnalyticsCategorySettings from './AnalyticsCategorySettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
   import PreferencesSettings from './PreferencesSettings.svelte';
   import Icon from "@iconify/svelte";
@@ -125,13 +123,11 @@
           <span class="text-[10px] font-black uppercase tracking-widest">How These Fit Together</span>
         </div>
         <p class="text-[10px] text-content-muted leading-relaxed">
-          <strong class="text-content">Exercise Modalities</strong> are what you can log in a workout (Free Bouldering, Max Hangs, ...). Each one has a default <strong class="text-content">Analytics Category</strong> — a grouping used only for charts. <strong class="text-content">Training Phases</strong> (Strength, Deload, ...) are the macrocycle blocks you assign to weeks on the Training Plan calendar; each phase owns a set of <strong class="text-content">Training Templates</strong>, which are the default workouts copied in when you assign that phase to a week. <strong class="text-content">Benchmark Types</strong> are separate periodic tests (max hang, max pull-up) logged on their own, not part of a workout.
+          <strong class="text-content">Exercises</strong> define what you can log in a workout, grouped for charts by <strong class="text-content">Analytics Category</strong>. <strong class="text-content">Training Phases</strong> (Strength, Deload, ...) are the macrocycle blocks you assign to weeks on the Training Plan calendar — tap a phase below to edit the default workouts it generates. <strong class="text-content">Benchmarks</strong> are separate periodic tests (max hang, max pull-up) logged on their own, not part of a workout.
         </p>
       </div>
-      <ExerciseTypeSettings bind:exerciseTypes {analyticsCategories} />
-      <AnalyticsCategorySettings bind:analyticsCategories {templates} />
-      <PhaseSettings bind:phaseDefs />
-      <TemplateSettings bind:templates {phaseDefs} onReset={resetTemplates} />
+      <ExerciseSettings bind:exerciseTypes bind:analyticsCategories {templates} />
+      <PhaseSettings bind:phaseDefs bind:templates onResetAllTemplates={resetTemplates} />
       <BenchmarkTypeSettings bind:benchmarkTypes />
     </div>
   {:else if currentTab === 'design'}

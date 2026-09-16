@@ -86,12 +86,6 @@
   }
 </script>
 
-<div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
-<div class="space-y-2">
-  <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Exercise Modalities</h3>
-  <p class="text-[10px] text-content-subtle px-1 leading-relaxed">The kinds of exercises you can add to a workout or template (e.g. "Free Bouldering", "Max Hangs"). Each one defines which fields (sets, grades, hold size, ...) show up when you log it, plus a default Analytics Category used for charts.</p>
-</div>
-
 {#if isAddingType && editingType}
   <div class="p-5 bg-surface-elevated/50 border border-primary/30 rounded-2xl space-y-4 animate-in zoom-in-95 shadow-inner">
     <div class="space-y-3">
@@ -123,4 +117,3 @@
     <button onclick={startAddType} class="w-full py-3.5 border-2 border-dashed border-border hover:border-border-strong rounded-2xl flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" /><span class="text-[10px] font-black uppercase tracking-widest">Add New Modality</span></button>
   </div>
 {/if}
-</div>
