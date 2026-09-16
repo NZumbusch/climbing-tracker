@@ -56,7 +56,7 @@
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
   <div class="space-y-2">
     <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Benchmark Types</h3>
-    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Define standard performance benchmarks and measurement units.</p>
+    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Periodic performance tests (max hang, max pull-up, ...) tracked over time. These are separate from Exercise Modalities — you log a result under "Benchmark Tests" on the Training Plan screen, not as part of a workout.</p>
   </div>
 
   {#if isAddingBenchmark && editingBenchmarkType}

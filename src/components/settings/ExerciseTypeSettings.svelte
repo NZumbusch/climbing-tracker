@@ -89,7 +89,7 @@
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
 <div class="space-y-2">
   <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Exercise Modalities</h3>
-  <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure custom training modalities and their associated metrics.</p>
+  <p class="text-[10px] text-content-subtle px-1 leading-relaxed">The kinds of exercises you can add to a workout or template (e.g. "Free Bouldering", "Max Hangs"). Each one defines which fields (sets, grades, hold size, ...) show up when you log it, plus a default Analytics Category used for charts.</p>
 </div>
 
 {#if isAddingType && editingType}
@@ -100,7 +100,11 @@
         <div class="space-y-1"><label for="edit-load" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Default Load (1-10)</label><input id="edit-load" type="number" min="1" max="10" bind:value={editingType.defaultPlannedLoad} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong focus:ring-1 focus:ring-blue-500 outline-none text-sm" /></div>
       </div>
 
-      <div class="space-y-1"><label for="edit-cat" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Analytics Category</label><select id="edit-cat" bind:value={editingType.category} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong outline-none text-sm appearance-none">{#each analyticsCategories as cat} <option value={cat.name}>{cat.name}</option> {/each}</select></div>
+      <div class="space-y-1">
+        <label for="edit-cat" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Analytics Category</label>
+        <select id="edit-cat" bind:value={editingType.category} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong outline-none text-sm appearance-none">{#each analyticsCategories as cat} <option value={cat.name}>{cat.name}</option> {/each}</select>
+        <p class="text-[8px] text-content-subtle ml-1 leading-relaxed">Only affects chart grouping in Analytics — doesn't change what this modality tracks. A single logged exercise can override this later.</p>
+      </div>
       <div class="space-y-2"><span class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1 block">Active Parameters</span><div class="grid grid-cols-2 gap-2">{#each parameterBlocks as block}<button onclick={() => cycleParam(block.id)} class="px-3 py-2 rounded-lg text-[9px] font-bold border transition-all flex items-center justify-between gap-2 {editingType.parameters.includes(block.id) ? 'bg-primary-hover/10 border-primary/50 text-primary-hover' : (editingType.possibleParameters?.includes(block.id) ? 'bg-surface-elevated border-border-strong text-content' : 'bg-surface border-border/50 text-content-subtle opacity-50')}"><div class="flex items-center gap-2"><Icon icon={editingType.parameters.includes(block.id) ? 'ic:baseline-check-box' : (editingType.possibleParameters?.includes(block.id) ? 'ic:baseline-indeterminate-check-box' : 'ic:baseline-check-box-outline-blank')} class="text-sm" /><span>{block.label}</span></div><span class="text-[7px] font-black uppercase opacity-60 tracking-wider">{editingType.parameters.includes(block.id) ? 'Default' : (editingType.possibleParameters?.includes(block.id) ? 'Possible' : '')}</span></button>{/each}</div></div>
     </div>
     <div class="flex gap-2 pt-2"><button onclick={saveType} class="flex-1 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl">Save</button><button onclick={() => { isAddingType = false; editingType = null; }} class="px-5 py-3 bg-surface-elevated text-content-muted text-[10px] font-black uppercase tracking-widest rounded-xl">Cancel</button></div>

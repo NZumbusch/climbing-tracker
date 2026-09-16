@@ -91,7 +91,7 @@
       <button onclick={() => currentTab = 'customization'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-primary-hover/10 rounded-2xl text-primary group-hover:bg-primary-hover group-hover:text-white transition-colors"><Icon icon="ic:baseline-tune" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-base font-bold text-content">Customization</p><p class="text-[11px] text-content-subtle mt-1">Configure tracking parameters and categories</p></div>
+          <div class="text-left"><p class="text-base font-bold text-content">Customization</p><p class="text-[11px] text-content-subtle mt-1">Exercises, categories, training phases, templates & benchmarks</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
@@ -119,11 +119,20 @@
     </div>
   {:else if currentTab === 'customization'}
     <div class="space-y-6">
+      <div class="bg-primary/5 border border-primary/20 rounded-3xl p-5 space-y-2.5">
+        <div class="flex items-center gap-2 text-primary">
+          <Icon icon="ic:baseline-info" class="text-lg" />
+          <span class="text-[10px] font-black uppercase tracking-widest">How These Fit Together</span>
+        </div>
+        <p class="text-[10px] text-content-muted leading-relaxed">
+          <strong class="text-content">Exercise Modalities</strong> are what you can log in a workout (Free Bouldering, Max Hangs, ...). Each one has a default <strong class="text-content">Analytics Category</strong> — a grouping used only for charts. <strong class="text-content">Training Phases</strong> (Strength, Deload, ...) are the macrocycle blocks you assign to weeks on the Training Plan calendar; each phase owns a set of <strong class="text-content">Training Templates</strong>, which are the default workouts copied in when you assign that phase to a week. <strong class="text-content">Benchmark Types</strong> are separate periodic tests (max hang, max pull-up) logged on their own, not part of a workout.
+        </p>
+      </div>
       <ExerciseTypeSettings bind:exerciseTypes {analyticsCategories} />
       <AnalyticsCategorySettings bind:analyticsCategories {templates} />
       <PhaseSettings bind:phaseDefs />
-      <BenchmarkTypeSettings bind:benchmarkTypes />
       <TemplateSettings bind:templates {phaseDefs} onReset={resetTemplates} />
+      <BenchmarkTypeSettings bind:benchmarkTypes />
     </div>
   {:else if currentTab === 'design'}
     <PreferencesSettings />

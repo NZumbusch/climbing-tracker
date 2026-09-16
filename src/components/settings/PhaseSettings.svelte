@@ -75,7 +75,7 @@
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
   <div class="space-y-2">
     <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Training Phases</h3>
-    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure the macrocycle phases used for periodization and templates.</p>
+    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">The macrocycle blocks (e.g. "Strength", "Deload") you assign to weeks on the Training Plan calendar. Assigning a phase to a week copies that phase's Training Templates (below) in as the week's planned workouts, and colors the week on the calendar.</p>
   </div>
 
   {#if isAddingPhase && editingPhase}

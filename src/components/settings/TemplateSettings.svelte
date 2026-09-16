@@ -129,9 +129,12 @@
 </script>
 
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
-  <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Training Templates</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure default training templates for macrocycle phases.</p></div>
+  <div class="space-y-2"><h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Training Templates</h3><p class="text-[10px] text-content-subtle px-1 leading-relaxed">The default planned workouts for each Training Phase. When you assign a phase to a week on the Training Plan screen — and that week hasn't been manually edited yet — these are copied in automatically as that week's planned sessions. Pick a phase below to edit its sessions.</p></div>
   <div class="space-y-4">
     <div class="flex flex-wrap gap-2">{#each selectablePhases as phase}<button onclick={() => { selectedPhaseId = phase.id; editingWorkoutIndex = null; isAddingExercise = false; }} class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border {selectedPhaseId === phase.id ? 'bg-primary border-primary text-white shadow-lg' : 'bg-surface-elevated/50 border-border-strong text-content-muted hover:text-content'}">{phase.name}</button>{/each}</div>
+    {#if selectablePhases.length === 0}
+      <p class="text-[10px] text-content-subtle italic px-1">No training phases yet — add one under "Training Phases" above first.</p>
+    {/if}
     {#if selectedPhaseId}
       {@const phaseWorkouts = templates[selectedPhaseId] || []}
       {@const phaseName = selectablePhases.find(p => p.id === selectedPhaseId)?.name}
@@ -227,14 +230,15 @@
         </div>
       </div>
     {/if}
-    <button onclick={onReset} class="w-full py-3 text-[9px] font-black text-content-subtle hover:text-danger uppercase tracking-widest transition-colors">Reset to Default Library</button>
+    <button onclick={onReset} class="w-full py-3 text-[9px] font-black text-content-subtle hover:text-danger uppercase tracking-widest transition-colors">Reset ALL Phases to App Defaults</button>
+    <p class="text-[9px] text-content-subtle text-center -mt-2">Overwrites every phase's templates with the app's built-in defaults. Not the same as the starter sets below.</p>
   </div>
 </div>
 
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
   <div class="space-y-2">
     <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Starter Template Library</h3>
-    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Pre-built periodization template sets you can load as a starting point, distinct from your own customized templates above.</p>
+    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Optional pre-built template sets you can load as a starting point for specific phases, then customize above. Different from "Reset ALL Phases" above — loading a set here only overwrites the phases it covers, and you choose when to load it.</p>
   </div>
   <div class="space-y-2">
     {#each DEFAULT_TEMPLATE_LIBRARY as set}

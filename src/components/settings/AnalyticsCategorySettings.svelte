@@ -145,7 +145,7 @@
 <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
   <div class="space-y-2">
     <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Analytics Categories</h3>
-    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Configure analytical classifications for training distribution visualization.</p>
+    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Groupings used only by the charts in the Analytics tab (e.g. "Fingers", "Power Bouldering") — reorder them to change chart legend order. Every Exercise Modality picks one of these as its default above; nothing here changes what you can log in a workout.</p>
   </div>
 
   {#if isAddingAnalyticsCategory && editingAnalyticsCategory}
