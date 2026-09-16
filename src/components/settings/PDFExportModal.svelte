@@ -67,7 +67,8 @@
     }
 
     return Object.entries(grouped).map(([weekId, workouts]) => {
-      const phase = trainingState.periodization.find(p => p.weekId === weekId)?.phase || 'No Phase';
+      const phaseId = trainingState.periodization.find(p => p.weekId === weekId)?.phaseId;
+      const phase = (phaseId && trainingState.phaseDefs.find(p => p.id === phaseId)?.name) || 'No Phase';
       return { weekId, phase, workouts };
     });
   });

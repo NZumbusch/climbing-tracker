@@ -70,7 +70,7 @@ ${JSON.stringify(trainingState.exerciseTypes.map(e => ({ name: e.name, params: e
 - Recent Workouts (Last 20):
 ${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => slotTypeName(e, trainingState.exerciseTypes)) })), null, 2)}
 
-- Available Phases: Work Capacity, Max Strength, Power, Power Endurance, Performance / Taper, Deload.
+- Available Phases: ${trainingState.phaseDefs.filter(p => !p.archived).map(p => p.name).join(', ')}.
 
 - My Benchmarks:
 ${JSON.stringify(trainingState.benchmarks || [], null, 2)}

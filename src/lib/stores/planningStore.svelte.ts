@@ -1,12 +1,12 @@
 import { storage } from '../storage';
-import type { PeriodizationWeek, PhaseType, Workout } from '../types';
+import type { PeriodizationWeek, WorkoutTemplate } from '../types';
 
 /**
  * Periodization, templates, and phase assignment.
  */
 export class PlanningStore {
   periodization = $state<PeriodizationWeek[]>([]);
-  templates = $state<Record<PhaseType, Partial<Workout>[]>>({} as any);
+  templates = $state<Record<string, WorkoutTemplate[]>>({});
 
   async load() {
     const [periodization, templates] = await Promise.all([
@@ -24,11 +24,11 @@ export class PlanningStore {
   /**
    * Assigns a training phase to a specific week.
    */
-  async assignPhase(weekId: string, phase: PhaseType) {
-    await storage.assignPhaseToWeek(weekId, phase);
+  async assignPhase(weekId: string, phaseId: string) {
+    await storage.assignPhaseToWeek(weekId, phaseId);
   }
 
-  async updateTemplates(templates: Record<PhaseType, Partial<Workout>[]>) {
+  async updateTemplates(templates: Record<string, WorkoutTemplate[]>) {
     await storage.saveTemplates(templates);
   }
 

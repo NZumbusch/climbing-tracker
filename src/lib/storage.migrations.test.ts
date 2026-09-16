@@ -21,8 +21,8 @@ function valueBuckets(slot: any): any[] {
 }
 
 describe("Prerequisite: DATA_EXPORT_VERSION", () => {
-  it("is bumped to 3.19", () => {
-    expect(DATA_EXPORT_VERSION).toBe("3.19");
+  it("is bumped to 3.22", () => {
+    expect(DATA_EXPORT_VERSION).toBe("3.22");
   });
 });
 
@@ -30,7 +30,7 @@ describe("Primary fixture: old_backup.json (exportVersion 2.1, real user data)",
   it("runs the full chain without throwing and lands on the current version", () => {
     const data = loadFixture("backup-2.1.json");
     expect(() => runDataMigrations(data)).not.toThrow();
-    expect(data.exportVersion).toBe("3.19");
+    expect(data.exportVersion).toBe("3.22");
   });
 
   it("preserves all 16 workouts", () => {
@@ -97,9 +97,16 @@ describe("Primary fixture: old_backup.json (exportVersion 2.1, real user data)",
     const data = loadFixture("backup-2.1.json");
     runDataMigrations(data);
 
+    // Phase 3 replaces `phase` (name) with `phaseId` entirely - every week
+    // should now resolve against a real PhaseDef, and none should carry the
+    // pre-3.14 legacy names (whether as a leftover `phase` field, which no
+    // longer exists, or as an unresolved phaseId placeholder name).
+    const phaseNameById = new Map(data.phaseDefs.map((p: any) => [p.id, p.name]));
     data.periodization.forEach((p: any) => {
-      expect(p.phase).not.toBe("Maintenance");
-      expect(p.phase).not.toBe("Endurance");
+      expect(p.phase).toBeUndefined();
+      expect(p.phaseId).toBeTruthy();
+      expect(phaseNameById.get(p.phaseId)).not.toBe("Maintenance");
+      expect(phaseNameById.get(p.phaseId)).not.toBe("Endurance");
     });
 
     expect(data.templates["Maintenance"]).toBeUndefined();
@@ -120,7 +127,7 @@ describe("Hand-built 1.0/2.0-era fixture (branch old_backup.json doesn't exercis
     expect(Array.isArray(data.benchmarks)).toBe(true);
     expect(Array.isArray(data.benchmarkTypes)).toBe(true);
     expect(data.benchmarkTypes.length).toBeGreaterThan(0);
-    expect(data.exportVersion).toBe("3.19");
+    expect(data.exportVersion).toBe("3.22");
   });
 
   it('treats "2.0" the same as no version at all', () => {
@@ -200,7 +207,7 @@ describe("Targeted boundary: 2.8 -> 2.9 climbingStyle string -> array", () => {
     runDataMigrations(data);
 
     expect(data.workouts[0].exercises[0].prescribed.climbingStyle).toEqual(["Slab"]);
-    expect(data.templates.Capacity[0].exercises[0].prescribed.climbingStyle).toEqual(["Overhang"]);
+    expect(data.templates["phase-capacity"][0].exercises[0].prescribed.climbingStyle).toEqual(["Overhang"]);
   });
 });
 
@@ -361,12 +368,17 @@ describe("New: 3.12 -> 3.13 parameter rename", () => {
     expect(hangboard.parameters).toEqual(["timeOn"]);
 
     expect(data.workouts[0].exercises[0].activeParameters).toEqual(["climbingStyle", "duration"]);
-    expect(data.templates.Capacity[0].exercises[0].activeParameters).toEqual(["timeOn"]);
+    expect(data.templates["phase-capacity"][0].exercises[0].activeParameters).toEqual(["timeOn"]);
   });
 });
 
-describe("New: 3.13 -> 3.14 phase rename", () => {
-  it("renames phase values and rekeys templates when there is no colliding target key", () => {
+describe("New: 3.13 -> 3.14 phase rename (final phaseId/WorkoutTemplate shape after the full Phase 3 chain)", () => {
+  // runDataMigrations always walks to the current version in one pass, so
+  // these assertions check the *final* shape (PhaseDef-resolved phaseId,
+  // WorkoutTemplate[] keyed by phaseId) rather than the intermediate
+  // name-keyed 3.14 shape - the 3.14 rename step still runs exactly as
+  // before, it's just no longer the last word on phase representation.
+  it("renames phase values and rekeys templates by phaseId when there is no colliding target key", () => {
     const data: any = {
       exportVersion: "3.13",
       workouts: [],
@@ -380,14 +392,17 @@ describe("New: 3.13 -> 3.14 phase rename", () => {
 
     runDataMigrations(data);
 
-    expect(data.periodization).toEqual([
-      { weekId: "2026-W01", phase: "Deload" },
-      { weekId: "2026-W02", phase: "Power Endurance" },
-    ]);
+    const phaseNameById = new Map(data.phaseDefs.map((p: any) => [p.id, p.name]));
+    expect(data.periodization[0].phase).toBeUndefined();
+    expect(phaseNameById.get(data.periodization[0].phaseId)).toBe("Deload");
+    expect(phaseNameById.get(data.periodization[1].phaseId)).toBe("Power Endurance");
+
     expect(data.templates.Maintenance).toBeUndefined();
     expect(data.templates.Endurance).toBeUndefined();
-    expect(data.templates.Deload).toEqual([{ id: "m1", exercises: [] }]);
-    expect(data.templates["Power Endurance"]).toEqual([{ id: "e1", exercises: [] }]);
+    expect(data.templates["phase-deload"]).toHaveLength(1);
+    expect(data.templates["phase-deload"][0].exercises).toEqual([]);
+    expect(data.templates["phase-power-endurance"]).toHaveLength(1);
+    expect(data.templates["phase-power-endurance"][0].exercises).toEqual([]);
   });
 
   it("concatenates rather than overwrites when the target key already has templates", () => {
@@ -405,10 +420,8 @@ describe("New: 3.13 -> 3.14 phase rename", () => {
     runDataMigrations(data);
 
     expect(data.templates.Maintenance).toBeUndefined();
-    expect(data.templates.Deload).toEqual([
-      { id: "real-deload", exercises: [] },
-      { id: "legacy-maintenance", exercises: [] },
-    ]);
+    expect(data.templates["phase-deload"]).toHaveLength(2);
+    data.templates["phase-deload"].forEach((t: any) => expect(t.exercises).toEqual([]));
   });
 });
 
@@ -424,7 +437,7 @@ describe("Full-chain: minimal 1.0-shaped fixture to current version", () => {
     };
 
     expect(() => runDataMigrations(data)).not.toThrow();
-    expect(data.exportVersion).toBe("3.19");
+    expect(data.exportVersion).toBe("3.22");
     expect(Array.isArray(data.workouts)).toBe(true);
     expect(Array.isArray(data.periodization)).toBe(true);
     expect(Array.isArray(data.exerciseTypes)).toBe(true);
@@ -437,19 +450,25 @@ describe("Full-chain: minimal 1.0-shaped fixture to current version", () => {
     expect(Array.isArray(data.dailyMetrics)).toBe(true);
     expect(Array.isArray(data.painLogs)).toBe(true);
     expect(data.dailyReadiness).toBeUndefined();
+    expect(Array.isArray(data.phaseDefs)).toBe(true);
+    expect(data.phaseDefs.map((p: any) => p.id).sort()).toEqual([
+      "phase-capacity", "phase-deload", "phase-performance", "phase-power",
+      "phase-power-endurance", "phase-strength", "phase-taper",
+    ]);
   });
 });
 
 describe("No-op: data already at the current version", () => {
   it("leaves already-current data untouched", () => {
     const original = {
-      exportVersion: "3.19",
+      exportVersion: "3.22",
       workouts: [
         { id: "w1", status: "completed", date: "2026-01-01", weekId: "2026-W01", loadFactor: 12, exercises: [] },
       ],
-      periodization: [{ weekId: "2026-W01", phase: "Deload" }],
+      periodization: [{ weekId: "2026-W01", phaseId: "phase-deload" }],
       exerciseTypes: [{ id: "free-bouldering", name: "Free Bouldering", category: "Technique Bouldering", parameters: ["climbingStyle"] }],
-      templates: { Deload: [] },
+      templates: { "phase-deload": [] },
+      phaseDefs: [{ id: "phase-deload", name: "Deload", color: "bg-zinc-500", order: 7 }],
       benchmarks: [],
       benchmarkTypes: [],
       analyticsCategories: [],
@@ -468,7 +487,7 @@ describe("No-op: data already at the current version", () => {
 describe("Round-trip: export -> import preserves counts and fields", () => {
   it("survives a JSON export/import cycle followed by migration", () => {
     const original: any = {
-      exportVersion: "3.19",
+      exportVersion: "3.22",
       workouts: [
         {
           id: "w1",
@@ -487,9 +506,10 @@ describe("Round-trip: export -> import preserves counts and fields", () => {
           exercises: [],
         },
       ],
-      periodization: [{ weekId: "2026-W01", phase: "Capacity" }],
+      periodization: [{ weekId: "2026-W01", phaseId: "phase-capacity" }],
       exerciseTypes: [{ id: "free-bouldering", name: "Free Bouldering", category: "Technique Bouldering", parameters: ["climbingStyle"] }],
-      templates: { Capacity: [] },
+      templates: { "phase-capacity": [] },
+      phaseDefs: [{ id: "phase-capacity", name: "Capacity", color: "bg-success-hover", order: 1 }],
       benchmarks: [{ id: "b1", typeId: "t1", type: "Max Hang", notes: "", value: 20, unit: "kg", date: "2026-01-01", weekId: "2026-W01" }],
       benchmarkTypes: [{ id: "t1", name: "Max Hang", unit: "kg" }],
       analyticsCategories: [],
@@ -507,6 +527,6 @@ describe("Round-trip: export -> import preserves counts and fields", () => {
     expect(imported.workouts[0].exercises[0].prescribed.notes).toBe("good session");
     expect(imported.benchmarks).toHaveLength(1);
     expect(imported.benchmarks[0].value).toBe(20);
-    expect(imported.exportVersion).toBe("3.19");
+    expect(imported.exportVersion).toBe("3.22");
   });
 });

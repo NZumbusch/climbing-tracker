@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import type { Workout, PhaseType, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType } from './types';
+import type { Workout, WorkoutTemplate, PhaseDef, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType } from './types';
 import { getWeekId } from './dateUtils';
 import { showAlert, showConfirm } from './utils';
 import { WorkoutStore } from './stores/workoutStore.svelte';
@@ -41,6 +41,7 @@ class TrainingState {
   get exerciseTypes() { return this.catalogStore.exerciseTypes; }
   get analyticsCategories() { return this.catalogStore.analyticsCategories; }
   get benchmarkTypes() { return this.catalogStore.benchmarkTypes; }
+  get phaseDefs() { return this.catalogStore.phaseDefs; }
   get benchmarks() { return this.benchmarkStore.benchmarks; }
 
   // --- Delegated UI state ---
@@ -177,7 +178,7 @@ class TrainingState {
    * Exports all training data to a CSV file for analysis in Excel or Python.
    */
   async exportToCSV() {
-    this.backupStore.exportToCSV(this.workouts, this.periodization, this.exerciseTypes);
+    this.backupStore.exportToCSV(this.workouts, this.periodization, this.exerciseTypes, this.phaseDefs);
   }
 
   /**
@@ -261,10 +262,18 @@ class TrainingState {
   }
 
   /**
+   * Updates the global list of macrocycle phase definitions.
+   */
+  async updatePhaseDefs(defs: PhaseDef[]) {
+    await this.catalogStore.updatePhaseDefs(defs);
+    await this.refresh();
+  }
+
+  /**
    * Assigns a training phase to a specific week.
    */
-  async assignPhase(weekId: string, phase: PhaseType) {
-    await this.planningStore.assignPhase(weekId, phase);
+  async assignPhase(weekId: string, phaseId: string) {
+    await this.planningStore.assignPhase(weekId, phaseId);
     await this.refresh();
   }
 
@@ -287,7 +296,7 @@ class TrainingState {
   /**
    * Updates workout templates for different phases.
    */
-  async updateTemplates(templates: Record<PhaseType, Partial<Workout>[]>) {
+  async updateTemplates(templates: Record<string, WorkoutTemplate[]>) {
     await this.planningStore.updateTemplates(templates);
     await this.refresh();
   }

@@ -1,4 +1,4 @@
-import type { Workout } from "../types";
+import type { Workout, WorkoutTemplate } from "../types";
 import { calculatePlannedLoad } from "../types";
 import { generateId } from "../utils";
 
@@ -17,7 +17,7 @@ import { generateId } from "../utils";
  */
 export function generateWorkoutsFromTemplate(
   weekId: string,
-  templates: Partial<Workout>[],
+  templates: WorkoutTemplate[],
 ): Workout[] {
   return templates.map((t) => ({
     id: generateId(),
@@ -25,7 +25,7 @@ export function generateWorkoutsFromTemplate(
     date: null,
     dayOfWeek: t.dayOfWeek,
     weekId,
-    notes: t.notes || "",
+    notes: t.name || "",
     loadFactor: 0,
     plannedLoad: t.exercises?.reduce((acc, e) => acc + calculatePlannedLoad(e.prescribed ?? {}), 0) || 0,
     exercises: (t.exercises || []).map((e) => ({ ...e, id: generateId() })),

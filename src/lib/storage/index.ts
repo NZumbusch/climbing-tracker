@@ -3,9 +3,10 @@ import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import type {
   Workout,
+  WorkoutTemplate,
   PeriodizationWeek,
   ExerciseTypeDef,
-  PhaseType,
+  PhaseDef,
   Benchmark,
   BenchmarkTypeDef,
   AnalyticsCategory,
@@ -33,7 +34,8 @@ export const storage = {
   async _getBenchmarks(): Promise<Benchmark[]> { await initDB(); return _dbState.benchmarks; },
   async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> { await initDB(); return _dbState.benchmarkTypes; },
   async _getAnalyticsCategories(): Promise<AnalyticsCategory[]> { await initDB(); return _dbState.analyticsCategories; },
-  async _getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> { await initDB(); return _dbState.templates; },
+  async _getTemplates(): Promise<Record<string, WorkoutTemplate[]>> { await initDB(); return _dbState.templates; },
+  async _getPhaseDefs(): Promise<PhaseDef[]> { await initDB(); return _dbState.phaseDefs; },
   async _getExerciseTypes(): Promise<ExerciseTypeDef[]> { await initDB(); return _dbState.exerciseTypes; },
   async _getMetricDefs(): Promise<MetricDef[]> { await initDB(); return _dbState.metricDefs; },
   async _getDailyMetrics(): Promise<DailyMetricEntry[]> { await initDB(); return _dbState.dailyMetrics; },
@@ -44,7 +46,8 @@ export const storage = {
   async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> { await initDB(); _dbState.benchmarks = benchmarks; await flushDB(); },
   async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> { await initDB(); _dbState.benchmarkTypes = types; await flushDB(); },
   async _saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> { await initDB(); _dbState.analyticsCategories = categories; await flushDB(); },
-  async _saveTemplates(templates: Record<PhaseType, Partial<Workout>[]>): Promise<void> { await initDB(); _dbState.templates = templates; await flushDB(); },
+  async _saveTemplates(templates: Record<string, WorkoutTemplate[]>): Promise<void> { await initDB(); _dbState.templates = templates; await flushDB(); },
+  async _savePhaseDefs(defs: PhaseDef[]): Promise<void> { await initDB(); _dbState.phaseDefs = defs; await flushDB(); },
   async _saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> { await initDB(); _dbState.exerciseTypes = types; await flushDB(); },
   async _saveMetricDefs(defs: MetricDef[]): Promise<void> { await initDB(); _dbState.metricDefs = defs; await flushDB(); },
   async _saveDailyMetrics(entries: DailyMetricEntry[]): Promise<void> { await initDB(); _dbState.dailyMetrics = entries; await flushDB(); },
@@ -182,18 +185,26 @@ export const storage = {
     await this._savePeriodization(periodization);
   },
 
-  async getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> {
+  async getTemplates(): Promise<Record<string, WorkoutTemplate[]>> {
     return this._getTemplates();
   },
 
   async saveTemplates(
-    templates: Record<PhaseType, Partial<Workout>[]>,
+    templates: Record<string, WorkoutTemplate[]>,
   ): Promise<void> {
     await this._saveTemplates(templates);
   },
 
   async resetTemplates(): Promise<void> {
     await this._saveTemplates(DEFAULT_TEMPLATES);
+  },
+
+  async getPhaseDefs(): Promise<PhaseDef[]> {
+    return this._getPhaseDefs();
+  },
+
+  async savePhaseDefs(defs: PhaseDef[]): Promise<void> {
+    await this._savePhaseDefs(defs);
   },
 
   async getExerciseTypes(): Promise<ExerciseTypeDef[]> {
@@ -236,16 +247,16 @@ export const storage = {
     await this._savePainLogs(logs);
   },
 
-  async assignPhaseToWeek(weekId: string, phase: PhaseType): Promise<void> {
+  async assignPhaseToWeek(weekId: string, phaseId: string): Promise<void> {
     const periodization = await this._getPeriodization();
     const existingIndex = periodization.findIndex((p) => p.weekId === weekId);
 
     let isCustomized = false;
     if (existingIndex !== -1) {
       isCustomized = !!periodization[existingIndex].customized;
-      periodization[existingIndex].phase = phase;
+      periodization[existingIndex].phaseId = phaseId;
     } else {
-      periodization.push({ weekId, phase });
+      periodization.push({ weekId, phaseId });
     }
     await this._savePeriodization(periodization);
 
@@ -255,9 +266,9 @@ export const storage = {
         (w) => !(w.weekId === weekId && w.status === "planned"),
       );
       const templates = await this.getTemplates();
-      const phaseTemplates = templates[phase];
+      const phaseTemplates = templates[phaseId];
 
-      const newWorkouts = generateWorkoutsFromTemplate(weekId, phaseTemplates);
+      const newWorkouts = generateWorkoutsFromTemplate(weekId, phaseTemplates || []);
 
       await this._saveWorkouts([...filteredWorkouts, ...newWorkouts]);
     }
@@ -337,6 +348,7 @@ export const storage = {
           if (data.workouts) _dbState.workouts = data.workouts;
           if (data.periodization) _dbState.periodization = data.periodization;
           if (data.templates) _dbState.templates = data.templates;
+          if (data.phaseDefs) _dbState.phaseDefs = data.phaseDefs;
           if (data.exerciseTypes) _dbState.exerciseTypes = data.exerciseTypes;
           if (data.benchmarks) _dbState.benchmarks = data.benchmarks;
           if (data.benchmarkTypes) _dbState.benchmarkTypes = data.benchmarkTypes;

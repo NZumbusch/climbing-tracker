@@ -6,6 +6,7 @@ import {
   DEFAULT_EXERCISE_TYPES,
   DEFAULT_BENCHMARK_TYPES,
   DEFAULT_ANALYTICS_CATEGORIES,
+  DEFAULT_PHASE_DEFS,
 } from "../constants";
 
 /**
@@ -45,6 +46,7 @@ export async function initDB() {
       workouts: await localforage.getItem("workouts"),
       periodization: await localforage.getItem("periodization"),
       templates: await localforage.getItem("templates"),
+      phaseDefs: await localforage.getItem("phaseDefs"),
       exerciseTypes: await localforage.getItem("exerciseTypes"),
       benchmarks: await localforage.getItem("benchmarks"),
       benchmarkTypes: await localforage.getItem("benchmarkTypes"),
@@ -60,6 +62,7 @@ export async function initDB() {
     workouts: rawData.workouts || [],
     periodization: rawData.periodization || [],
     templates: rawData.templates || DEFAULT_TEMPLATES,
+    phaseDefs: rawData.phaseDefs || DEFAULT_PHASE_DEFS,
     exerciseTypes: rawData.exerciseTypes || DEFAULT_EXERCISE_TYPES,
     benchmarks: rawData.benchmarks || [],
     benchmarkTypes: rawData.benchmarkTypes || DEFAULT_BENCHMARK_TYPES,
@@ -93,6 +96,7 @@ export async function flushDB() {
     await localforage.setItem("workouts", _dbState.workouts);
     await localforage.setItem("periodization", _dbState.periodization);
     await localforage.setItem("templates", _dbState.templates);
+    await localforage.setItem("phaseDefs", _dbState.phaseDefs);
     await localforage.setItem("exerciseTypes", _dbState.exerciseTypes);
     await localforage.setItem("benchmarks", _dbState.benchmarks);
     await localforage.setItem("benchmarkTypes", _dbState.benchmarkTypes);

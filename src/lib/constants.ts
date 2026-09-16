@@ -1,10 +1,10 @@
-import type { ExerciseTypeDef, PhaseType, Workout, ParameterBlock, AnalyticsCategory, BenchmarkTypeDef } from "./types";
+import type { ExerciseTypeDef, PhaseDef, WorkoutTemplate, ParameterBlock, AnalyticsCategory, BenchmarkTypeDef } from "./types";
 import defaults from "../data/defaults.json";
 
 /**
  * Current data model version for exports and migrations.
  */
-export const DATA_EXPORT_VERSION = "3.19";
+export const DATA_EXPORT_VERSION = "3.22";
 
 /**
  * Standard colors for training categories used in charts and indicators.
@@ -46,11 +46,30 @@ export const PARAMETER_LABELS: Record<ParameterBlock, string> = {
 };
 
 /**
- * Periodized workout templates optimized for high-level training.
+ * Periodized workout templates optimized for high-level training, keyed by PhaseDef.id.
  */
-export const DEFAULT_TEMPLATES: Record<PhaseType, Partial<Workout>[]> = defaults.templates as unknown as Record<PhaseType, Partial<Workout>[]>;
+export const DEFAULT_TEMPLATES: Record<string, WorkoutTemplate[]> = defaults.templates as unknown as Record<string, WorkoutTemplate[]>;
+
+/**
+ * The 7 built-in macrocycle phases (Phase 3 - see PhaseDef).
+ */
+export const DEFAULT_PHASE_DEFS: PhaseDef[] = defaults.phaseDefs as PhaseDef[];
 
 /**
  * Default benchmark test types.
  */
 export const DEFAULT_BENCHMARK_TYPES: BenchmarkTypeDef[] = defaults.benchmarkTypes as BenchmarkTypeDef[];
+
+/**
+ * A small library of selectable starter template sets, distinct from the
+ * user's own customized `templates` (PLAN.md Phase 3). **Placeholder
+ * content only** - seeded with one obviously-fake set (decided with the
+ * user 2026-09-16) pending real training-science content; see PROGRESS.md.
+ */
+export interface TemplateLibrarySet {
+  id: string;
+  name: string;
+  description?: string;
+  templates: Record<string, WorkoutTemplate[]>;
+}
+export const DEFAULT_TEMPLATE_LIBRARY: TemplateLibrarySet[] = defaults.templateLibrary as unknown as TemplateLibrarySet[];

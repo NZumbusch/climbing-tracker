@@ -1,23 +1,4 @@
 /**
- * Represents the macrocycle phases of a climbing training plan.
- */
-export type PhaseType =
-  | "Work Capacity"
-  | "Max Strength"
-  | "Power"
-  | "Power Endurance"
-  | "Performance / Taper"
-  | "Deload"
-  // "Capacity"/"Strength"/"Performance"/"Taper" are the 3.7->3.8 migration's
-  // renamed targets (see storage.ts) - added here so migrated data type-checks.
-  // The old names above stay too: existing UI (pre-Phase-3 PhaseDef work)
-  // still keys off them and migrating that display layer is out of scope here.
-  | "Capacity"
-  | "Strength"
-  | "Performance"
-  | "Taper";
-
-/**
  * Valid navigation views within the application.
  */
 export type ViewType = "plan" | "add" | "history" | "settings" | "analytics";
@@ -244,13 +225,43 @@ export function calculatePlannedLoad(exercise: {
 }
 
 /**
+ * Defines a macrocycle training phase (e.g. Capacity, Deload). Data, not
+ * code (Phase 3 principle 4) - replaces the old closed `PhaseType` union so
+ * phases can be added/renamed/archived without shipping code.
+ */
+export interface PhaseDef {
+  id: string;
+  name: string;
+  color?: string;
+  /** For consistent display ordering */
+  order?: number;
+  /** Never hard-delete a phase once referenced by history - archive it instead. */
+  archived?: boolean;
+}
+
+/**
  * Links a specific week to a macrocycle phase in the training plan.
  */
 export interface PeriodizationWeek {
   weekId: string;
-  phase: PhaseType;
+  /** -> PhaseDef.id */
+  phaseId: string;
   /** Indicates if the user manually modified this week's plan from the default template */
   customized?: boolean;
+}
+
+/**
+ * A default/prescribed workout belonging to a phase's template library.
+ * Dedicated shape rather than `Partial<Workout>` - a template never had a
+ * meaningful `status`/`date`/`loadFactor`/fatigue, so those workout-only
+ * fields can no longer leak in by accident.
+ */
+export interface WorkoutTemplate {
+  id: string;
+  name?: string;
+  dayOfWeek?: DayOfWeek;
+  /** `logged` is always undefined on a template's slots - templates are pure plans. */
+  exercises: ExerciseSlot[];
 }
 
 /**
@@ -328,7 +339,8 @@ export interface TrainingData {
   workouts: Workout[];
   periodization: PeriodizationWeek[];
   exerciseTypes: ExerciseTypeDef[];
-  templates: Record<PhaseType, Partial<Workout>[]>;
+  templates: Record<string, WorkoutTemplate[]>;
+  phaseDefs: PhaseDef[];
   benchmarks: Benchmark[];
   benchmarkTypes: BenchmarkTypeDef[];
   analyticsCategories: AnalyticsCategory[];

@@ -223,7 +223,12 @@ describe("Phase 1: (g) frozen 2.3->2.4 Deload fallback stays old-shape safe", ()
   }
 
   function assertValidDeloadSlot(data: any) {
-    const deloadWorkouts = data.templates["Deload"];
+    // Phase 3 rekeys templates from phase name to phaseId, so by the end of
+    // the full chain the frozen "Deload" fallback content ends up under
+    // "phase-deload", not "Deload" - see storage.migrations.test.ts's
+    // "New: 3.13 -> 3.14 phase rename" tests for the equivalent rename
+    // coverage on periodization.
+    const deloadWorkouts = data.templates["phase-deload"];
     expect(deloadWorkouts).toBeDefined();
     expect(deloadWorkouts.length).toBeGreaterThan(0);
 

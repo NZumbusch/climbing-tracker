@@ -52,6 +52,44 @@ const LEGACY_DEFAULT_DELOAD_TEMPLATE = [
   },
 ];
 
+// Fixed id mapping for the Phase 3 PhaseDef migration (PLAN.md). By the time
+// data reaches version 3.19, the 3.7->3.8 and 3.13->3.14 steps above have
+// already normalized every phase value down to these 7 canonical names, so
+// the mapping can be a direct lookup rather than needing to handle the older
+// pre-rename names ("Work Capacity", "Maintenance", ...) too.
+const BUILTIN_PHASE_DEFS = [
+  { id: "phase-capacity", name: "Capacity", color: "bg-success-hover", order: 1 },
+  { id: "phase-strength", name: "Strength", color: "bg-rose-500", order: 2 },
+  { id: "phase-power", name: "Power", color: "bg-amber-500", order: 3 },
+  { id: "phase-power-endurance", name: "Power Endurance", color: "bg-tertiary-hover", order: 4 },
+  { id: "phase-performance", name: "Performance", color: "bg-sky-500", order: 5 },
+  { id: "phase-taper", name: "Taper", color: "bg-cyan-500", order: 6 },
+  { id: "phase-deload", name: "Deload", color: "bg-zinc-500", order: 7 },
+];
+
+/**
+ * Shared "look up an existing PhaseDef by name, or create an archived
+ * placeholder for it" resolver, matching the same archived-placeholder
+ * pattern the 3.14->3.15/3.15->3.16 Phase 1 steps use for typeId/categoryId
+ * (principle 2 - archived, never hard-deleted, once referenced). Used by two
+ * separate migration steps (periodization, then templates) against the same
+ * evolving `data.phaseDefs` array, so a name unresolved in one step but seen
+ * again in the other still maps to the same id rather than creating a
+ * duplicate placeholder.
+ */
+function makePhaseIdResolver(data: any): (name: string) => string {
+  const placeholderIds = new Map<string, string>();
+  return (name: string): string => {
+    const existing = data.phaseDefs.find((p: any) => p.name === name);
+    if (existing) return existing.id;
+    if (placeholderIds.has(name)) return placeholderIds.get(name)!;
+    const id = generateId();
+    data.phaseDefs.push({ id, name, archived: true });
+    placeholderIds.set(name, id);
+    return id;
+  };
+}
+
 const MIGRATIONS: MigrationStep[] = [
   // The original if-chain treated missing/"1.0"/"2.0" as one compound
   // condition sharing one action; the initial `version = data.exportVersion
@@ -906,6 +944,65 @@ const MIGRATIONS: MigrationStep[] = [
       data.painLogs = data.painLogs || [];
     },
   },
+  {
+    from: "3.19",
+    to: "3.20",
+    describe: "Phase 3: seed the 7 built-in PhaseDefs",
+    migrate: (data: any) => {
+      data.phaseDefs = data.phaseDefs || [];
+      BUILTIN_PHASE_DEFS.forEach((def) => {
+        if (!data.phaseDefs.some((p: any) => p.id === def.id)) {
+          data.phaseDefs.push({ ...def });
+        }
+      });
+    },
+  },
+  {
+    from: "3.20",
+    to: "3.21",
+    describe:
+      "Phase 3: resolve PeriodizationWeek.phase (name) to phaseId, creating an archived placeholder PhaseDef for any unresolvable name",
+    migrate: (data: any) => {
+      data.phaseDefs = data.phaseDefs || [];
+      const findOrCreatePhaseId = makePhaseIdResolver(data);
+
+      data.periodization?.forEach((p: any) => {
+        if (!p.phaseId && p.phase) {
+          p.phaseId = findOrCreatePhaseId(p.phase);
+        }
+        delete p.phase;
+      });
+    },
+  },
+  {
+    from: "3.21",
+    to: "3.22",
+    describe:
+      "Phase 3: convert templates keyed by phase name into WorkoutTemplate[] keyed by phaseId",
+    migrate: (data: any) => {
+      data.phaseDefs = data.phaseDefs || [];
+      const findOrCreatePhaseId = makePhaseIdResolver(data);
+
+      if (data.templates) {
+        const newTemplates: any = {};
+        Object.entries(data.templates).forEach(([phaseName, list]: [string, any]) => {
+          const phaseId = findOrCreatePhaseId(phaseName);
+          const converted = (list || []).map((t: any) => ({
+            id: generateId(),
+            name: t.notes,
+            dayOfWeek: t.dayOfWeek,
+            exercises: t.exercises || [],
+          }));
+          if (newTemplates[phaseId]) {
+            newTemplates[phaseId] = [...newTemplates[phaseId], ...converted];
+          } else {
+            newTemplates[phaseId] = converted;
+          }
+        });
+        data.templates = newTemplates;
+      }
+    },
+  },
 ];
 
 /**
@@ -972,6 +1069,17 @@ export function assertMigrationInvariants(before: any, after: any): void {
         );
       }
     });
+  });
+
+  const knownPhaseIds = new Set(
+    (after.phaseDefs || []).map((p: any) => p.id),
+  );
+  after.periodization?.forEach((p: any) => {
+    if (p.phaseId && !knownPhaseIds.has(p.phaseId)) {
+      problems.push(
+        `periodization week ${p.weekId} has unresolvable phaseId "${p.phaseId}"`,
+      );
+    }
   });
 
   if (problems.length > 0) {

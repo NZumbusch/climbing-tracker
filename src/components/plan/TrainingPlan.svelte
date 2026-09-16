@@ -2,29 +2,24 @@
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
   import { generateId } from '../../lib/utils';
-  import type { PhaseType, PeriodizationWeek, Workout, Benchmark } from '../../lib/types';
+  import type { PeriodizationWeek, Workout, Benchmark } from '../../lib/types';
   import Icon from "@iconify/svelte";
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIPromptModal from './AIPromptModal.svelte';
 
   // --- Theme ---
-  const phaseColors: Record<PhaseType, string> = {
-    'Work Capacity': 'bg-success-hover',
-    'Max Strength': 'bg-rose-500',
-    'Power': 'bg-amber-500',
-    'Power Endurance': 'bg-tertiary-hover',
-    'Performance / Taper': 'bg-sky-500',
-    'Deload': 'bg-zinc-500',
-    // Renamed targets of the 3.7->3.8 migration (storage.ts) - migrated data
-    // can carry these, so the color lookup needs to resolve them even though
-    // the phase-picker UI below still only offers the pre-migration names.
-    'Capacity': 'bg-success-hover',
-    'Strength': 'bg-rose-500',
-    'Performance': 'bg-sky-500',
-    'Taper': 'bg-cyan-500'
-  };
+  const FALLBACK_PHASE_COLOR = 'bg-zinc-500';
 
-  const phases: PhaseType[] = ['Work Capacity', 'Max Strength', 'Power', 'Power Endurance', 'Performance / Taper', 'Deload'];
+  /** Only non-archived phases are offered for new assignment; archived ones stay resolvable for display via phaseDefById. */
+  const selectablePhases = $derived(
+    [...trainingState.phaseDefs]
+      .filter((p) => !p.archived)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+  );
+
+  const phaseDefById = $derived(new Map(trainingState.phaseDefs.map((p) => [p.id, p])));
+  const phaseColor = (phaseId?: string) => (phaseId && phaseDefById.get(phaseId)?.color) || FALLBACK_PHASE_COLOR;
+  const phaseName = (phaseId?: string) => (phaseId && phaseDefById.get(phaseId)?.name) || undefined;
 
   // --- State ---
 
@@ -37,7 +32,7 @@
 
   const weeks = $derived.by(() => {
     const currentWeekId = trainingState.currentWeekId;
-    const tempWeeks: { id: string; label: string; phase?: PhaseType; isCurrent: boolean; year: number }[] = [];
+    const tempWeeks: { id: string; label: string; phaseId?: string; isCurrent: boolean; year: number }[] = [];
 
     const startOffset = -25 + (trainingState.weekOffset * 50);
     const endOffset = 24 + (trainingState.weekOffset * 50);
@@ -47,11 +42,11 @@
       d.setDate(d.getDate() + (i * 7));
       const id = getWeekId(d);
       const phaseEntry = trainingState.periodization.find((p: PeriodizationWeek) => p.weekId === id);
-      
+
       tempWeeks.push({
         id,
         label: `Week ${id.split('-W')[1]}`,
-        phase: phaseEntry?.phase,
+        phaseId: phaseEntry?.phaseId,
         isCurrent: id === currentWeekId,
         year: d.getUTCFullYear()
       });
@@ -102,9 +97,9 @@
 
   // --- Handlers ---
 
-  async function handleAssign(phase: PhaseType) {
+  async function handleAssign(phaseId: string) {
     if (!trainingState.selectedWeekId) return;
-    await trainingState.assignPhase(trainingState.selectedWeekId, phase);
+    await trainingState.assignPhase(trainingState.selectedWeekId, phaseId);
     showPhaseDropdown = false;
   }
 
@@ -168,10 +163,10 @@
     </div>
     
     <div class="flex flex-wrap gap-x-3 gap-y-1.5 px-1">
-      {#each phases as phase}
+      {#each selectablePhases as phase}
         <div class="flex items-center gap-1">
-          <div class="w-2.5 h-2.5 rounded-sm {phaseColors[phase]}"></div>
-          <span class="text-[9px] font-bold text-content-subtle uppercase tracking-widest">{phase}</span>
+          <div class="w-2.5 h-2.5 rounded-sm {phase.color || FALLBACK_PHASE_COLOR}"></div>
+          <span class="text-[9px] font-bold text-content-subtle uppercase tracking-widest">{phase.name}</span>
         </div>
       {/each}
     </div>
@@ -205,13 +200,13 @@
           <button 
             onclick={() => { trainingState.selectedWeekId = week.id; showPhaseDropdown = false; }}
             class="aspect-square rounded-lg transition-all duration-300 relative group
-              {week.phase ? phaseColors[week.phase] : 'bg-surface-elevated/50 hover:bg-surface-elevated'}
+              {week.phaseId ? phaseColor(week.phaseId) : 'bg-surface-elevated/50 hover:bg-surface-elevated'}
               {trainingState.selectedWeekId === week.id ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900 scale-110 z-10 shadow-lg' : 'hover:scale-110'}
               {week.isCurrent ? 'border-2 border-primary' : ''}"
           >
             {#if showYear}<div class="absolute -top-4 left-0 text-[7px] font-black text-content-subtle uppercase tracking-widest whitespace-nowrap">{week.year}</div>{/if}
             {#if week.isCurrent}<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-hover rounded-full border-2 border-[#121214] z-20"></div>{/if}
-            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 shadow-xl border border-border-strong">{week.id} {week.phase ? `- ${week.phase}` : ''}</div>
+            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 shadow-xl border border-border-strong">{week.id} {phaseName(week.phaseId) ? `- ${phaseName(week.phaseId)}` : ''}</div>
           </button>
         {/each}
       </div>
@@ -224,16 +219,16 @@
         <div class="flex-1 relative">
           <span class="text-[9px] font-black uppercase tracking-[0.15em] text-primary mb-0.5 block">{selectedWeekData.isCurrent ? 'Current Week' : selectedWeekData.id} <span class="text-content-subtle opacity-70 ml-2 lowercase tracking-normal">({getWeekDateRange(selectedWeekData.id)})</span></span>
           <button onclick={() => showPhaseDropdown = !showPhaseDropdown} class="text-left group flex items-center gap-2">
-            <h3 class="text-xl font-bold text-content tracking-tight group-hover:text-primary-hover transition-colors">{selectedWeekData.phase ? selectedWeekData.phase : 'No Phase'}</h3>
+            <h3 class="text-xl font-bold text-content tracking-tight group-hover:text-primary-hover transition-colors">{phaseName(selectedWeekData.phaseId) ?? 'No Phase'}</h3>
             <span class="text-content-subtle group-hover:text-primary-hover transition-colors"><Icon icon="ic:baseline-arrow-drop-down" class="text-xl" /></span>
           </button>
 
           {#if showPhaseDropdown}
             <div class="absolute left-0 mt-2 w-44 bg-surface border border-border rounded-xl shadow-2xl z-20 overflow-hidden animate-in zoom-in-95 duration-200">
               <div class="p-2 border-b border-border bg-surface/50"><span class="text-[8px] font-black text-content-subtle uppercase tracking-widest px-1">Select Phase</span></div>
-              {#each phases as phase}
-                <button onclick={() => handleAssign(phase)} class="w-full text-left px-3 py-2.5 text-[10px] font-bold text-content-muted hover:bg-surface-elevated hover:text-content transition-colors border-b border-border last:border-0 flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full {phaseColors[phase]}"></div>{phase}
+              {#each selectablePhases as phase}
+                <button onclick={() => handleAssign(phase.id)} class="w-full text-left px-3 py-2.5 text-[10px] font-bold text-content-muted hover:bg-surface-elevated hover:text-content transition-colors border-b border-border last:border-0 flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full {phase.color || FALLBACK_PHASE_COLOR}"></div>{phase.name}
                 </button>
               {/each}
             </div>

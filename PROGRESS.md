@@ -891,4 +891,214 @@ mutation is less efficient than a scoped reload would be, but it's
 **Commit:** made as its own commit, referencing "Phase 2" per the plan's
 convention.
 
+---
+
+## 2026-09-16 — Phase 3 scoping: template library flagged to user before implementation
+
+Before writing any Phase 3 code, checked PLAN.md's Phase 3 "Assumptions"
+section, which explicitly says the pre-built periodization template
+library's content is a training-science decision, not an engineering one,
+and instructs against inventing detailed training programs unprompted.
+Asked the user directly rather than guessing.
+
+**Decision (user, 2026-09-16):** stub it, but make the placeholder
+**obviously fake/generic**, not a plausible-looking real program - e.g.
+"Sample Template A" with clearly dummy exercise names/numbers, so it can't
+be mistaken for real content later. Build the full plumbing around it (data
+structure, "Load Starter Set" button, `TemplateSettings` UI section)
+regardless. **Placeholder-only, pending real content from the user** - do
+not treat the seeded `DEFAULT_TEMPLATE_LIBRARY` content as ready to ship.
+
+---
+
+## 2026-09-16 — Phase 3 implemented: modular phases & templates
+
+**Types (`src/lib/types.ts`):** Removed the closed `PhaseType` union
+entirely (nothing needs it once `PhaseDef` exists). Added `PhaseDef` (`id`,
+`name`, `color?`, `order?`, `archived?`) and `WorkoutTemplate` (`id`,
+`name?`, `dayOfWeek?`, `exercises: ExerciseSlot[]`) - a dedicated shape
+rather than continuing to (ab)use `Partial<Workout>`, which technically
+allowed workout-only fields (`status`, `date`, `loadFactor`, fatigue) that
+never made sense on a template. `PeriodizationWeek.phase: PhaseType` ->
+`phaseId: string`. `TrainingData.templates: Record<PhaseType,
+Partial<Workout>[]>` -> `Record<string, WorkoutTemplate[]>` keyed by
+`PhaseDef.id`, plus a new `phaseDefs: PhaseDef[]` field.
+
+**Migration (`src/lib/storage/migrations.ts`):** Three new registry steps,
+`DATA_EXPORT_VERSION` bumped `"3.19"` -> `"3.22"` (one bump per structural
+change, matching Phase 1's granularity):
+- `3.19->3.20`: seeds the 7 built-in `PhaseDef`s using the fixed id mapping
+  from PLAN.md (`Capacity`->`phase-capacity`, etc.). By version 3.19 the
+  already-committed `3.7->3.8` and `3.13->3.14` steps have already
+  normalized every phase value down to these 7 canonical names, so the
+  mapping is a direct lookup - no need to handle older pre-rename names
+  ("Work Capacity", "Maintenance", ...) at this point in the chain.
+- `3.20->3.21`: resolves `PeriodizationWeek.phase` (name) -> `phaseId`,
+  creating an `archived: true` placeholder `PhaseDef` for any unresolvable
+  name - same archived-placeholder pattern Phase 1 used for `typeId`/
+  `categoryId` (principle 2). Deletes the old `.phase` field.
+- `3.21->3.22`: rekeys `templates` from phase name to `phaseId` (same
+  placeholder pattern, sharing `data.phaseDefs` with the previous step so a
+  name unresolved in one step but seen in the other still maps to the same
+  id) and converts each entry from `Partial<Workout>` to `WorkoutTemplate`
+  (`notes` -> `name`, fresh generated `id`, `dayOfWeek`/`exercises`
+  unchanged - `exercises` are already `ExerciseSlot[]` at this point in the
+  chain thanks to Phase 1's `3.16->3.17` restructuring step, which already
+  processed `data.templates` generically alongside `data.workouts`, so no
+  second exercise-shape conversion is needed here).
+
+Both new placeholder-creating steps share one helper,
+`makePhaseIdResolver(data)`, factored out since the "look up by name, else
+create an archived placeholder and push it" logic is identical between the
+periodization step and the templates step - matches the existing
+`findOrCreateTypeId`/`findOrCreateCategoryId` pattern from Phase 1's
+`storage.migrations.ts`, just extracted once here since two separate steps
+needed the exact same logic against the same evolving `data.phaseDefs`
+array (Phase 1's typeId/categoryId equivalents didn't share logic across
+steps since they resolve different fields).
+
+**`assertMigrationInvariants` extended** (judgment call, not explicitly
+required by PLAN.md's Phase 3 DoD, but cheap and matches the established
+precedent of checking every archivable-catalog reference): now also checks
+every `PeriodizationWeek.phaseId` resolves against the migrated
+`phaseDefs`, mirroring the existing `typeId` check exactly.
+
+**`src/data/defaults.json`:** Added `phaseDefs` (7 built-ins, colors moved
+here from what used to be `TrainingPlan.svelte`'s hardcoded
+`phaseColors` map). `templates` rekeyed from phase name to `phaseId`, each
+workout template converted to `{ id, name, dayOfWeek, exercises }`
+(`notes` -> `name`, stable hand-assigned ids like `"tmpl-capacity-1"` since
+this is static JSON, not a migration step that can call `generateId()`).
+
+**Judgment call - splitting "Performance / Taper" content:** the old
+single `"Performance / Taper"` template had two workouts ("Projecting Day"
+and "Active Recovery"). Since `Performance` and `Taper` are now two
+genuinely separate phases (post-3.7->3.8, this was already true for real
+user data going through migration, but `defaults.json`'s own fresh-install
+content had never been split), assigned "Projecting Day" to
+`phase-performance` and "Active Recovery" to `phase-taper` - a reasonable
+split (projecting fits a performance peak, active recovery fits a taper)
+but a real content decision made without being asked, flagging it as such.
+This only affects fresh-install/reset-to-default-library content, not any
+migration path: the pre-existing `3.7->3.8` step's own
+`DEFAULT_TEMPLATES["Taper"] || []` fallback was already confirmed dead in
+the Phase 1 gap-fill entry above (real user data never had a `"Taper"` key
+to preserve), so no migrated data is affected by this split either way.
+
+**Starter template library (placeholder-only, per the scoping decision
+above):** New `TemplateLibrarySet` type and `DEFAULT_TEMPLATE_LIBRARY`
+constant (`src/lib/constants.ts`), sourced from a new `templateLibrary`
+field in `defaults.json` - deliberately **not** part of `TrainingData`/the
+migration chain, since it's static app-bundled content the user selects
+from, not user data that needs to round-trip through export/import. Seeded
+with exactly one set (`"Sample Template A (PLACEHOLDER - NOT REAL TRAINING
+CONTENT)"`), covering two phases with single dummy exercises (duration
+999/111, `plannedLoad: 1`, notes literally saying "PLACEHOLDER VALUE - not
+a real prescription"). `TemplateSettings.svelte` gets a new "Starter
+Template Library" section listing each set with a "Load" button that
+merges the chosen set's templates into the user's local editable
+`templates` (confirm dialog first, warns it overwrites matching phases) -
+not persisted until the normal "Save All" action.
+
+**Settings split (`src/components/settings/`):** `Settings.svelte` (867
+lines) split into `ExerciseTypeSettings.svelte`, `PhaseSettings.svelte`
+(new - CRUD for `PhaseDef[]`: name/color/reorder-by-`order`-field/delete,
+mirroring `AnalyticsCategorySettings`'s existing pattern), `TemplateSettings.svelte`
+(phase-template editor + the new starter-library section),
+`BenchmarkTypeSettings.svelte`, `AnalyticsCategorySettings.svelte`,
+`BackupSettings.svelte` (ICS/PDF/JSON export+import, owns the
+`PDFExportModal` trigger), `PreferencesSettings.svelte` (theme). `Settings.svelte`
+itself is now a thin shell (~200 lines): owns the tab router, the "About"
+tab's static content (not extracted - no logic, didn't need its own file),
+and the local editable copies of every catalog (`templates`, `phaseDefs`,
+`exerciseTypes`, `benchmarkTypes`, `analyticsCategories`) passed down as
+`$bindable()` props - **deliberately preserving the exact pre-existing
+"Save All" behavior** (one button persists every catalog together) rather
+than splitting into independent per-section saves, matching Phase 2's
+"behavior-preserving refactor, not a UX change" precedent for structural
+splits.
+
+**Judgment call - `PhaseSettings`'s delete button hard-deletes** (filters
+the phase out of the array) rather than setting `archived: true`, even
+though `PhaseDef.archived` exists and migration-created placeholders set it
+automatically. This matches the existing, unchanged behavior of
+`ExerciseTypeSettings`/`BenchmarkTypeSettings`/`AnalyticsCategorySettings`
+in this same codebase (all three already hard-delete from their catalogs
+today) rather than introducing a new archive-toggle UX pattern that none of
+the sibling catalogs have yet - consistent with Phase 1's explicit note
+that building archive-toggle UI was deferred to a later phase, not
+reversed here.
+
+**Other call sites updated for `phaseId`/`WorkoutTemplate`:**
+`TrainingPlan.svelte` (phase picker/colors now derived from
+`trainingState.phaseDefs` instead of a hardcoded `Record<PhaseType,
+string>` map - archived phases excluded from the assignable list but stay
+resolvable for display via a `phaseDefById` lookup, matching the pattern
+already used for archived exercise types/categories),
+`PDFExportModal.svelte`, `backupStore.svelte.ts`'s CSV export (now takes
+`phaseDefs` as a parameter to resolve the display name, mirroring how it
+already resolves exercise type names via `exerciseTypes`),
+`generateWorkoutsFromTemplate.ts` (`templates: Partial<Workout>[]` ->
+`WorkoutTemplate[]`, reads `t.name` instead of `t.notes`),
+`storage/persistence.ts`/`storage/index.ts` (new `phaseDefs` get/save
+plumbing, mirroring every other catalog), `catalogStore`/`planningStore`/
+`state.svelte.ts` facade (new `phaseDefs`/`updatePhaseDefs`).
+
+**Fix made while already touching phase-related code (not scope creep -
+directly caused by this phase's own change):** `AIPromptModal.svelte`'s
+"Generate Plan" prompt had a hardcoded `"Available Phases: Work Capacity,
+Max Strength, Power, Power Endurance, Performance / Taper, Deload."` string
+- already stale before this phase (referring to pre-3.7-rename names), and
+now actively wrong once phases became data-driven. Changed to build the
+list from `trainingState.phaseDefs` (excluding archived) so it always
+reflects the user's real current phase set.
+
+**Test updates:** All pre-existing `storage.migrations.test.ts`/
+`storage.phase1.test.ts` assertions that inspected the old `phase`
+name field or name-keyed `templates` were updated to the final `phaseId`/
+`WorkoutTemplate`-keyed-by-`phaseId` shape - not rewritten to test
+something different, same behavior/same fixtures, correct final location
+(same reasoning as every prior phase's test-update entries; `vitest`
+always walks the full migration chain to the current version in one call,
+so a test seeded at an old `exportVersion` asserts against the *final*
+schema, not the intermediate shape the specific step under test produces).
+New `src/lib/storage.phase3.test.ts` (8 tests) covers PLAN.md's Phase 3
+DoD explicitly: all 7 legacy phase names -> correct fixed `phaseId`s
+(both for periodization and for template rekeying), the archived-
+placeholder path for an unresolvable/custom phase name (including
+placeholder reuse across periodization + templates), the full
+`old_backup.json` roundtrip with `phaseId`/templates-key invariants,
+`DEFAULT_PHASE_DEFS`/`DEFAULT_TEMPLATES` fresh-install shape validity, and
+a check that the placeholder starter-library content's exercise `typeId`s
+all resolve against `DEFAULT_EXERCISE_TYPES`.
+
+**Verification performed:**
+- `npm run test` -> 51/51 pass (43 prior, updated in place where the final
+  shape changed + 8 new in `storage.phase3.test.ts`).
+- `npm run check` -> 0 errors, 0 warnings, 373 files.
+- `npx vite build` -> production build succeeds (same pre-existing >500kB
+  chunk warning as before, unrelated to this phase).
+- **Manual verification not performed by this session** (no browser/display
+  tooling available - same gap as Phase 0's entry, different reason than
+  Phase 1/2 where a browser was available). A pre-existing dev server was
+  already running (`http://localhost:5173/climbing-tracker/`, started
+  before this session, presumably left open by the user); left it running
+  rather than restarting it, so Vite's HMR should pick up this phase's
+  changes automatically. PLAN.md's Phase 3 manual-test bullets (open the
+  app with existing data, confirm the calendar still shows the correct
+  phase for already-assigned weeks, confirm assigning a new phase still
+  generates workouts from the right template set) are **not yet confirmed
+  in a real browser** - flagging explicitly rather than claiming done.
+
+**Explicitly not done here** (deferred, per PLAN.md's own framing or this
+session's scoping decision): real training-science content for the starter
+template library (placeholder only, pending the user, see the scoping
+entry above); an archive-toggle UI for `PhaseDef`/other catalogs (still
+deferred from Phase 1, not reversed); Phase 4's concurrent-block/
+peaking-calendar work, which is what actually needs `PhaseDef` to support
+overlapping training emphases.
+
+**Commit:** made as its own commit, referencing "Phase 3" per the plan's
+convention.
+
 
