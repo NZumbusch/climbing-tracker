@@ -56,6 +56,7 @@ async function initDB() {
       benchmarks: await localforage.getItem("benchmarks"),
       benchmarkTypes: await localforage.getItem("benchmarkTypes"),
       analyticsCategories: await localforage.getItem("analyticsCategories"),
+      dailyReadiness: await localforage.getItem("dailyReadiness"),
       exportVersion: await localforage.getItem("database_version"),
     };
   }
@@ -68,6 +69,7 @@ async function initDB() {
     benchmarks: rawData.benchmarks || [],
     benchmarkTypes: rawData.benchmarkTypes || DEFAULT_BENCHMARK_TYPES,
     analyticsCategories: rawData.analyticsCategories || DEFAULT_ANALYTICS_CATEGORIES,
+    dailyReadiness: rawData.dailyReadiness || [],
     exportVersion: rawData.exportVersion || "1.0",
   };
 }
@@ -94,6 +96,7 @@ async function flushDB() {
     await localforage.setItem("benchmarks", _dbState.benchmarks);
     await localforage.setItem("benchmarkTypes", _dbState.benchmarkTypes);
     await localforage.setItem("analyticsCategories", _dbState.analyticsCategories);
+    await localforage.setItem("dailyReadiness", _dbState.dailyReadiness);
     await localforage.setItem("database_version", _dbState.exportVersion);
   }
 }
@@ -105,7 +108,7 @@ async function flushDB() {
  * Adheres strictly to the migration protocol defined in GEMINI.md.
  * @param data The raw JSON data parsed from the backup file
  */
-function runDataMigrations(data: any): void {
+export function runDataMigrations(data: any): void {
   let importVersion = data.exportVersion || "1.0";
 
   // Migration: pre-2.1 -> 2.1 (Added benchmarks and benchmarkTypes)
@@ -215,7 +218,7 @@ function runDataMigrations(data: any): void {
     data.workouts?.forEach((w: any) => {
       if (w.exercises) {
         w.plannedLoad = w.exercises.reduce(
-          (acc: number, e: any) => acc + calculatePlannedLoad(e.duration, e.plannedLoad),
+          (acc: number, e: any) => acc + calculatePlannedLoad(e),
           0,
         );
       }
@@ -226,7 +229,7 @@ function runDataMigrations(data: any): void {
         phase?.forEach((t: any) => {
           if (t.exercises) {
              t.plannedLoad = t.exercises.reduce(
-              (acc: number, e: any) => acc + calculatePlannedLoad(e.duration, e.plannedLoad),
+              (acc: number, e: any) => acc + calculatePlannedLoad(e),
               0,
             );
           }
@@ -241,7 +244,7 @@ function runDataMigrations(data: any): void {
     data.workouts?.forEach((w: any) => {
       if (w.exercises && w.exercises.length > 0) {
         w.plannedLoad = w.exercises.reduce(
-          (acc: number, e: any) => acc + calculatePlannedLoad(e.duration, e.plannedLoad),
+          (acc: number, e: any) => acc + calculatePlannedLoad(e),
           0,
         );
       }
@@ -252,7 +255,7 @@ function runDataMigrations(data: any): void {
         phase?.forEach((t: any) => {
           if (t.exercises && t.exercises.length > 0) {
             t.plannedLoad = t.exercises.reduce(
-              (acc: number, e: any) => acc + calculatePlannedLoad(e.duration, e.plannedLoad),
+              (acc: number, e: any) => acc + calculatePlannedLoad(e),
               0,
             );
           }
@@ -529,6 +532,212 @@ function runDataMigrations(data: any): void {
     // No explicit structure changes needed yet, just tracking version
     importVersion = "3.7";
   }
+
+  // Migration: 3.7 -> 3.8 (Rename phases: Work Capacity -> Capacity, Max Strength -> Strength, Performance / Taper split)
+  if (importVersion === "3.7") {
+    data.periodization?.forEach((p: any) => {
+      if (p.phase === "Work Capacity") p.phase = "Capacity";
+      if (p.phase === "Max Strength") p.phase = "Strength";
+      if (p.phase === "Performance / Taper") p.phase = "Performance";
+    });
+
+    if (data.templates) {
+      if (data.templates["Work Capacity"]) {
+        data.templates["Capacity"] = data.templates["Work Capacity"];
+        delete data.templates["Work Capacity"];
+      }
+      if (data.templates["Max Strength"]) {
+        data.templates["Strength"] = data.templates["Max Strength"];
+        delete data.templates["Max Strength"];
+      }
+      if (data.templates["Performance / Taper"]) {
+        data.templates["Performance"] = data.templates["Performance / Taper"];
+        delete data.templates["Performance / Taper"];
+      }
+      
+      // Ensure all phase templates exist, even if missing from migration
+      if (!data.templates["Capacity"]) data.templates["Capacity"] = DEFAULT_TEMPLATES["Capacity"] || [];
+      if (!data.templates["Strength"]) data.templates["Strength"] = DEFAULT_TEMPLATES["Strength"] || [];
+      if (!data.templates["Performance"]) data.templates["Performance"] = DEFAULT_TEMPLATES["Performance"] || [];
+      if (!data.templates["Taper"]) data.templates["Taper"] = DEFAULT_TEMPLATES["Taper"] || [];
+    }
+    
+    importVersion = "3.8";
+  }
+
+  // Migration: 3.8 -> 3.9 (Merge boulderingGrades and routeGrades to grades, remove variant)
+  if (importVersion === "3.8") {
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes.forEach((t: any) => {
+        if (t.parameters) {
+          t.parameters = t.parameters.map((p: string) => p === "boulderingGrades" || p === "routeGrades" ? "grades" : p);
+          t.parameters = t.parameters.filter((p: string) => p !== "variant");
+          // Remove duplicates
+          t.parameters = Array.from(new Set(t.parameters));
+        }
+        if (t.possibleParameters) {
+          t.possibleParameters = t.possibleParameters.map((p: string) => p === "boulderingGrades" || p === "routeGrades" ? "grades" : p);
+          t.possibleParameters = t.possibleParameters.filter((p: string) => p !== "variant");
+          t.possibleParameters = Array.from(new Set(t.possibleParameters));
+        }
+      });
+    }
+
+    const migrateExercise = (e: any) => {
+      if (e.activeParameters) {
+        e.activeParameters = e.activeParameters.map((p: string) => p === "boulderingGrades" || p === "routeGrades" ? "grades" : p);
+        e.activeParameters = e.activeParameters.filter((p: string) => p !== "variant");
+        e.activeParameters = Array.from(new Set(e.activeParameters));
+      }
+      
+      // Merge minRouteGrade/maxRouteGrade into minGrade/maxGrade
+      if (e.minRouteGrade && !e.minGrade) {
+        e.minGrade = e.minRouteGrade;
+      }
+      if (e.maxRouteGrade && !e.maxGrade) {
+        e.maxGrade = e.maxRouteGrade;
+      }
+      
+      // Delete old fields
+      delete e.minRouteGrade;
+      delete e.maxRouteGrade;
+
+      // Preserve variant (only ever handled for "Boulder Intervals" exercises by the
+      // 3.4->3.5 split above; other types like "Non-Free Bouldering" still carry it
+      // here) by folding it into notes instead of silently dropping it.
+      if (e.variant !== undefined) {
+        const tag = `[Variant: ${e.variant}]`;
+        e.notes = e.notes ? `${e.notes} ${tag}` : tag;
+        delete e.variant;
+      }
+    };
+
+    data.workouts?.forEach((w: any) =>
+      w.exercises?.forEach(migrateExercise),
+    );
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach(migrateExercise)),
+      );
+    }
+    
+    importVersion = "3.9";
+  }
+
+  // Migration: 3.9 -> 3.10 (Support for exact reps logged per set)
+  if (importVersion === "3.9") {
+    // actualReps is optional, so no strict structural changes to iterate through, just version bump
+    importVersion = "3.10";
+  }
+
+  // Migration: 3.10 -> 3.11 (Added arms fatigue metric to 4-point model)
+  if (importVersion === "3.10") {
+    data.workouts?.forEach((w: any) => {
+      // If a workout was completed and had fatigue metrics recorded, but lacks arms, approximate it.
+      if (w.status === "completed" && w.fingers !== undefined && w.arms === undefined) {
+        w.arms = w.systemic !== undefined ? w.systemic : 5;
+      }
+    });
+    importVersion = "3.11";
+  }
+
+  // Migration: 3.11 -> 3.12 (Added plannedDuration and dailyReadiness)
+  if (importVersion === "3.11") {
+    data.dailyReadiness = data.dailyReadiness || [];
+    
+    // Copy duration to plannedDuration so we retain original plans
+    data.workouts?.forEach((w: any) => {
+      w.exercises?.forEach((e: any) => {
+        if (e.plannedDuration === undefined && e.duration !== undefined) {
+          e.plannedDuration = e.duration;
+        }
+      });
+    });
+    
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach((e: any) => {
+          if (e.plannedDuration === undefined && e.duration !== undefined) {
+            e.plannedDuration = e.duration;
+          }
+        })),
+      );
+    }
+    
+    importVersion = "3.12";
+  }
+
+  // Migration: 3.12 -> 3.13 (Rename legacy parameter names: boulderingStyle -> climbingStyle, hangboardTimes -> timeOn)
+  if (importVersion === "3.12") {
+    const renameParam = (p: string) => {
+      if (p === "boulderingStyle") return "climbingStyle";
+      if (p === "hangboardTimes") return "timeOn";
+      return p;
+    };
+
+    if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
+      data.exerciseTypes.forEach((t: any) => {
+        if (t.parameters) {
+          t.parameters = Array.from(new Set(t.parameters.map(renameParam)));
+        }
+        if (t.possibleParameters) {
+          t.possibleParameters = Array.from(new Set(t.possibleParameters.map(renameParam)));
+        }
+      });
+    }
+
+    const migrateExercise = (e: any) => {
+      if (e.activeParameters) {
+        e.activeParameters = Array.from(new Set(e.activeParameters.map(renameParam)));
+      }
+    };
+
+    data.workouts?.forEach((w: any) =>
+      w.exercises?.forEach(migrateExercise),
+    );
+    if (data.templates) {
+      Object.values(data.templates).forEach((phase: any) =>
+        phase?.forEach((t: any) => t.exercises?.forEach(migrateExercise)),
+      );
+    }
+
+    importVersion = "3.13";
+  }
+
+  // Migration: 3.13 -> 3.14 (Rename legacy phase values: Maintenance -> Deload, Endurance -> Power Endurance)
+  if (importVersion === "3.13") {
+    const renamePhase = (p: string) => {
+      if (p === "Maintenance") return "Deload";
+      if (p === "Endurance") return "Power Endurance";
+      return p;
+    };
+
+    data.periodization?.forEach((p: any) => {
+      p.phase = renamePhase(p.phase);
+    });
+
+    if (data.templates) {
+      ["Maintenance", "Endurance"].forEach((legacyKey) => {
+        if (!data.templates[legacyKey]) return;
+        const targetKey = renamePhase(legacyKey);
+        if (data.templates[targetKey]) {
+          // Never let one silently overwrite/drop the other - concatenate.
+          data.templates[targetKey] = [
+            ...data.templates[targetKey],
+            ...data.templates[legacyKey],
+          ];
+        } else {
+          data.templates[targetKey] = data.templates[legacyKey];
+        }
+        delete data.templates[legacyKey];
+      });
+    }
+
+    importVersion = "3.14";
+  }
+
+  // Ensure the migrated data reflects the final version so the caller knows it is up to date
+  data.exportVersion = importVersion;
 }
 
 /**
@@ -542,6 +751,7 @@ export const storage = {
   async _getBenchmarks(): Promise<Benchmark[]> { await initDB(); return _dbState.benchmarks; },
   async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> { await initDB(); return _dbState.benchmarkTypes; },
   async _getAnalyticsCategories(): Promise<AnalyticsCategory[]> { await initDB(); return _dbState.analyticsCategories; },
+  async _getDailyReadiness(): Promise<any[]> { await initDB(); return _dbState.dailyReadiness; },
   async _getTemplates(): Promise<Record<PhaseType, Partial<Workout>[]>> { await initDB(); return _dbState.templates; },
   async _getExerciseTypes(): Promise<ExerciseTypeDef[]> { await initDB(); return _dbState.exerciseTypes; },
 
@@ -550,6 +760,7 @@ export const storage = {
   async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> { await initDB(); _dbState.benchmarks = benchmarks; await flushDB(); },
   async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> { await initDB(); _dbState.benchmarkTypes = types; await flushDB(); },
   async _saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> { await initDB(); _dbState.analyticsCategories = categories; await flushDB(); },
+  async _saveDailyReadiness(readiness: any[]): Promise<void> { await initDB(); _dbState.dailyReadiness = readiness; await flushDB(); },
   async _saveTemplates(templates: Record<PhaseType, Partial<Workout>[]>): Promise<void> { await initDB(); _dbState.templates = templates; await flushDB(); },
   async _saveExerciseTypes(types: ExerciseTypeDef[]): Promise<void> { await initDB(); _dbState.exerciseTypes = types; await flushDB(); },
 
@@ -637,6 +848,21 @@ export const storage = {
 
   async saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> {
     await this._saveAnalyticsCategories(categories);
+  },
+
+  async getDailyReadiness(): Promise<any[]> {
+    return this._getDailyReadiness();
+  },
+
+  async saveDailyReadiness(readiness: any): Promise<void> {
+    const all = await this._getDailyReadiness();
+    const index = all.findIndex((r) => r.date === readiness.date);
+    if (index !== -1) {
+      all[index] = readiness;
+    } else {
+      all.push(readiness);
+    }
+    await this._saveDailyReadiness(all);
   },
 
   async getPeriodization(): Promise<PeriodizationWeek[]> {
@@ -758,7 +984,7 @@ export const storage = {
         weekId,
         notes: t.notes || "",
         loadFactor: 0,
-        plannedLoad: t.exercises?.reduce((acc, e) => acc + calculatePlannedLoad(e.duration, e.plannedLoad), 0) || 0,
+        plannedLoad: t.exercises?.reduce((acc, e) => acc + calculatePlannedLoad(e), 0) || 0,
         exercises: t.exercises || [],
       }));
 

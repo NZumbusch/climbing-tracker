@@ -1,0 +1,196 @@
+# Progress Log
+
+Running log of implementation notes, findings, and decisions made *during*
+work on `PLAN.md`. `PLAN.md` is the plan decided before implementation
+started; this file is what actually happened, in order, as it happens.
+
+Append new entries at the bottom. Don't rewrite or delete past entries —
+if a decision changes later, add a new entry saying so and referencing the
+old one, don't edit history. Each entry: date, phase/step it belongs to,
+what happened.
+
+---
+
+## 2026-09-16 — Prerequisite step scoped, before any code written
+
+While scoping the "Baseline migration test suite" prerequisite (see
+`PLAN.md`), a real historical backup (`old_backup.json`, repo root,
+`exportVersion: "2.1"`, 16 workouts, 5 exercise types) was inspected by
+running it conceptually through the current migration chain in
+`src/lib/storage.ts`. This surfaced two confirmed bugs in shipped migration
+code, not hypothetical cases:
+
+1. **Data loss:** the `3.8 → 3.9` migration step unconditionally
+   `delete e.variant`s, assuming `variant` only ever appeared on
+   `"Boulder Intervals"`-type exercises. `old_backup.json` has 5
+   `"Non-Free Bouldering"`-type exercises (a type the Boulder-Intervals
+   conversion never touches) with a `variant` value that gets silently
+   dropped today.
+2. **Schema drift, no data lost yet:** `old_backup.json`'s `exerciseTypes`
+   declare parameters `"boulderingStyle"` and `"hangboardTimes"`, neither
+   of which exists in the current `ParameterBlock` union
+   (`"climbingStyle"`/`"timeOn"` are the current names). No logged instance
+   currently has a value set for either (checked directly against the
+   file), so nothing is lost yet, but those parameter inputs would silently
+   vanish from the UI on import today.
+
+Also found (not a bug, a gap): `old_backup.json` uses phase names
+`"Maintenance"` and `"Endurance"`, which don't exist in the current
+7-phase list and have no migration mapping.
+
+**Decisions made (asked of the user, approved 2026-09-16):**
+- Fix both confirmed bugs now, as part of the Prerequisite step, rather
+  than deferring to Phase 1. Both are small, additive, data-preserving
+  fixes (stop deleting a value; add two rename steps), not structural
+  changes, so there's no reason to wait.
+- Legacy phase mapping: `"Maintenance"` → `"Deload"`, `"Endurance"` →
+  `"Power Endurance"`.
+
+Full detail of the fixes (which migration steps, exact scope, test list)
+is written into `PLAN.md`'s Prerequisite section — not duplicated here.
+No code has been written yet as of this entry; `PLAN.md` was updated to
+reflect this scope, and implementation has not started.
+
+**Still to do when the Prerequisite step is actually implemented:** before
+adding `export` to `runDataMigrations` in `storage.ts`, re-verify (don't
+assume from this note) that the function only depends on its `data`
+parameter and module-level constants, not on `_dbState` or other
+module-private state, and that neither call site's behavior
+(`runStartupMigrations`'s early-return guard, `importData`'s lack of one)
+changes as a result of adding the export keyword. Log that verification
+here, in its own dated entry, when it's done — this note is the
+instruction to do it, not the record that it happened.
+
+---
+
+## 2026-09-16 — Prerequisite: `export` safety check on `runDataMigrations`
+
+Re-read `runDataMigrations` in full (`src/lib/storage.ts`, current lines
+~111-664) before adding `export` to its declaration, per the instruction
+above. Confirmed:
+
+- **No closure over `_dbState` or other module-private state.** The
+  function body only ever references its own `data: any` parameter (and
+  values derived from it, e.g. `importVersion`). It never reads or writes
+  `_dbState`, `initDB`, or `flushDB`. The only free variables it references
+  are module-level imports: `DEFAULT_BENCHMARK_TYPES` (pre-2.1 step),
+  `DEFAULT_TEMPLATES` (3.7→3.8 step, filling in missing phase template
+  arrays), `DEFAULT_ANALYTICS_CATEGORIES` (2.9→3.0 step, seeding the
+  category list), `generateId` (2.9→3.0 step, assigning ids to newly
+  discovered categories), and `calculatePlannedLoad` (several steps,
+  recomputing `plannedLoad`). `DEFAULT_EXERCISE_TYPES` is imported into the
+  module but is **not** referenced inside `runDataMigrations` itself (only
+  used by `initDB`) — noted since the Prerequisite section of `PLAN.md`
+  listed it as a constant the function "reads"; it doesn't, but this
+  doesn't change the safety conclusion since it's still just a module-level
+  constant, not mutable state.
+- **Call site 1 — `storage.runStartupMigrations()`:** has an early-return
+  guard (`if (currentVersion === DATA_EXPORT_VERSION) return;`) *before*
+  calling `runDataMigrations(_dbState)`. Adding `export` to the function
+  declaration doesn't touch this call site's code at all — the guard is
+  unchanged, and passing `_dbState` still passes the same live object by
+  reference (mutated in place), same as today.
+- **Call site 2 — `storage.importData()`:** calls `runDataMigrations(data)`
+  unconditionally (no version guard — it always runs migrations on
+  imported data regardless of its version, including already-current
+  data, which is a no-op given the if-chain's structure). Adding `export`
+  doesn't change this call site either.
+
+Conclusion: adding `export` to the `function runDataMigrations(data: any): void`
+declaration is a pure visibility change with no behavioral effect on either
+caller. Proceeding with the export change, the two migration-chain bugfixes,
+and the two new migration steps as scoped in `PLAN.md`.
+
+---
+
+## 2026-09-16 — Prerequisite step implemented
+
+**Changes made** (all in `src/lib/storage.ts` unless noted):
+- Exported `runDataMigrations` (see safety-check entry above).
+- Amended the `3.8 → 3.9` step: before `delete e.variant`, if a value is
+  still present it's folded into `e.notes` as `[Variant: X]` (appended with
+  a leading space if notes already has content, otherwise notes is set to
+  just the tag). This is unconditional on any exercise carrying `variant`
+  at that point in the chain, not gated to a specific `type` — matches the
+  plan's framing that the original bug was an unwarranted assumption about
+  which types carry `variant`.
+- Added migration step `3.12 → 3.13`: renames `boulderingStyle` →
+  `climbingStyle` and `hangboardTimes` → `timeOn` across
+  `exerciseTypes[].parameters`, `.possibleParameters`, and
+  `activeParameters` on workout/template exercises (de-duping after
+  rename, matching the existing pattern used by the `3.8→3.9` step for
+  similar array renames).
+- Added migration step `3.13 → 3.14`: renames periodization `phase` values
+  `Maintenance` → `Deload`, `Endurance` → `Power Endurance`, and rekeys
+  `templates` accordingly. When the target key already has templates, the
+  legacy array is concatenated onto the end rather than overwriting.
+- Bumped `DATA_EXPORT_VERSION` (`src/lib/constants.ts`) to `"3.14"`.
+- Added `vitest` + `@types/node` as devDependencies, `"test": "vitest run"`
+  script, `vitest.config.ts`, and `"node"` to `tsconfig.json`'s `types`
+  array (needed for the test file's `fs`/`path`/`url` imports under
+  `svelte-check`, which type-checks the whole `src/` tree including
+  `*.test.ts` files).
+- Fixtures: `src/lib/__fixtures__/backup-2.1.json` (copy of
+  `old_backup.json`). All other fixtures (hand-built 1.0/2.0-era, and the
+  targeted boundary cases) are constructed inline in
+  `src/lib/storage.migrations.test.ts` rather than as separate files, per
+  the plan's "safe to hand-construct" allowance for low-complexity cases.
+- All 21 tests in `src/lib/storage.migrations.test.ts` pass. Coverage:
+  primary `old_backup.json` fixture (6 assertions: no-throw, 16 workouts
+  preserved, ids stringified, all 5 variant values preserved in notes with
+  none left as raw `variant`, parameter rename with no leftovers, phase
+  rename with no leftover template keys), hand-built 1.0/2.0 fixture (2
+  cases: no version at all, and `"2.0"`), targeted boundary tests for
+  `2.1→2.2`, `2.8→2.9`, `3.4→3.5` (both interval-split branches), the
+  amended `3.8→3.9` (fresh notes, appended-to-existing notes, and the
+  already-migrated no-op case), the new `3.12→3.13`, the new `3.13→3.14`
+  (both the no-collision and colliding-target-key/concatenation cases),
+  a full-chain minimal-1.0-fixture test, a no-op-at-current-version test,
+  and a round-trip (JSON stringify/parse + migrate) test.
+
+**Fixture finding, out of scope, not fixed:** running `old_backup.json`
+(`exportVersion: "2.1"`) through the chain leaves `data.benchmarks` and
+`data.benchmarkTypes` as `undefined` rather than defaulted arrays. Cause:
+the pre-2.1 step that seeds those defaults only fires when
+`importVersion` is falsy, `"1.0"`, or `"2.0"` — data that already reports
+`"2.1"` skips it, and no later step ever defaults `benchmarks`. This is a
+**pre-existing 4th latent issue**, distinct from the 3 confirmed/scoped in
+this step. It isn't currently a real-world data-loss risk: `importData`'s
+caller only overwrites `_dbState.benchmarks` `if (data.benchmarks)` is
+truthy, so `undefined` just means the existing local benchmarks are left
+alone rather than being clobbered by an assumed-empty array. Not fixed
+here since it wasn't part of the 3 issues the user approved fixing in this
+step's scope (see the first entry above) — flagging for a Phase 0/1
+conversation rather than silently expanding scope.
+
+**Unrelated pre-existing type errors fixed to unblock `npm run check`:**
+`src/components/history/WorkoutShareImage.svelte` (untracked, pre-existing
+before this session, wired into `History.svelte`) had two implicit-`any`
+errors on a `.reduce` callback, unrelated to migrations. Added explicit
+`(acc: number, e: any)` parameter types — a type-annotation-only change,
+no logic touched. Did not touch the two remaining `Dashboard.svelte` a11y
+*warnings* (also pre-existing/untracked) since `svelte-check` reports
+those as warnings, not errors, and fixing them is unrelated UI work outside
+this step's scope.
+
+**Verification performed:**
+- `npm run test` → 21/21 pass.
+- `npm run check` → 0 errors, 2 pre-existing unrelated a11y warnings.
+- `npx vite build` → production build succeeds (sanity check that nothing
+  is fundamentally broken app-wide).
+- **Manual in-app verification was not performed** — this session has no
+  display/browser available (headless CLI environment), so the plan's
+  "Manual check" bullet (import `old_backup.json` in the actual running
+  app, visually confirm notes/parameters/phase labels) could not be done
+  as written. In its place: the fixture test suite runs the *actual*
+  `runDataMigrations` function (the same code path `storage.importData`
+  calls) against the *actual* `old_backup.json` file and asserts, at the
+  data layer, exactly the three things the manual check asks for (variant
+  preserved in notes, `climbingStyle`/`timeOn` present on the renamed
+  types, `Deload`/`Power Endurance` phases with no leftover legacy keys).
+  This is real coverage of the same code path, just not a visual/UI
+  confirmation. Flagging this gap explicitly rather than claiming the
+  manual step was done.
+
+**Commit:** made as its own commit, separate from any later Phase 0 work,
+per the plan's recommendation.

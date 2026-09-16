@@ -4,7 +4,7 @@ import defaults from "../data/defaults.json";
 /**
  * Current data model version for exports and migrations.
  */
-export const DATA_EXPORT_VERSION = "3.7";
+export const DATA_EXPORT_VERSION = "3.14";
 
 /**
  * Standard colors for training categories used in charts and indicators.
@@ -18,13 +18,11 @@ export const DEFAULT_EXERCISE_TYPES: ExerciseTypeDef[] = defaults.exerciseTypes 
 
 export const PARAMETER_LABELS: Record<ParameterBlock, string> = {
   duration: 'Duration',
-  boulderingGrades: 'Bouldering Grades',
-  routeGrades: 'Route Grades',
+  grades: 'Grades',
   cadence: 'Cadence',
   climbingStyle: 'Climbing Style',
   boardType: 'Board Type',
   boardAngle: 'Board Angle',
-  variant: 'Variant',
   sets: 'Sets',
   reps: 'Reps',
   holdType: 'Hold Type',

@@ -1,0 +1,574 @@
+{
+  "workouts": [
+    {
+      "id": 1781557145385,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W23",
+      "notes": "Volume Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 1,
+          "type": "Free Bouldering",
+          "duration": 120
+        }
+      ]
+    },
+    {
+      "id": 1781557145386,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W23",
+      "notes": "Volume Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 2,
+          "type": "Free Bouldering",
+          "duration": 120
+        }
+      ]
+    },
+    {
+      "id": 1781557145387,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W23",
+      "notes": "4x4 Endurance",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 3,
+          "type": "Non-Free Bouldering",
+          "variant": "4x4",
+          "sets": 4
+        }
+      ]
+    },
+    {
+      "id": 1781557145388,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W23",
+      "notes": "Core Training",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 4,
+          "type": "Core Training",
+          "duration": 30,
+          "difficulty": 6
+        }
+      ]
+    },
+    {
+      "id": 1781557148919,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W32",
+      "notes": "Volume Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 1,
+          "type": "Free Bouldering",
+          "duration": 120
+        }
+      ]
+    },
+    {
+      "id": 1781557148920,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W32",
+      "notes": "Volume Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 2,
+          "type": "Free Bouldering",
+          "duration": 120
+        }
+      ]
+    },
+    {
+      "id": 1781557148921,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W32",
+      "notes": "4x4 Endurance",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 3,
+          "type": "Non-Free Bouldering",
+          "variant": "4x4",
+          "sets": 4
+        }
+      ]
+    },
+    {
+      "id": 1781557148922,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W32",
+      "notes": "Core Training",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 4,
+          "type": "Core Training",
+          "duration": 30,
+          "difficulty": 6
+        }
+      ]
+    },
+    {
+      "id": 1781557275059,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W38",
+      "notes": "Maintenance Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 1,
+          "type": "Free Bouldering",
+          "duration": 90,
+          "boulderingType": "Slab"
+        }
+      ]
+    },
+    {
+      "id": 1781557275060,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W38",
+      "notes": "Maintenance Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 2,
+          "type": "Free Bouldering",
+          "duration": 90,
+          "boulderingType": "Overhang"
+        }
+      ]
+    },
+    {
+      "id": 1781557275061,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W38",
+      "notes": "Maintenance Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 3,
+          "type": "Free Bouldering",
+          "duration": 90,
+          "boulderingType": "Slab"
+        }
+      ]
+    },
+    {
+      "id": 1781557275062,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W38",
+      "notes": "Power & Strength",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 4,
+          "type": "Hangboard",
+          "holdType": "Half Crimp",
+          "addedWeight": 10,
+          "rungSize": 20
+        },
+        {
+          "id": 5,
+          "type": "Core Training",
+          "duration": 20,
+          "difficulty": 7
+        }
+      ]
+    },
+    {
+      "id": 1781558377700,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W25",
+      "notes": "Limit Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 1,
+          "type": "Free Bouldering",
+          "duration": 90,
+          "boulderingType": "Overhang"
+        }
+      ]
+    },
+    {
+      "id": 1781558377701,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W25",
+      "notes": "Hangboard Max Recruitment",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 2,
+          "type": "Hangboard",
+          "holdType": "Full Crimp",
+          "addedWeight": 20,
+          "rungSize": 20
+        }
+      ]
+    },
+    {
+      "id": 1781558377702,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W25",
+      "notes": "Limit Bouldering",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 3,
+          "type": "Free Bouldering",
+          "duration": 90,
+          "boulderingType": "Kilterboard"
+        }
+      ]
+    },
+    {
+      "id": 1781558377703,
+      "status": "planned",
+      "date": null,
+      "weekId": "2026-W25",
+      "notes": "Strength Core",
+      "loadFactor": 0,
+      "exercises": [
+        {
+          "id": 4,
+          "type": "Core Training",
+          "duration": 20,
+          "difficulty": 9
+        }
+      ]
+    }
+  ],
+  "periodization": [
+    {
+      "weekId": "2026-W25",
+      "phase": "Strength"
+    },
+    {
+      "weekId": "2026-W23",
+      "phase": "Endurance"
+    },
+    {
+      "weekId": "2026-W32",
+      "phase": "Endurance"
+    },
+    {
+      "weekId": "2026-W38",
+      "phase": "Maintenance"
+    }
+  ],
+  "templates": {
+    "Maintenance": [
+      {
+        "notes": "Maintenance Bouldering",
+        "exercises": [
+          {
+            "id": 1,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Slab"
+          }
+        ]
+      },
+      {
+        "notes": "Maintenance Bouldering",
+        "exercises": [
+          {
+            "id": 2,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Overhang"
+          }
+        ]
+      },
+      {
+        "notes": "Maintenance Bouldering",
+        "exercises": [
+          {
+            "id": 3,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Slab"
+          }
+        ]
+      },
+      {
+        "notes": "Power & Strength",
+        "exercises": [
+          {
+            "id": 4,
+            "type": "Hangboard",
+            "holdType": "Half Crimp",
+            "addedWeight": 10,
+            "rungSize": 20
+          },
+          {
+            "id": 5,
+            "type": "Core Training",
+            "duration": 20,
+            "difficulty": 7
+          }
+        ]
+      }
+    ],
+    "Endurance": [
+      {
+        "notes": "Volume Bouldering",
+        "exercises": [
+          {
+            "id": 1,
+            "type": "Free Bouldering",
+            "duration": 120
+          }
+        ]
+      },
+      {
+        "notes": "Volume Bouldering",
+        "exercises": [
+          {
+            "id": 2,
+            "type": "Free Bouldering",
+            "duration": 120
+          }
+        ]
+      },
+      {
+        "notes": "4x4 Endurance",
+        "exercises": [
+          {
+            "id": 3,
+            "type": "Non-Free Bouldering",
+            "variant": "4x4",
+            "sets": 4
+          }
+        ]
+      },
+      {
+        "notes": "Core Training",
+        "exercises": [
+          {
+            "id": 4,
+            "type": "Core Training",
+            "duration": 30,
+            "difficulty": 6
+          }
+        ]
+      }
+    ],
+    "Strength": [
+      {
+        "notes": "Limit Bouldering",
+        "exercises": [
+          {
+            "id": 1,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Overhang"
+          }
+        ]
+      },
+      {
+        "notes": "Hangboard Max Recruitment",
+        "exercises": [
+          {
+            "id": 2,
+            "type": "Hangboard",
+            "holdType": "Full Crimp",
+            "addedWeight": 20,
+            "rungSize": 20
+          }
+        ]
+      },
+      {
+        "notes": "Limit Bouldering",
+        "exercises": [
+          {
+            "id": 3,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Kilterboard"
+          }
+        ]
+      },
+      {
+        "notes": "Strength Core",
+        "exercises": [
+          {
+            "id": 4,
+            "type": "Core Training",
+            "duration": 20,
+            "difficulty": 9
+          }
+        ]
+      }
+    ],
+    "Power": [
+      {
+        "notes": "Power Bouldering",
+        "exercises": [
+          {
+            "id": 1,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Dyno"
+          }
+        ]
+      },
+      {
+        "notes": "Campus Board",
+        "exercises": [
+          {
+            "id": 2,
+            "type": "Campus Board",
+            "campusType": "Jumps"
+          }
+        ]
+      },
+      {
+        "notes": "Power Bouldering",
+        "exercises": [
+          {
+            "id": 3,
+            "type": "Free Bouldering",
+            "duration": 90,
+            "boulderingType": "Moonboard"
+          }
+        ]
+      },
+      {
+        "notes": "Hangboard Power",
+        "exercises": [
+          {
+            "id": 4,
+            "type": "Hangboard",
+            "holdType": "Half Crimp",
+            "timeOn": 3,
+            "addedWeight": 30
+          }
+        ]
+      }
+    ],
+    "Power Endurance": [
+      {
+        "notes": "Hard 4x4",
+        "exercises": [
+          {
+            "id": 1,
+            "type": "Non-Free Bouldering",
+            "variant": "4x4",
+            "sets": 4
+          }
+        ]
+      },
+      {
+        "notes": "Moonboard Intervals",
+        "exercises": [
+          {
+            "id": 2,
+            "type": "Free Bouldering",
+            "duration": 60,
+            "boulderingType": "Moonboard"
+          }
+        ]
+      },
+      {
+        "notes": "Hard 4x4",
+        "exercises": [
+          {
+            "id": 3,
+            "type": "Non-Free Bouldering",
+            "variant": "4x4",
+            "sets": 4
+          }
+        ]
+      },
+      {
+        "notes": "Core Training",
+        "exercises": [
+          {
+            "id": 4,
+            "type": "Core Training",
+            "duration": 25,
+            "difficulty": 8
+          }
+        ]
+      }
+    ]
+  },
+  "exerciseTypes": [
+    {
+      "id": "free-bouldering",
+      "name": "Free Bouldering",
+      "category": "Technique Bouldering",
+      "parameters": [
+        "duration",
+        "grades",
+        "cadence",
+        "boulderingStyle"
+      ]
+    },
+    {
+      "id": "non-free-bouldering",
+      "name": "Non-Free Bouldering",
+      "category": "Power Bouldering",
+      "parameters": [
+        "duration",
+        "variant",
+        "sets"
+      ]
+    },
+    {
+      "id": "hangboard",
+      "name": "Hangboard",
+      "category": "Arms",
+      "parameters": [
+        "holdType",
+        "hangboardTimes",
+        "restTime",
+        "holdSize",
+        "weight"
+      ]
+    },
+    {
+      "id": "campus-board",
+      "name": "Campus Board",
+      "category": "Power Bouldering",
+      "parameters": [
+        "duration",
+        "campusStyle"
+      ]
+    },
+    {
+      "id": "core-training",
+      "name": "Core Training",
+      "category": "Core",
+      "parameters": [
+        "duration",
+        "difficulty"
+      ]
+    }
+  ],
+  "exportVersion": "2.1"
+}
