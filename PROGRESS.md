@@ -1216,4 +1216,91 @@ no-op.
 since this is a bugfix found and fixed after Phase 3 was already
 committed.
 
+---
+
+## 2026-09-16 — Post-Phase-3 UX redesign: Settings Customization tab restructured (user-directed)
+
+**Context:** after Phase 3 landed and the fresh-install bugfix above was
+committed, the user asked for the Customization tab to be reviewed as an
+end user would see it, since the relationships between exercise
+modalities, analytics categories, training phases, templates, and
+benchmarks weren't explained anywhere in the UI. Two rounds of changes
+followed, both user-directed, not independently decided:
+
+1. **First pass (explainer text only, no restructuring):** added a "How
+   These Fit Together" info panel at the top of the Customization tab,
+   expanded each of the 5 existing sections' one-line descriptions to
+   state what they're for and how they connect to the others, reordered
+   sections to match the conceptual flow (exercises -> categories ->
+   phases -> templates -> benchmarks), disambiguated the pre-existing
+   "Reset to Default Library" button from the new Starter Template Library
+   (renamed to "Reset ALL Phases to App Defaults"), and added a helper
+   note on the Analytics Category field in the exercise editor.
+2. **Second pass (structural redesign, explicitly requested):** the user
+   asked to reduce the 5 stacked sections down to 3 clear topics
+   (Exercises, Phases, Benchmarks), with Training Templates shown
+   integrated into the Phases section (tapping a phase expands its
+   templates inline) rather than as its own separate section with its own
+   phase picker, and the Starter Template Library tucked under Phases as
+   a single collapsible entry point rather than its own top-level card.
+
+**Deviation from `PLAN.md`'s Phase 3 file list, flagged explicitly per
+this session's own convention (checked with the user before writing this
+entry, not silently noted):** `PLAN.md`'s Phase 3 "Concrete scope -
+component changes" section names an exact file list for the Settings
+split - `ExerciseTypeSettings.svelte`, `PhaseSettings.svelte`,
+`TemplateSettings.svelte`, `BenchmarkTypeSettings.svelte`,
+`AnalyticsCategorySettings.svelte`, `BackupSettings.svelte`,
+`PreferencesSettings.svelte`, each routed to directly from a thin
+`Settings.svelte` shell. The second-pass redesign no longer matches this
+list:
+- `TemplateSettings.svelte` was **deleted** - its single-phase session
+  editor logic was extracted into a new `PhaseTemplateEditor.svelte`
+  (rendered inline per expanded phase, not top-level), and its
+  phase-picker/starter-library/reset-all responsibilities were absorbed
+  into `PhaseSettings.svelte`.
+- `AnalyticsCategorySettings.svelte` **still exists as a file** (kept, not
+  deleted) but is **no longer routed to directly** from `Settings.svelte`
+  - it's now nested inside a new `ExerciseSettings.svelte` wrapper
+  alongside `ExerciseTypeSettings.svelte` behind a Modalities/Categories
+  sub-tab toggle, since categories are purely chart-grouping metadata
+  attached to modalities rather than an independent topic a user needs to
+  navigate to separately.
+- Two files not named in `PLAN.md` were added: `ExerciseSettings.svelte`
+  (the Exercises card wrapper/sub-tab router) and
+  `PhaseTemplateEditor.svelte` (the per-phase session editor).
+
+  `PLAN.md` itself was **not** edited to reflect this - unlike the
+  "Phase 1 scope gap-fills" precedent (where `PLAN.md` was updated in
+  place because those were gaps *in the plan itself*, discovered before
+  implementation), this is a post-hoc UX refinement made *after* Phase 3
+  was already implemented and committed, decided directly with the user
+  in conversation rather than a correction to what the plan should have
+  said. A future session resuming from `PLAN.md` alone would see a stale
+  file list for Phase 3's Settings split; this entry is the record of why
+  it no longer matches.
+
+**Verified no functional/data-model impact before treating this as safe:**
+diffed every commit since Phase 3 landed (`git diff --stat 958fa4c..HEAD`,
+the commit range covering both UX passes) and confirmed only files under
+`src/components/settings/` changed - nothing in `types.ts`, `storage/`,
+`stores/`, or the migration chain. `PhaseDef`, `WorkoutTemplate`, and the
+`TrainingData` shape that Phase 4 depends on are unchanged. Checked
+Phases 4-7's stated dependencies in `PLAN.md` and confirmed none reference
+a specific Settings component file or path - Phase 4 depends on the
+`PhaseDef` *type* and `planningStore`, both untouched by this redesign.
+
+**Verification performed:**
+- `npm run test` -> 56/56 pass (no test changes needed - purely UI,
+  reused the same `loadStarterSet`/template-editing logic that already
+  existed in the deleted `TemplateSettings.svelte`, just relocated).
+- `npm run check` -> 0 errors, 0 warnings, 375 files.
+- `npx vite build` -> production build succeeds.
+- Manual verification handed to the user via the already-running dev
+  server (same no-browser-tooling gap as every prior entry this session).
+
+**Commit:** two separate commits, matching the two passes described above
+- explainer-text-only, then the structural redesign - both after Phase 3's
+  own commit and the fresh-install bugfix commit.
+
 
