@@ -352,4 +352,94 @@ ID-reference/schema work Phase 1 already owns); removing the now-dead old
 Committed separately from Phase 0's migration-registry refactor, since
 this bug predates and is independent of Phase 0's own scope.
 
+---
+
+## 2026-09-16 — Phase 0: migration safety net
+
+**Changes made** (`src/lib/storage.ts` unless noted):
+- Extracted `runDataMigrations`'s if-chain (24 historical steps, including
+  the Prerequisite step's 2 new ones and its `3.8→3.9` amendment) into an
+  ordered `MigrationStep[]` registry (`{ from, to, describe, migrate }`),
+  matching `PLAN.md`'s Phase 0 spec. Each step's `migrate` body is the
+  original `if` block's contents, extracted verbatim - no migration logic
+  was rewritten. One deliberate mechanical decomposition, noted inline and
+  here for transparency: the original pre-2.1 step was a single `if` with
+  a compound condition (missing / `"1.0"` / `"2.0"` all → one action); since
+  a registry step has exactly one `from`, and `runDataMigrations`'s initial
+  `version = data.exportVersion || "1.0"` already folds "missing" into
+  `"1.0"`, this became two registry entries (`from: "1.0"` and
+  `from: "2.0"`) sharing one `migrate` function reference - same action,
+  same two remaining input states, not a behavior change.
+- `runDataMigrations` now walks `MIGRATIONS` in a single loop (advance
+  `version` on each match, `continue` past non-matches) instead of a chain
+  of hand-written `if (importVersion === "X.Y")` checks. Confirmed
+  behavior-preserving: all 21 Prerequisite-step fixture tests pass
+  unchanged (same assertions, same fixtures) against the new
+  implementation - see verification below.
+- Added `assertMigrationInvariants(before, after)` (exported for direct
+  testing, same reasoning as `runDataMigrations`'s existing export): checks
+  workout count preserved, benchmark count preserved, and every
+  (pre-Phase-1, still name-based) `Exercise.type` resolves against the
+  migrated `exerciseTypes` list. Throws one `Error` listing every problem
+  found (not just the first) if any check fails.
+- Added `writeMigrationBackup(fromVersion, data)`: writes a pre-migration
+  snapshot before `runStartupMigrations` mutates `_dbState` - a single
+  fixed localforage key (`backup_pre_migration`) on web, a single fixed
+  sibling file (`boulder_tracker_db.backup.json`) on native, both always
+  overwritten so exactly one backup exists at a time (per PLAN.md's "keep
+  only the most recent, don't accumulate"). Implementer's-call decision
+  (left open by PLAN.md): rather than encode `fromVersion` into the
+  storage key/filename (which would need extra cleanup logic to avoid
+  accumulating across different `fromVersion`s), it's stored *inside* the
+  payload (`{ fromVersion, backedUpAt, data }`) alongside a fixed key -
+  overwriting is then automatic, no cleanup step needed. A failed backup
+  write is logged and swallowed (doesn't block migration) since it's a
+  safety net, not a hard dependency.
+- Wired both into `runStartupMigrations`: snapshot + backup before
+  migrating, then `assertMigrationInvariants(before, _dbState)` after. On
+  failure: restore `_dbState` to the pre-migration snapshot (in-memory,
+  same data just persisted to the backup - no re-read needed), log details
+  to console, `await showAlert(...)` (via `./utils`, already used
+  elsewhere in the app, backed by `@capacitor/dialog` so it works on both
+  web and native) to surface a blocking error, then re-throw so the caller
+  doesn't proceed as if migration succeeded. `flushDB()` (persisting the
+  migrated data) only runs if the invariant check passes.
+- Added unit tests for `calculateLoadFactor`/`calculatePlannedLoad`
+  (`src/lib/types.test.ts` - already created in the prior entry's bugfix,
+  covers this DoD item too) and for `assertMigrationInvariants`
+  (`src/lib/storage.invariants.test.ts`, new): pass-through case, each of
+  the three invariant violations individually, a case confirming multiple
+  violations are all reported together, and a real-data case (running
+  `old_backup.json` through the full registry-based chain and confirming
+  the result satisfies all invariants).
+
+**Verification performed:**
+- `npm run test` → 34/34 pass (21 Prerequisite fixture tests unchanged +
+  7 `types.test.ts` + 6 new `storage.invariants.test.ts`).
+- `npm run check` → 0 errors (see prior entry for the 10 pre-existing ones
+  fixed separately before this).
+- `npx vite build` → production build succeeds.
+
+**Manual verification not performed, flagged explicitly (same reason as
+the Prerequisite step - this session has no browser/display):** PLAN.md's
+Phase 0 DoD asks to (a) manually export/import data in the running app and
+confirm a round-trip with no loss, and (b) manually force an invariant
+check to fail and confirm the app restores the pre-migration snapshot
+rather than proceeding, then revert the forced failure. Neither was done
+as literally written. In their place: `storage.invariants.test.ts`
+exercises `assertMigrationInvariants` directly (the function that decides
+pass/fail) including the real `old_backup.json` fixture case, and the
+existing migration fixture tests exercise the same `runDataMigrations`
+function `importData` calls. What remains genuinely unverified by
+automated tests is the *integration* inside `runStartupMigrations` itself -
+the backup write, the `_dbState` rollback assignment, and the `showAlert`
+call - since that function also touches `localforage`/`Capacitor`, which
+aren't meaningful to exercise under vitest's plain `node` test environment
+(no IndexedDB/localStorage, no native bridge, `Dialog.alert`'s web fallback
+likely expects a DOM). This is a real coverage gap, not a claim that it
+was checked - flagging it rather than asserting the manual step was done.
+
+**Commit:** made as its own commit, separate from the pre-existing-bug fix
+above and from the Prerequisite step, per the plan's convention.
+
 
