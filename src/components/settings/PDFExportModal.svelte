@@ -3,6 +3,7 @@
   import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
   import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import { getDominantBlockForWeek } from '../../lib/planning/trainingBlocks';
   import type { ExerciseSlot } from '../../lib/types';
   import Icon from '@iconify/svelte';
   import html2pdf from 'html2pdf.js';
@@ -67,7 +68,7 @@
     }
 
     return Object.entries(grouped).map(([weekId, workouts]) => {
-      const phaseId = trainingState.periodization.find(p => p.weekId === weekId)?.phaseId;
+      const phaseId = getDominantBlockForWeek(trainingState.trainingBlocks, weekId)?.phaseId;
       const phase = (phaseId && trainingState.phaseDefs.find(p => p.id === phaseId)?.name) || 'No Phase';
       return { weekId, phase, workouts };
     });

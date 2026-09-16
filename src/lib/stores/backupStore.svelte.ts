@@ -1,7 +1,8 @@
 import { storage } from '../storage';
-import type { Workout, PeriodizationWeek, ExerciseTypeDef, PhaseDef } from '../types';
+import type { Workout, TrainingBlock, ExerciseTypeDef, PhaseDef } from '../types';
 import { showAlert } from '../utils';
 import { slotValues, slotTypeName } from '../exerciseSlot';
+import { getDominantBlockForWeek } from '../planning/trainingBlocks';
 
 /**
  * Import/export/CSV.
@@ -31,7 +32,7 @@ export class BackupStore {
   /**
    * Exports all training data to a CSV file for analysis in Excel or Python.
    */
-  exportToCSV(workouts: Workout[], periodization: PeriodizationWeek[], exerciseTypes: ExerciseTypeDef[], phaseDefs: PhaseDef[]) {
+  exportToCSV(workouts: Workout[], trainingBlocks: TrainingBlock[], exerciseTypes: ExerciseTypeDef[], phaseDefs: PhaseDef[]) {
     if (workouts.length === 0) {
       showAlert('Export Error', 'No data to export');
       return;
@@ -47,7 +48,7 @@ export class BackupStore {
     rows.push(headers.join(','));
 
     workouts.forEach(w => {
-      const phaseId = periodization.find(p => p.weekId === w.weekId)?.phaseId;
+      const phaseId = getDominantBlockForWeek(trainingBlocks, w.weekId)?.phaseId;
       const phase = (phaseId && phaseDefs.find(p => p.id === phaseId)?.name) || '';
       const baseInfo = [
         w.date || '',

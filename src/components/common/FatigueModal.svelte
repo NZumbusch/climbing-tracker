@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { trainingState } from '../../lib/state.svelte';
   import { type Workout, calculateLoadFactor } from '../../lib/types';
+  import { generateId } from '../../lib/utils';
 
   // --- Props ---
   let { 
@@ -20,6 +21,15 @@
   let systemic = $state(5);
   let notes = $state('');
 
+  // --- Pain/discomfort logging (PLAN.md Phase 4 - the workout-completion
+  // flow is the natural entry point, since severity/weekId are already at
+  // hand here). Purely optional and additive to the fatigue rating above -
+  // it writes its own PainLog, it never affects loadFactor/fatigue.
+  let showPainLog = $state(false);
+  let painBodyPart = $state('');
+  let painSeverity = $state(5);
+  let painNotes = $state('');
+
   $effect(() => {
     if (trainingState.showFatigue && initialData) {
       fingers = initialData.fingers ?? 5;
@@ -33,7 +43,17 @@
 
   const loadFactor = $derived(calculateLoadFactor(duration, fingers, core, systemic));
 
-  function handleSave() {
+  async function handleSave() {
+    if (showPainLog && painBodyPart.trim()) {
+      await trainingState.savePainLog({
+        id: generateId(),
+        date: initialData?.date || new Date().toISOString(),
+        weekId: initialData?.weekId || '',
+        bodyPart: painBodyPart.trim(),
+        severity: painSeverity,
+        notes: painNotes || undefined,
+      });
+    }
     onConfirm({ fingers, core, systemic, notes, loadFactor });
   }
 </script>
@@ -83,6 +103,27 @@
         <div class="space-y-2">
           <label for="fatigue-notes" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Notes</label>
           <textarea id="fatigue-notes" bind:value={notes} placeholder="Notes..." class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border focus:ring-2 focus:ring-blue-500/50 focus:border-primary outline-none transition-all placeholder:text-content-subtle text-sm" rows="2"></textarea>
+        </div>
+
+        <div class="border-t border-border pt-4">
+          <button type="button" onclick={() => showPainLog = !showPainLog} class="flex items-center justify-between w-full text-left">
+            <span class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Log Pain / Discomfort (optional)</span>
+            <span class="text-content-subtle text-lg leading-none">{showPainLog ? '−' : '+'}</span>
+          </button>
+
+          {#if showPainLog}
+            <div class="mt-3 space-y-3 animate-in fade-in">
+              <input bind:value={painBodyPart} placeholder="Body part (e.g. Left A2 pulley)" class="w-full bg-surface-elevated/50 text-content p-3 rounded-xl border border-border outline-none text-sm placeholder:text-content-subtle" />
+              <div class="space-y-1">
+                <label for="pain-severity-range" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">
+                  <span>Severity</span>
+                  <span class="text-primary font-mono text-[10px]">{painSeverity}/10</span>
+                </label>
+                <input id="pain-severity-range" type="range" min="1" max="10" bind:value={painSeverity} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" />
+              </div>
+              <input bind:value={painNotes} placeholder="Notes (optional)" class="w-full bg-surface-elevated/50 text-content p-3 rounded-xl border border-border outline-none text-sm placeholder:text-content-subtle" />
+            </div>
+          {/if}
         </div>
       </div>
 

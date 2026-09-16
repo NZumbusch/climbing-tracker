@@ -69,7 +69,7 @@
   }
 
   async function deletePhase(id: string) {
-    const confirmed = await showConfirm('Delete Phase', 'Delete this phase? Historical periodization/templates referencing it may be affected.');
+    const confirmed = await showConfirm('Delete Phase', 'Delete this phase? Historical training blocks/templates referencing it may be affected.');
     if (!confirmed) return;
     phaseDefs = phaseDefs.filter(p => p.id !== id);
     if (expandedPhaseId === id) expandedPhaseId = null;

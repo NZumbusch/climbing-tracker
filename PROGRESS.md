@@ -1303,4 +1303,202 @@ a specific Settings component file or path - Phase 4 depends on the
 - explainer-text-only, then the structural redesign - both after Phase 3's
   own commit and the fresh-install bugfix commit.
 
+---
+
+## 2026-09-16 — Phase 4 implemented: periodization science, load analytics
+
+**Types (`src/lib/types.ts`):** Removed `PeriodizationWeek` entirely,
+replaced by three new entities per PLAN.md:
+- `TrainingBlock { id, name, phaseId, startWeekId, endWeekId, priority?, color? }`
+  - a concurrent, possibly multi-week (and overlappable) training emphasis.
+- `WeekOverride { weekId, customized }` - the flagged "what does `customized`
+  mean once blocks can overlap" question, implemented exactly per the
+  plan's recommended default (confirmed, not re-raised): a separate table
+  decoupled from `TrainingBlock`, so "was this week manually edited" stays
+  a per-week concern independent of "what training emphasis covers this
+  week" (now a per-block concern).
+- `CompetitionEvent { id, name, date, priority: "A"|"B"|"C" }`.
+`Workout.blockId?: string` added (set at creation time from whichever block
+covers the workout's `weekId`). `TrainingData.periodization` replaced by
+`trainingBlocks`/`weekOverrides`/`competitionEvents`.
+
+**Migration (`src/lib/storage/migrations.ts`):** Two new steps,
+`DATA_EXPORT_VERSION` bumped `"3.22"` -> `"3.24"`:
+- `3.22->3.23`: converts every `PeriodizationWeek` entry into a single-week
+  `TrainingBlock` (`startWeekId === endWeekId === weekId`), naming the
+  block from the resolved phase's name (falling back to `"Training Block"`
+  if unresolvable - never drops the reference). Splits `customized: true`
+  entries out into `WeekOverride` rows. Deletes `data.periodization`.
+- `3.23->3.24`: adds `competitionEvents: []` (purely additive).
+`assertMigrationInvariants` updated to check `TrainingBlock.phaseId`
+resolution instead of the old `PeriodizationWeek.phaseId` check.
+
+**Overlap/dominance logic (`src/lib/planning/trainingBlocks.ts`, new,
+pure, unit-tested):** `getBlocksForWeek`/`getDominantBlockForWeek` - the
+single mechanism every consumer (storage, stores, CSV/PDF export,
+TrainingPlan.svelte) uses to resolve "what phase covers this week" now
+that more than one block can. Judgment calls made here (not spelled out by
+PLAN.md, which only said priority decides dominance and left the rest
+open):
+- Higher `priority` wins; **ties broken by whichever block is later in
+  the array** (i.e. last-created wins) - arbitrary but deterministic.
+- Week-id range comparison is plain string comparison (`"2026-W25"`-style
+  ids sort correctly lexicographically, including across year boundaries,
+  since the year prefix dominates the comparison) - no date parsing needed.
+
+**Storage layer (`src/lib/storage/index.ts`) - preserving the existing
+"quick assign a phase to a week" UX atop blocks:**
+- `assignPhaseToWeek(weekId, phaseId)` now finds-or-creates the **single-week
+  block for exactly that week** (`startWeekId === endWeekId === weekId`),
+  leaving any other (multi-week) block that happens to also cover this week
+  untouched. Workout generation still uses whichever block is *dominant*
+  for the week (by priority), not necessarily the one just written - so if
+  a higher-priority multi-week block already covers a week, quick-assigning
+  a different phase to that single week updates its own block but the
+  templates that actually generate workouts still come from the dominant
+  block. Flagging this as a judgment call: PLAN.md left "what exactly
+  triggers regeneration when overlapping blocks both generate workouts for
+  the same week" as something to validate by using the feature, not something
+  fully specified.
+- `clearWeekData(weekId)` only removes **this week's own exact single-week
+  block**, never a multi-week block that merely spans this week among
+  others - clearing one week must not silently delete data for the other
+  weeks a longer block covers.
+- New `saveTrainingBlock`/`deleteTrainingBlock` (direct CRUD for real
+  multi-week/overlapping blocks, distinct from the quick-assign path) and
+  `saveCompetitionEvent`/`deleteCompetitionEvent`/`savePainLog`/`deletePainLog`
+  (upsert-by-id, mirroring the existing `saveBenchmark`/`deleteBenchmark`
+  pattern).
+
+**Analytics module (`src/lib/analytics/loadAnalytics.ts`, new, pure,
+exhaustively unit-tested with hand-computed values):**
+- `calculateAcwrForWeeks`: ACWR-style acute (1-week) : chronic (trailing
+  4-week average) load ratio + week-over-week ramp-rate, **bucketed by
+  `Workout.weekId`/`loadFactor` rather than a continuous rolling daily
+  window** - a deliberate simplification, since this codebase's data model
+  (periodization, templates, the existing Rolling Load chart) is already
+  week-oriented and workouts don't reliably carry a `date` until completed.
+  `RAMP_RATE_SPIKE_THRESHOLD = 0.1` (10% week-over-week) and
+  `ACWR_HIGH_RISK_RATIO = 1.5` are both documented, cited sports-science
+  rules of thumb (Gabbett 2016 ACWR framework), kept as named, tunable
+  constants per PLAN.md's explicit instruction not to treat them as gospel.
+  Edge case decided: when the previous week's load is 0, ramp-rate is
+  defined as 0 (no baseline to ramp from) rather than +Infinity.
+- `calculateWorkoutAdherence`/`calculateWeeklyAdherence`: diffs
+  `prescribed` vs `logged` per slot (completion %, load variance) - the
+  feature the user specifically asked for, now unblocked by Phase 1.
+- `findConsecutiveTrainingDayWarnings` (6+ consecutive completed-workout
+  calendar days, `CONSECUTIVE_TRAINING_DAY_THRESHOLD = 6`) and
+  `findRecoveryWarnings` (load spike + declining sleep-score/HRV or rising
+  resting-HR week-over-week, using Phase 1's `DailyMetricEntry` system).
+- `correlatePainWithLoadSpikes`: flags `PainLog` entries whose week (or the
+  week before) had a load spike or a high ACWR ratio.
+
+**New UI:**
+- `WeekCalendar.svelte` (extracted from `TrainingPlan.svelte`, presentational
+  only). Note: PLAN.md's phrase "calendar grid/DnD logic" doesn't apply
+  literally here - the currently-committed `TrainingPlan.svelte` never had
+  DnD (that only existed in the stashed, deferred dashboard WIP from before
+  this refactor plan started - see the 2026-09-16 "Pre-Phase-0" stash
+  entry) - so this extraction is grid-rendering only, nothing to preserve.
+- `BlockManager.svelte`: CRUD for real multi-week/overlapping
+  `TrainingBlock`s (name, phase, start/end week via native `<input
+  type="week">`, priority), opened from a new toolbar button on
+  `TrainingPlan.svelte`. The existing single-week phase-picker dropdown
+  stays the fast path for the common case.
+- `CompetitionCalendar.svelte`: list + add form for `CompetitionEvent`s,
+  countdown to the next A-priority event, rendered at the bottom of the
+  Training Plan view (this app has no separate "dashboard" view - `plan` is
+  the closest thing to one).
+- Pain-logging entry point added to `FatigueModal.svelte` (the
+  workout-completion flow), per PLAN.md's first suggested option - an
+  optional, collapsed "Log Pain / Discomfort" section (body part, severity,
+  notes) that writes a `PainLog` via `trainingState.savePainLog` alongside
+  the fatigue rating, without affecting `loadFactor`.
+- `Analytics.svelte` gained `AcwrPanel`/`AdherencePanel`/
+  `RecoveryWarningsPanel` (new files under `src/components/analytics/`).
+  **Judgment call:** PLAN.md's phrasing suggests 4 separate panels
+  (adherence, ACWR/ramp-rate, recovery warnings, injury-vs-load
+  correlation); implemented as 3 - `RecoveryWarningsPanel` renders both
+  recovery warnings *and* flagged pain-load correlations together, since
+  both are "risk signal" lists rather than trend charts and a 4th
+  near-empty panel felt like unnecessary structure. All 4
+  `loadAnalytics.ts` functions are computed and exercised, just two share
+  one panel. All three panels are scoped to the same visible ~12-week
+  window `Analytics.svelte` already navigates (prev/next/today), not a
+  full-history recompute - consistent with how the rest of that view
+  already works.
+
+**Manual verification:** unlike every prior phase this session, the user
+*did* have the dev server open in a real browser this time and caught 3
+real stacking/contrast bugs after this phase's UI landed, fixed
+immediately (all in `WeekCalendar.svelte`/`TrainingPlan.svelte`) and
+confirmed fixed by the user before commit:
+1. The phase-picker dropdown (inside the selected-week card) rendered
+   *under* the Competition Calendar section below it - the selected-week
+   card has `backdrop-blur-sm` (a stacking-context trigger) but no
+   `position`/`z-index` of its own, so its internal `z-20` dropdown never
+   escalated above a later sibling card's own (separate) stacking context.
+   Fixed by making the card `relative` and giving it `z-30` only while the
+   dropdown is open.
+2. A hovered week cell's tooltip rendered *under* the selected week's cell
+   - the selected cell has an explicit `z-10`, while a hovered (non-selected)
+   cell only gained a stacking context via its `hover:scale-110` transform,
+   with no z-index of its own, so it always lost to the selected cell
+   regardless of grid position. Fixed with `hover:z-20` on every cell.
+3. The year-boundary marker (e.g. "2027") was unreadable (low contrast
+   against the phase-colored cell, `text-content-subtle` on `text-content-subtle`-
+   adjacent colors) and visually clipped by the row above it (it floated
+   `-top-4`, i.e. 16px, above the cell, while the grid's row gap is only
+   `gap-2`, 8px, so half its height necessarily sat inside the previous
+   row's cell). Redesigned as a small solid-background pill
+   (`bg-surface-elevated` + border) inset into the cell's own top-left
+   corner (`-top-1.5 -left-1.5`) rather than floating text above it -
+   readable against any cell color, and small enough to stay within the
+   row gap instead of overlapping the row above.
+
+**New tests:**
+- `src/lib/storage.phase4.test.ts` (9 tests): the `PeriodizationWeek` ->
+  `TrainingBlock` conversion (name resolution, fallback name, skip-if-no-
+  phaseId, `customized` -> `WeekOverride` split, `competitionEvents`
+  additive default), `assertMigrationInvariants`'s new block-phaseId check,
+  and the full `old_backup.json` roundtrip.
+- `src/lib/planning/trainingBlocks.test.ts` (8 tests): `getBlocksForWeek`/
+  `getDominantBlockForWeek` range/overlap/priority/tie-break behavior.
+- `src/lib/analytics/loadAnalytics.test.ts` (23 tests): every function with
+  hand-computed expected values (not just "doesn't throw"), per PLAN.md's
+  explicit DoD requirement - including the documented threshold constants
+  themselves and the zero-previous-load ramp-rate edge case.
+- Existing `storage.migrations.test.ts`/`storage.phase3.test.ts`/
+  `storage.freshInstall.test.ts` assertions that checked the old
+  `periodization`/`DATA_EXPORT_VERSION === "3.22"` shape were updated to
+  the final `trainingBlocks`/`"3.24"` shape - same fixtures/behavior,
+  correct final location (same reasoning as every prior phase's test-update
+  entries).
+
+**Verification performed:**
+- `npm run test` -> 96/96 pass (56 prior, updated in place where the final
+  shape changed + 40 new).
+- `npm run check` -> 0 errors, 0 warnings, 386 files.
+- `npx vite build` -> production build succeeds (same pre-existing >500kB
+  chunk warning, unrelated to this phase).
+- **Manual verification: performed by the user in a real browser this
+  time** (dev server started this session at
+  `http://localhost:5174/climbing-tracker/`) - caught and the 3 stacking/
+  contrast bugs above, both fixed and re-confirmed working before commit.
+  PLAN.md's other manual-test bullet (assigning overlapping blocks and
+  confirming workout generation "behaves sensibly") was not separately
+  walked through interactively beyond the fixes above - flagging this
+  narrower gap explicitly rather than claiming full manual coverage.
+
+**Explicitly not done here** (deferred, per PLAN.md's own framing): real
+per-block DnD/drag-resize UI for `TrainingBlock` ranges (`BlockManager.svelte`
+uses native week-picker inputs instead, not a calendar-drag interaction);
+an archive-toggle UI for `CompetitionEvent`s (hard-delete only, matching
+every other catalog's current behavior per Phase 1/3 precedent); Phase 5's
+AI import pipeline, which is what will eventually let blocks/competitions
+be generated from pasted AI output instead of only manual entry.
+
+**Commit:** made as its own commit, referencing "Phase 4" per the plan's
+convention.
 

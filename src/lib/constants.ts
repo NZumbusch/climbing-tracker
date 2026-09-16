@@ -4,7 +4,7 @@ import defaults from "../data/defaults.json";
 /**
  * Current data model version for exports and migrations.
  */
-export const DATA_EXPORT_VERSION = "3.22";
+export const DATA_EXPORT_VERSION = "3.24";
 
 /**
  * Standard colors for training categories used in charts and indicators.

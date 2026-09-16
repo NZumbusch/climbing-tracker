@@ -1023,6 +1023,43 @@ const MIGRATIONS: MigrationStep[] = [
       }
     },
   },
+  {
+    from: "3.22",
+    to: "3.23",
+    describe:
+      "Phase 4: convert PeriodizationWeek[] into single-week TrainingBlocks, splitting the 'customized' flag out into a decoupled WeekOverride table",
+    migrate: (data: any) => {
+      data.trainingBlocks = data.trainingBlocks || [];
+      data.weekOverrides = data.weekOverrides || [];
+      data.phaseDefs = data.phaseDefs || [];
+
+      (data.periodization || []).forEach((p: any) => {
+        if (p.phaseId) {
+          const phase = data.phaseDefs.find((ph: any) => ph.id === p.phaseId);
+          data.trainingBlocks.push({
+            id: generateId(),
+            name: phase ? phase.name : "Training Block",
+            phaseId: p.phaseId,
+            startWeekId: p.weekId,
+            endWeekId: p.weekId,
+          });
+        }
+        if (p.customized) {
+          data.weekOverrides.push({ weekId: p.weekId, customized: true });
+        }
+      });
+
+      delete data.periodization;
+    },
+  },
+  {
+    from: "3.23",
+    to: "3.24",
+    describe: "Phase 4: add competitionEvents (empty by default, purely additive)",
+    migrate: (data: any) => {
+      data.competitionEvents = data.competitionEvents || [];
+    },
+  },
 ];
 
 /**
@@ -1094,10 +1131,10 @@ export function assertMigrationInvariants(before: any, after: any): void {
   const knownPhaseIds = new Set(
     (after.phaseDefs || []).map((p: any) => p.id),
   );
-  after.periodization?.forEach((p: any) => {
-    if (p.phaseId && !knownPhaseIds.has(p.phaseId)) {
+  after.trainingBlocks?.forEach((b: any) => {
+    if (b.phaseId && !knownPhaseIds.has(b.phaseId)) {
       problems.push(
-        `periodization week ${p.weekId} has unresolvable phaseId "${p.phaseId}"`,
+        `training block ${b.id} has unresolvable phaseId "${b.phaseId}"`,
       );
     }
   });

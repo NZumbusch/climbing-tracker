@@ -31,7 +31,7 @@ const ALL_SEVEN_PHASE_NAMES_TO_IDS: Record<string, string> = {
 };
 
 describe("Phase 3: all 7 legacy phase names map to the correct phaseIds", () => {
-  it("resolves every canonical phase name to its fixed phaseId for periodization entries", () => {
+  it("resolves every canonical phase name to its fixed phaseId for periodization entries (now TrainingBlocks, Phase 4)", () => {
     const data: any = {
       exportVersion: "3.19",
       workouts: [],
@@ -45,10 +45,14 @@ describe("Phase 3: all 7 legacy phase names map to the correct phaseIds", () => 
 
     runDataMigrations(data);
 
-    data.periodization.forEach((p: any, i: number) => {
-      const originalName = Object.keys(ALL_SEVEN_PHASE_NAMES_TO_IDS)[i];
-      expect(p.phase).toBeUndefined();
-      expect(p.phaseId).toBe(ALL_SEVEN_PHASE_NAMES_TO_IDS[originalName]);
+    expect(data.periodization).toBeUndefined();
+    const blockByWeek = new Map(data.trainingBlocks.map((b: any) => [b.startWeekId, b]));
+    Object.keys(ALL_SEVEN_PHASE_NAMES_TO_IDS).forEach((name, i) => {
+      const weekId = `2026-W${String(i + 1).padStart(2, "0")}`;
+      const block = blockByWeek.get(weekId) as any;
+      expect(block.phase).toBeUndefined();
+      expect(block.phaseId).toBe(ALL_SEVEN_PHASE_NAMES_TO_IDS[name]);
+      expect(block.endWeekId).toBe(weekId);
     });
 
     // Seeded even for names never referenced by this fixture's periodization.
@@ -97,9 +101,9 @@ describe("Phase 3: unresolvable/custom phase name gets an archived placeholder P
 
     runDataMigrations(data);
 
-    const week = data.periodization[0];
-    expect(week.phaseId).toBeTruthy();
-    const resolved = data.phaseDefs.find((p: any) => p.id === week.phaseId);
+    const block = data.trainingBlocks[0];
+    expect(block.phaseId).toBeTruthy();
+    const resolved = data.phaseDefs.find((p: any) => p.id === block.phaseId);
     expect(resolved).toBeDefined();
     expect(resolved.name).toBe("Homebrew Custom Block");
     expect(resolved.archived).toBe(true);
@@ -121,15 +125,15 @@ describe("Phase 3: unresolvable/custom phase name gets an archived placeholder P
 
     runDataMigrations(data);
 
-    const [w1, w2] = data.periodization;
-    expect(w1.phaseId).toBe(w2.phaseId);
+    const [b1, b2] = data.trainingBlocks;
+    expect(b1.phaseId).toBe(b2.phaseId);
     expect(data.phaseDefs.filter((p: any) => p.name === "Ghost Phase")).toHaveLength(1);
-    expect(data.templates[w1.phaseId]).toHaveLength(1);
+    expect(data.templates[b1.phaseId]).toHaveLength(1);
   });
 });
 
 describe("Phase 3: full old-to-new roundtrip", () => {
-  it("every periodization phaseId and templates key resolves against phaseDefs, invariants pass", () => {
+  it("every training block's phaseId and templates key resolves against phaseDefs, invariants pass", () => {
     const before = loadFixture("backup-2.1.json");
     const after = JSON.parse(JSON.stringify(before));
     runDataMigrations(after);
@@ -137,10 +141,10 @@ describe("Phase 3: full old-to-new roundtrip", () => {
     expect(() => assertMigrationInvariants(before, after)).not.toThrow();
 
     const knownPhaseIds = new Set(after.phaseDefs.map((p: any) => p.id));
-    after.periodization.forEach((p: any) => {
-      expect(p.phase).toBeUndefined();
-      expect(p.phaseId).toBeTruthy();
-      expect(knownPhaseIds.has(p.phaseId)).toBe(true);
+    after.trainingBlocks.forEach((b: any) => {
+      expect(b.phase).toBeUndefined();
+      expect(b.phaseId).toBeTruthy();
+      expect(knownPhaseIds.has(b.phaseId)).toBe(true);
     });
     Object.keys(after.templates).forEach((key) => {
       expect(knownPhaseIds.has(key)).toBe(true);

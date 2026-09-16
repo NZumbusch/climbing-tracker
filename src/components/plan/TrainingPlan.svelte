@@ -2,10 +2,14 @@
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
   import { generateId } from '../../lib/utils';
-  import type { PeriodizationWeek, Workout, Benchmark } from '../../lib/types';
+  import { getBlocksForWeek, getDominantBlockForWeek } from '../../lib/planning/trainingBlocks';
+  import type { Workout, Benchmark } from '../../lib/types';
   import Icon from "@iconify/svelte";
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIPromptModal from './AIPromptModal.svelte';
+  import WeekCalendar from './WeekCalendar.svelte';
+  import BlockManager from './BlockManager.svelte';
+  import CompetitionCalendar from './CompetitionCalendar.svelte';
 
   // --- Theme ---
   const FALLBACK_PHASE_COLOR = 'bg-zinc-500';
@@ -27,12 +31,13 @@
   let isAddingBenchmark = $state(false);
   let editingBenchmark = $state<Benchmark | null>(null);
   let showAIPrompt = $state(false);
+  let showBlockManager = $state(false);
 
   // --- Logic: Calendar Generation ---
 
   const weeks = $derived.by(() => {
     const currentWeekId = trainingState.currentWeekId;
-    const tempWeeks: { id: string; label: string; phaseId?: string; isCurrent: boolean; year: number }[] = [];
+    const tempWeeks: { id: string; label: string; phaseId?: string; isCurrent: boolean; year: number; hasOverlap: boolean }[] = [];
 
     const startOffset = -25 + (trainingState.weekOffset * 50);
     const endOffset = 24 + (trainingState.weekOffset * 50);
@@ -41,18 +46,37 @@
       const d = new Date();
       d.setDate(d.getDate() + (i * 7));
       const id = getWeekId(d);
-      const phaseEntry = trainingState.periodization.find((p: PeriodizationWeek) => p.weekId === id);
+      const covering = getBlocksForWeek(trainingState.trainingBlocks, id);
+      const dominant = getDominantBlockForWeek(trainingState.trainingBlocks, id);
 
       tempWeeks.push({
         id,
         label: `Week ${id.split('-W')[1]}`,
-        phaseId: phaseEntry?.phaseId,
+        phaseId: dominant?.phaseId,
         isCurrent: id === currentWeekId,
-        year: d.getUTCFullYear()
+        year: d.getUTCFullYear(),
+        hasOverlap: covering.length > 1,
       });
     }
     return tempWeeks;
   });
+
+  const calendarWeeks = $derived(
+    weeks.map((w) => ({
+      id: w.id,
+      label: w.label,
+      year: w.year,
+      isCurrent: w.isCurrent,
+      color: phaseColor(w.phaseId),
+      tooltip: `${w.id}${phaseName(w.phaseId) ? ` - ${phaseName(w.phaseId)}` : ''}${w.hasOverlap ? ' (overlapping blocks)' : ''}`,
+      hasOverlap: w.hasOverlap,
+    })),
+  );
+
+  /** Every block covering the selected week, for the "Active Blocks" list - not just the dominant one. */
+  const selectedWeekBlocks = $derived(
+    trainingState.selectedWeekId ? getBlocksForWeek(trainingState.trainingBlocks, trainingState.selectedWeekId) : [],
+  );
 
   $effect(() => {
     if (!trainingState.selectedWeekId) trainingState.selectedWeekId = trainingState.currentWeekId;
@@ -114,6 +138,7 @@
   }
 
   function handleAddWorkout(weekId: string) {
+    const dominantBlock = getDominantBlockForWeek(trainingState.trainingBlocks, weekId);
     const newWorkout: Workout = {
       id: generateId(),
       status: 'planned',
@@ -121,7 +146,8 @@
       weekId,
       notes: 'New Session',
       loadFactor: 0,
-      exercises: []
+      exercises: [],
+      blockId: dominantBlock?.id,
     };
     trainingState.navigate('add', newWorkout);
   }
@@ -142,14 +168,22 @@
     <div class="flex items-center justify-between px-1">
       <h2 class="text-xl font-bold text-content tracking-tight">Training Plan</h2>
       <div class="flex items-center gap-2">
-        <button 
+        <button
+          onclick={() => showBlockManager = true}
+          class="px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all active:scale-95"
+          aria-label="Manage Training Blocks"
+          title="Manage Training Blocks"
+        >
+          <Icon icon="ic:baseline-view-week" class="text-sm" />
+        </button>
+        <button
           onclick={() => showAIPrompt = true}
           class="px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all active:scale-95"
           aria-label="Generate AI Prompt"
         >
           <Icon icon="ic:baseline-auto-awesome" class="text-sm" />
         </button>
-        <button 
+        <button
           onclick={() => navigate('today')}
           class="px-3 py-1.5 bg-surface-elevated/50 hover:bg-surface-elevated text-[9px] font-black text-content-muted hover:text-content uppercase tracking-widest rounded-lg border border-border-strong/50 transition-all active:scale-95"
         >
@@ -193,28 +227,15 @@
       </div>
     </div>
 
-    <div class="bg-surface/50 border border-border p-5 rounded-3xl backdrop-blur-sm relative">
-      <div class="grid grid-cols-10 gap-2 min-w-[280px]">
-        {#each weeks as week, i}
-          {@const showYear = i === 0 || weeks[i].year !== weeks[i-1].year}
-          <button 
-            onclick={() => { trainingState.selectedWeekId = week.id; showPhaseDropdown = false; }}
-            class="aspect-square rounded-lg transition-all duration-300 relative group
-              {week.phaseId ? phaseColor(week.phaseId) : 'bg-surface-elevated/50 hover:bg-surface-elevated'}
-              {trainingState.selectedWeekId === week.id ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900 scale-110 z-10 shadow-lg' : 'hover:scale-110'}
-              {week.isCurrent ? 'border-2 border-primary' : ''}"
-          >
-            {#if showYear}<div class="absolute -top-4 left-0 text-[7px] font-black text-content-subtle uppercase tracking-widest whitespace-nowrap">{week.year}</div>{/if}
-            {#if week.isCurrent}<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-hover rounded-full border-2 border-[#121214] z-20"></div>{/if}
-            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 shadow-xl border border-border-strong">{week.id} {phaseName(week.phaseId) ? `- ${phaseName(week.phaseId)}` : ''}</div>
-          </button>
-        {/each}
-      </div>
-    </div>
+    <WeekCalendar
+      weeks={calendarWeeks}
+      selectedWeekId={trainingState.selectedWeekId}
+      onSelectWeek={(weekId) => { trainingState.selectedWeekId = weekId; showPhaseDropdown = false; }}
+    />
   </div>
 
   {#if trainingState.selectedWeekId && selectedWeekData}
-    <div class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm space-y-5 shadow-xl">
+    <div class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm space-y-5 shadow-xl relative {showPhaseDropdown ? 'z-30' : ''}">
       <div class="flex justify-between items-start">
         <div class="flex-1 relative">
           <span class="text-[9px] font-black uppercase tracking-[0.15em] text-primary mb-0.5 block">{selectedWeekData.isCurrent ? 'Current Week' : selectedWeekData.id} <span class="text-content-subtle opacity-70 ml-2 lowercase tracking-normal">({getWeekDateRange(selectedWeekData.id)})</span></span>
@@ -233,9 +254,20 @@
               {/each}
             </div>
           {/if}
+
+          {#if selectedWeekBlocks.length > 1}
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              {#each selectedWeekBlocks as block}
+                <span class="flex items-center gap-1.5 px-2 py-1 bg-surface-elevated/70 rounded-lg border border-border-strong/50 text-[8px] font-bold text-content-muted uppercase tracking-wider">
+                  <span class="w-1.5 h-1.5 rounded-full {block.color || phaseColor(block.phaseId)}"></span>
+                  {block.name}
+                </span>
+              {/each}
+            </div>
+          {/if}
         </div>
 
-        <button 
+        <button
           onclick={() => trainingState.clearWeek(trainingState.selectedWeekId!)}
           class="flex items-center gap-2 px-3 py-2 bg-surface-elevated/50 hover:bg-danger/10 text-white-subtle hover:text-danger rounded-xl border border-border-strong/50 hover:border-red-500/20 transition-all text-[9px] font-black uppercase tracking-widest active:scale-95"
           title="Clear all data for this week"
@@ -326,9 +358,15 @@
       </div>
     </div>
   {/if}
+
+  <CompetitionCalendar />
 </div>
 
 {#if showAIPrompt}
   <AIPromptModal onClose={() => showAIPrompt = false} />
+{/if}
+
+{#if showBlockManager}
+  <BlockManager onClose={() => showBlockManager = false} />
 {/if}
 

@@ -175,6 +175,8 @@ export interface Workout {
   /** Pre-calculated planned stress score based on scheduled exercises */
   plannedLoad?: number;
   exercises: ExerciseSlot[];
+  /** -> TrainingBlock.id. Set at creation time from whichever block covers this workout's weekId (if any), so block-level analytics are a direct filter instead of a per-query date-range recompute. */
+  blockId?: string;
 
   // Fatigue Metrics (Perceived Exertion after completion)
   fingers?: number; // 1-10
@@ -240,14 +242,50 @@ export interface PhaseDef {
 }
 
 /**
- * Links a specific week to a macrocycle phase in the training plan.
+ * A concurrent training emphasis spanning one or more weeks (Phase 4).
+ * Replaces the old one-phase-per-week `PeriodizationWeek` - multiple blocks
+ * can overlap the same week (e.g. a strength block and a skill-maintenance
+ * block running side by side), with `priority` deciding which one dominates
+ * template selection/display for a week covered by more than one.
  */
-export interface PeriodizationWeek {
-  weekId: string;
-  /** -> PhaseDef.id */
+export interface TrainingBlock {
+  id: string;
+  name: string;
+  /** -> PhaseDef.id, the primary focus of this block */
   phaseId: string;
-  /** Indicates if the user manually modified this week's plan from the default template */
-  customized?: boolean;
+  /** ISO-8601 week id, inclusive */
+  startWeekId: string;
+  /** ISO-8601 week id, inclusive */
+  endWeekId: string;
+  /** Higher wins when multiple blocks cover the same week. Default 0. */
+  priority?: number;
+  color?: string;
+}
+
+/**
+ * A competition or event to peak for (Phase 4).
+ */
+export interface CompetitionEvent {
+  id: string;
+  name: string;
+  /** ISO date string */
+  date: string;
+  priority: "A" | "B" | "C";
+}
+
+/**
+ * Tracks whether a week's auto-generated workouts were manually edited by
+ * the user, kept as a **separate, per-week table decoupled from
+ * `TrainingBlock`** (Phase 4 - PLAN.md's recommended default for the
+ * "what does 'customized' mean once blocks can overlap" question): "has
+ * this week been manually edited" stays a per-week concern independent of
+ * "what training emphasis covers this week," which is now a per-block
+ * concern. Manual edits always take precedence and are never silently
+ * overwritten by template/block regeneration.
+ */
+export interface WeekOverride {
+  weekId: string;
+  customized: boolean;
 }
 
 /**
@@ -337,7 +375,9 @@ export interface PainLog {
  */
 export interface TrainingData {
   workouts: Workout[];
-  periodization: PeriodizationWeek[];
+  trainingBlocks: TrainingBlock[];
+  weekOverrides: WeekOverride[];
+  competitionEvents: CompetitionEvent[];
   exerciseTypes: ExerciseTypeDef[];
   templates: Record<string, WorkoutTemplate[]>;
   phaseDefs: PhaseDef[];

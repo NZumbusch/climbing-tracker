@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import type { Workout, WorkoutTemplate, PhaseDef, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType } from './types';
+import type { Workout, WorkoutTemplate, PhaseDef, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType, TrainingBlock, CompetitionEvent, PainLog } from './types';
 import { getWeekId } from './dateUtils';
 import { showAlert, showConfirm } from './utils';
 import { WorkoutStore } from './stores/workoutStore.svelte';
@@ -36,13 +36,18 @@ class TrainingState {
   // --- Delegated data state (read-only from outside; mutated via actions) ---
 
   get workouts() { return this.workoutStore.workouts; }
-  get periodization() { return this.planningStore.periodization; }
+  get trainingBlocks() { return this.planningStore.trainingBlocks; }
+  get weekOverrides() { return this.planningStore.weekOverrides; }
+  get competitionEvents() { return this.planningStore.competitionEvents; }
   get templates() { return this.planningStore.templates; }
   get exerciseTypes() { return this.catalogStore.exerciseTypes; }
   get analyticsCategories() { return this.catalogStore.analyticsCategories; }
   get benchmarkTypes() { return this.catalogStore.benchmarkTypes; }
   get phaseDefs() { return this.catalogStore.phaseDefs; }
   get benchmarks() { return this.benchmarkStore.benchmarks; }
+  get metricDefs() { return this.metricsStore.metricDefs; }
+  get dailyMetrics() { return this.metricsStore.dailyMetrics; }
+  get painLogs() { return this.metricsStore.painLogs; }
 
   // --- Delegated UI state ---
 
@@ -92,8 +97,16 @@ class TrainingState {
     return this.workoutStore.getPlannedWorkoutsForWeek(weekId);
   }
 
-  getPeriodizationForWeek(weekId: string) {
-    return this.planningStore.getPeriodizationForWeek(weekId);
+  getBlocksForWeek(weekId: string) {
+    return this.planningStore.getBlocksForWeek(weekId);
+  }
+
+  getDominantBlockForWeek(weekId: string) {
+    return this.planningStore.getDominantBlockForWeek(weekId);
+  }
+
+  isWeekCustomized(weekId: string) {
+    return this.planningStore.isWeekCustomized(weekId);
   }
 
   getBenchmarksForWeek(weekId: string) {
@@ -178,7 +191,7 @@ class TrainingState {
    * Exports all training data to a CSV file for analysis in Excel or Python.
    */
   async exportToCSV() {
-    this.backupStore.exportToCSV(this.workouts, this.periodization, this.exerciseTypes, this.phaseDefs);
+    this.backupStore.exportToCSV(this.workouts, this.trainingBlocks, this.exerciseTypes, this.phaseDefs);
   }
 
   /**
@@ -274,6 +287,60 @@ class TrainingState {
    */
   async assignPhase(weekId: string, phaseId: string) {
     await this.planningStore.assignPhase(weekId, phaseId);
+    await this.refresh();
+  }
+
+  /**
+   * Creates or updates a (possibly multi-week) training block.
+   */
+  async saveTrainingBlock(block: TrainingBlock) {
+    await this.planningStore.saveTrainingBlock(block);
+    await this.refresh();
+  }
+
+  /**
+   * Deletes a training block after confirmation.
+   */
+  async deleteTrainingBlock(id: string) {
+    const confirmed = await showConfirm('Delete Training Block', 'Delete this training block? Any weeks only covered by it will show no phase.');
+    if (!confirmed) return;
+    await this.planningStore.deleteTrainingBlock(id);
+    await this.refresh();
+  }
+
+  /**
+   * Creates or updates a competition/event on the peaking calendar.
+   */
+  async saveCompetitionEvent(event: CompetitionEvent) {
+    await this.planningStore.saveCompetitionEvent(event);
+    await this.refresh();
+  }
+
+  /**
+   * Deletes a competition/event after confirmation.
+   */
+  async deleteCompetitionEvent(id: string) {
+    const confirmed = await showConfirm('Delete Event', 'Delete this competition/event?');
+    if (!confirmed) return;
+    await this.planningStore.deleteCompetitionEvent(id);
+    await this.refresh();
+  }
+
+  /**
+   * Logs a pain/discomfort entry.
+   */
+  async savePainLog(log: PainLog) {
+    await this.metricsStore.savePainLog(log);
+    await this.refresh();
+  }
+
+  /**
+   * Deletes a pain/discomfort log entry after confirmation.
+   */
+  async deletePainLog(id: string) {
+    const confirmed = await showConfirm('Delete Log', 'Delete this pain/discomfort log entry?');
+    if (!confirmed) return;
+    await this.metricsStore.deletePainLog(id);
     await this.refresh();
   }
 

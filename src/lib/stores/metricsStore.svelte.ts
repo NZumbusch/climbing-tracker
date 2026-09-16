@@ -34,4 +34,12 @@ export class MetricsStore {
   async updatePainLogs(logs: PainLog[]) {
     await storage.savePainLogs(logs);
   }
+
+  async savePainLog(log: PainLog) {
+    await storage.savePainLog(log);
+  }
+
+  async deletePainLog(id: string) {
+    await storage.deletePainLog(id);
+  }
 }

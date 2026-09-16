@@ -4,7 +4,9 @@ import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 import type {
   Workout,
   WorkoutTemplate,
-  PeriodizationWeek,
+  TrainingBlock,
+  WeekOverride,
+  CompetitionEvent,
   ExerciseTypeDef,
   PhaseDef,
   Benchmark,
@@ -18,6 +20,7 @@ import { calculatePlannedLoad } from "../types";
 import { DEFAULT_TEMPLATES, DATA_EXPORT_VERSION } from "../constants";
 import { generateId, showAlert } from "../utils";
 import { generateWorkoutsFromTemplate } from "../planning/generateWorkoutsFromTemplate";
+import { getDominantBlockForWeek } from "../planning/trainingBlocks";
 import { initDB, flushDB, setDbState, writeMigrationBackup, _dbState } from "./persistence";
 import { runDataMigrations, assertMigrationInvariants } from "./migrations";
 
@@ -30,7 +33,9 @@ export const storage = {
   // --- Private Helpers ---
 
   async _getWorkouts(): Promise<Workout[]> { await initDB(); return _dbState.workouts; },
-  async _getPeriodization(): Promise<PeriodizationWeek[]> { await initDB(); return _dbState.periodization; },
+  async _getTrainingBlocks(): Promise<TrainingBlock[]> { await initDB(); return _dbState.trainingBlocks; },
+  async _getWeekOverrides(): Promise<WeekOverride[]> { await initDB(); return _dbState.weekOverrides; },
+  async _getCompetitionEvents(): Promise<CompetitionEvent[]> { await initDB(); return _dbState.competitionEvents; },
   async _getBenchmarks(): Promise<Benchmark[]> { await initDB(); return _dbState.benchmarks; },
   async _getBenchmarkTypes(): Promise<BenchmarkTypeDef[]> { await initDB(); return _dbState.benchmarkTypes; },
   async _getAnalyticsCategories(): Promise<AnalyticsCategory[]> { await initDB(); return _dbState.analyticsCategories; },
@@ -42,7 +47,9 @@ export const storage = {
   async _getPainLogs(): Promise<PainLog[]> { await initDB(); return _dbState.painLogs; },
 
   async _saveWorkouts(workouts: Workout[]): Promise<void> { await initDB(); _dbState.workouts = workouts; await flushDB(); },
-  async _savePeriodization(periodization: PeriodizationWeek[]): Promise<void> { await initDB(); _dbState.periodization = periodization; await flushDB(); },
+  async _saveTrainingBlocks(blocks: TrainingBlock[]): Promise<void> { await initDB(); _dbState.trainingBlocks = blocks; await flushDB(); },
+  async _saveWeekOverrides(overrides: WeekOverride[]): Promise<void> { await initDB(); _dbState.weekOverrides = overrides; await flushDB(); },
+  async _saveCompetitionEvents(events: CompetitionEvent[]): Promise<void> { await initDB(); _dbState.competitionEvents = events; await flushDB(); },
   async _saveBenchmarks(benchmarks: Benchmark[]): Promise<void> { await initDB(); _dbState.benchmarks = benchmarks; await flushDB(); },
   async _saveBenchmarkTypes(types: BenchmarkTypeDef[]): Promise<void> { await initDB(); _dbState.benchmarkTypes = types; await flushDB(); },
   async _saveAnalyticsCategories(categories: AnalyticsCategory[]): Promise<void> { await initDB(); _dbState.analyticsCategories = categories; await flushDB(); },
@@ -161,28 +168,62 @@ export const storage = {
     await this._saveAnalyticsCategories(categories);
   },
 
-  async getPeriodization(): Promise<PeriodizationWeek[]> {
-    return this._getPeriodization();
+  async getTrainingBlocks(): Promise<TrainingBlock[]> {
+    return this._getTrainingBlocks();
+  },
+
+  async saveTrainingBlock(block: TrainingBlock): Promise<void> {
+    const blocks = await this._getTrainingBlocks();
+    const index = blocks.findIndex((b) => b.id === block.id);
+    if (index !== -1) {
+      blocks[index] = block;
+    } else {
+      blocks.push(block);
+    }
+    await this._saveTrainingBlocks(blocks);
+  },
+
+  async deleteTrainingBlock(id: string): Promise<void> {
+    const blocks = await this._getTrainingBlocks();
+    await this._saveTrainingBlocks(blocks.filter((b) => b.id !== id));
+  },
+
+  async getWeekOverrides(): Promise<WeekOverride[]> {
+    return this._getWeekOverrides();
   },
 
   async markWeekAsCustomized(weekId: string): Promise<void> {
-    const periodization = await this._getPeriodization();
-    const week = periodization.find((p) => p.weekId === weekId);
-    if (week && !week.customized) {
-      week.customized = true;
-      await this._savePeriodization(periodization);
+    const overrides = await this._getWeekOverrides();
+    const existing = overrides.find((o) => o.weekId === weekId);
+    if (existing) {
+      if (!existing.customized) {
+        existing.customized = true;
+        await this._saveWeekOverrides(overrides);
+      }
+    } else {
+      overrides.push({ weekId, customized: true });
+      await this._saveWeekOverrides(overrides);
     }
   },
 
-  async savePeriodizationWeek(week: PeriodizationWeek): Promise<void> {
-    const periodization = await this._getPeriodization();
-    const index = periodization.findIndex((p) => p.weekId === week.weekId);
+  async getCompetitionEvents(): Promise<CompetitionEvent[]> {
+    return this._getCompetitionEvents();
+  },
+
+  async saveCompetitionEvent(event: CompetitionEvent): Promise<void> {
+    const events = await this._getCompetitionEvents();
+    const index = events.findIndex((e) => e.id === event.id);
     if (index !== -1) {
-      periodization[index] = week;
+      events[index] = event;
     } else {
-      periodization.push(week);
+      events.push(event);
     }
-    await this._savePeriodization(periodization);
+    await this._saveCompetitionEvents(events);
+  },
+
+  async deleteCompetitionEvent(id: string): Promise<void> {
+    const events = await this._getCompetitionEvents();
+    await this._saveCompetitionEvents(events.filter((e) => e.id !== id));
   },
 
   async getTemplates(): Promise<Record<string, WorkoutTemplate[]>> {
@@ -247,18 +288,57 @@ export const storage = {
     await this._savePainLogs(logs);
   },
 
-  async assignPhaseToWeek(weekId: string, phaseId: string): Promise<void> {
-    const periodization = await this._getPeriodization();
-    const existingIndex = periodization.findIndex((p) => p.weekId === weekId);
-
-    let isCustomized = false;
-    if (existingIndex !== -1) {
-      isCustomized = !!periodization[existingIndex].customized;
-      periodization[existingIndex].phaseId = phaseId;
+  async savePainLog(log: PainLog): Promise<void> {
+    const logs = await this._getPainLogs();
+    const index = logs.findIndex((l) => l.id === log.id);
+    if (index !== -1) {
+      logs[index] = log;
     } else {
-      periodization.push({ weekId, phaseId });
+      logs.push(log);
     }
-    await this._savePeriodization(periodization);
+    await this._savePainLogs(logs);
+  },
+
+  async deletePainLog(id: string): Promise<void> {
+    const logs = await this._getPainLogs();
+    await this._savePainLogs(logs.filter((l) => l.id !== id));
+  },
+
+  /**
+   * "Quick assign" a phase to a single week - the same interaction the app
+   * has always offered, now expressed as a `TrainingBlock` whose range is
+   * exactly that one week (`startWeekId === endWeekId === weekId`), so it
+   * migrates 1:1 from the old `PeriodizationWeek` shape. Multi-week blocks
+   * (real overlapping concurrent training emphases) are created/edited
+   * directly via `saveTrainingBlock`, not through this method.
+   *
+   * If another, higher-priority block already covers this week, that block
+   * still wins for template generation/display (see `getDominantBlockForWeek`)
+   * - assigning a phase here only ever affects this week's own single-week
+   * block, never anyone else's block.
+   */
+  async assignPhaseToWeek(weekId: string, phaseId: string): Promise<void> {
+    const blocks = await this._getTrainingBlocks();
+    const overrides = await this._getWeekOverrides();
+    const isCustomized = !!overrides.find((o) => o.weekId === weekId)?.customized;
+
+    const existingIndex = blocks.findIndex(
+      (b) => b.startWeekId === weekId && b.endWeekId === weekId,
+    );
+    if (existingIndex !== -1) {
+      blocks[existingIndex] = { ...blocks[existingIndex], phaseId };
+    } else {
+      const phaseDefs = await this._getPhaseDefs();
+      const phase = phaseDefs.find((p) => p.id === phaseId);
+      blocks.push({
+        id: generateId(),
+        name: phase?.name || "Training Block",
+        phaseId,
+        startWeekId: weekId,
+        endWeekId: weekId,
+      });
+    }
+    await this._saveTrainingBlocks(blocks);
 
     if (!isCustomized) {
       const workouts = await this._getWorkouts();
@@ -266,26 +346,38 @@ export const storage = {
         (w) => !(w.weekId === weekId && w.status === "planned"),
       );
       const templates = await this.getTemplates();
-      const phaseTemplates = templates[phaseId];
+      const dominantBlock = getDominantBlockForWeek(blocks, weekId);
+      const effectivePhaseId = dominantBlock?.phaseId ?? phaseId;
+      const phaseTemplates = templates[effectivePhaseId];
 
-      const newWorkouts = generateWorkoutsFromTemplate(weekId, phaseTemplates || []);
+      const newWorkouts = generateWorkoutsFromTemplate(weekId, phaseTemplates || []).map(
+        (w) => ({ ...w, blockId: dominantBlock?.id }),
+      );
 
       await this._saveWorkouts([...filteredWorkouts, ...newWorkouts]);
     }
   },
 
   async clearWeekData(weekId: string): Promise<void> {
-    // 1. Remove periodization entry
-    const periodization = await this._getPeriodization();
-    const filteredPeriodization = periodization.filter((p) => p.weekId !== weekId);
-    await this._savePeriodization(filteredPeriodization);
+    // 1. Remove this week's own single-week block (a multi-week block that
+    // merely spans this week among others is left alone - clearing one
+    // week can't silently delete data for the other weeks it covers).
+    const blocks = await this._getTrainingBlocks();
+    const filteredBlocks = blocks.filter(
+      (b) => !(b.startWeekId === weekId && b.endWeekId === weekId),
+    );
+    await this._saveTrainingBlocks(filteredBlocks);
 
-    // 2. Remove all workouts for this week
+    // 2. Remove the week override
+    const overrides = await this._getWeekOverrides();
+    await this._saveWeekOverrides(overrides.filter((o) => o.weekId !== weekId));
+
+    // 3. Remove all workouts for this week
     const workouts = await this._getWorkouts();
     const filteredWorkouts = workouts.filter((w) => w.weekId !== weekId);
     await this._saveWorkouts(filteredWorkouts);
 
-    // 3. Remove all benchmarks for this week
+    // 4. Remove all benchmarks for this week
     const benchmarks = await this._getBenchmarks();
     const filteredBenchmarks = benchmarks.filter((b) => b.weekId !== weekId);
     await this._saveBenchmarks(filteredBenchmarks);
@@ -346,7 +438,9 @@ export const storage = {
           runDataMigrations(data);
 
           if (data.workouts) _dbState.workouts = data.workouts;
-          if (data.periodization) _dbState.periodization = data.periodization;
+          if (data.trainingBlocks) _dbState.trainingBlocks = data.trainingBlocks;
+          if (data.weekOverrides) _dbState.weekOverrides = data.weekOverrides;
+          if (data.competitionEvents) _dbState.competitionEvents = data.competitionEvents;
           if (data.templates) _dbState.templates = data.templates;
           if (data.phaseDefs) _dbState.phaseDefs = data.phaseDefs;
           if (data.exerciseTypes) _dbState.exerciseTypes = data.exerciseTypes;

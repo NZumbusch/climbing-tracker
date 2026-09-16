@@ -71,7 +71,9 @@ export async function initDB() {
   if (!rawData) {
     rawData = {
       workouts: await localforage.getItem("workouts"),
-      periodization: await localforage.getItem("periodization"),
+      trainingBlocks: await localforage.getItem("trainingBlocks"),
+      weekOverrides: await localforage.getItem("weekOverrides"),
+      competitionEvents: await localforage.getItem("competitionEvents"),
       templates: await localforage.getItem("templates"),
       phaseDefs: await localforage.getItem("phaseDefs"),
       exerciseTypes: await localforage.getItem("exerciseTypes"),
@@ -87,7 +89,9 @@ export async function initDB() {
 
   _dbState = {
     workouts: rawData.workouts || [],
-    periodization: rawData.periodization || [],
+    trainingBlocks: rawData.trainingBlocks || [],
+    weekOverrides: rawData.weekOverrides || [],
+    competitionEvents: rawData.competitionEvents || [],
     templates: rawData.templates || DEFAULT_TEMPLATES,
     phaseDefs: rawData.phaseDefs || DEFAULT_PHASE_DEFS,
     exerciseTypes: rawData.exerciseTypes || DEFAULT_EXERCISE_TYPES,
@@ -121,7 +125,9 @@ export async function flushDB() {
     }
   } else {
     await localforage.setItem("workouts", _dbState.workouts);
-    await localforage.setItem("periodization", _dbState.periodization);
+    await localforage.setItem("trainingBlocks", _dbState.trainingBlocks);
+    await localforage.setItem("weekOverrides", _dbState.weekOverrides);
+    await localforage.setItem("competitionEvents", _dbState.competitionEvents);
     await localforage.setItem("templates", _dbState.templates);
     await localforage.setItem("phaseDefs", _dbState.phaseDefs);
     await localforage.setItem("exerciseTypes", _dbState.exerciseTypes);

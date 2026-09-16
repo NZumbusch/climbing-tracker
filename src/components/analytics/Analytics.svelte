@@ -3,6 +3,10 @@
   import { getWeekId } from '../../lib/dateUtils';
   import type { Workout, ExerciseTypeDef, Benchmark, ExerciseCategory } from '../../lib/types';
   import { slotValues } from '../../lib/exerciseSlot';
+  import { calculateAcwrForWeeks, calculateWeeklyAdherence, findRecoveryWarnings, correlatePainWithLoadSpikes } from '../../lib/analytics/loadAnalytics';
+  import AcwrPanel from './AcwrPanel.svelte';
+  import AdherencePanel from './AdherencePanel.svelte';
+  import RecoveryWarningsPanel from './RecoveryWarningsPanel.svelte';
   import Icon from "@iconify/svelte";
 
   // --- State ---
@@ -145,6 +149,22 @@
       maxLoad
     };
   });
+
+  // --- Phase 4: load analytics (ACWR/ramp-rate, adherence, recovery
+  // warnings, injury-vs-load correlation) - scoped to the same visible
+  // week window as the charts above, consistent with this view's existing
+  // prev/next/today navigation rather than recomputing over full history.
+  const orderedWeekIds = $derived(chartData.weeks.map((w) => w.id));
+  const weekLabels = $derived(Object.fromEntries(chartData.weeks.map((w) => [w.id, `W${w.label}`])));
+  const acwrResults = $derived(calculateAcwrForWeeks(trainingState.workouts, orderedWeekIds));
+  const weeksWithCompletedSessions = $derived(new Set(trainingState.completedWorkouts.map((w) => w.weekId)));
+  const weeklyAdherenceResults = $derived(
+    orderedWeekIds
+      .filter((id) => weeksWithCompletedSessions.has(id))
+      .map((id) => calculateWeeklyAdherence(trainingState.workouts, id)),
+  );
+  const recoveryWarnings = $derived(findRecoveryWarnings(trainingState.workouts, trainingState.dailyMetrics, orderedWeekIds));
+  const painCorrelations = $derived(correlatePainWithLoadSpikes(trainingState.painLogs, acwrResults));
 
   const visibleCategories = $derived(categories.filter(c => !hiddenCategoryIds.has(c.id)));
   const maxVisibleDuration = $derived(Math.max(...chartData.weeks.map(w => visibleCategories.reduce((acc, cat) => acc + ((includePlanned ? w.categories[cat.name] : w.completedCategories[cat.name]) || 0), 0)), 1));
@@ -463,6 +483,10 @@
         {/each}
       </div>
     </div>
+
+    <AcwrPanel results={acwrResults} {weekLabels} />
+    <AdherencePanel results={weeklyAdherenceResults} {weekLabels} />
+    <RecoveryWarningsPanel warnings={recoveryWarnings} {painCorrelations} />
 
     {#if benchmarkProgress.types.length > 0}
       <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
