@@ -76,16 +76,26 @@ const BUILTIN_PHASE_DEFS = [
  * evolving `data.phaseDefs` array, so a name unresolved in one step but seen
  * again in the other still maps to the same id rather than creating a
  * duplicate placeholder.
+ *
+ * Checks by id first (bug fix, 2026-09-16): a fresh install's `templates`
+ * come straight from `DEFAULT_TEMPLATES`, already keyed by phaseId (e.g.
+ * "phase-capacity"), not by name - see `resolveInitialExportVersion` in
+ * `persistence.ts` for the full story. Without this check, an
+ * already-resolved key got treated as an unresolvable *name* and produced a
+ * brand new archived placeholder PhaseDef every time this step ran on
+ * already-current-shape data.
  */
-function makePhaseIdResolver(data: any): (name: string) => string {
+function makePhaseIdResolver(data: any): (nameOrId: string) => string {
   const placeholderIds = new Map<string, string>();
-  return (name: string): string => {
-    const existing = data.phaseDefs.find((p: any) => p.name === name);
+  return (nameOrId: string): string => {
+    const alreadyResolved = data.phaseDefs.find((p: any) => p.id === nameOrId);
+    if (alreadyResolved) return alreadyResolved.id;
+    const existing = data.phaseDefs.find((p: any) => p.name === nameOrId);
     if (existing) return existing.id;
-    if (placeholderIds.has(name)) return placeholderIds.get(name)!;
+    if (placeholderIds.has(nameOrId)) return placeholderIds.get(nameOrId)!;
     const id = generateId();
-    data.phaseDefs.push({ id, name, archived: true });
-    placeholderIds.set(name, id);
+    data.phaseDefs.push({ id, name: nameOrId, archived: true });
+    placeholderIds.set(nameOrId, id);
     return id;
   };
 }
@@ -886,6 +896,16 @@ const MIGRATIONS: MigrationStep[] = [
           let id = e.id;
           if (seenSlotIds.has(id)) id = generateId();
           seenSlotIds.add(id);
+
+          // Bug fix (2026-09-16): already in ExerciseSlot shape - e.g. a
+          // fresh install's default templates, which come straight from
+          // DEFAULT_TEMPLATES and are never flat Exercise[] to begin with.
+          // Without this check, `prescribed` fell into `...rest` below and
+          // got wrapped in a second `prescribed` layer (`prescribed.prescribed`),
+          // silently hiding every default template's exercise values.
+          if (e.prescribed !== undefined || e.logged !== undefined) {
+            return { ...e, id };
+          }
 
           const { prescribed, logged } = splitValues(e, isCompleted);
           const slot: any = { id, typeId: e.typeId, prescribed };

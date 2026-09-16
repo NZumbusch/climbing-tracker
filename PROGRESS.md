@@ -1101,4 +1101,119 @@ overlapping training emphases.
 **Commit:** made as its own commit, referencing "Phase 3" per the plan's
 convention.
 
+---
+
+## 2026-09-16 — Post-Phase-3 fix: fresh install ran the full migration chain over already-current-shape data (user-reported, confirmed, two real bugs)
+
+**Report:** after Phase 3 landed, the user saw every training phase listed
+twice in Settings even after deleting IndexedDB from browser storage - the
+duplicates gray and named literally `"phase-capacity"`, `"phase-deload"`,
+etc. (the id string, not the display name).
+
+**Root cause (confirmed by reproducing it directly against
+`runDataMigrations`, not just inspected):** `initDB` (`storage/persistence.ts`)
+has always defaulted a missing `exportVersion` to `"1.0"` unconditionally,
+including on a genuinely fresh install where every field is populated
+straight from the `DEFAULT_*` constants - which are already in the
+*current* schema shape by construction, not old-shape data needing
+migration. That made `runStartupMigrations` run the *entire* migration
+chain over already-current-shape data on every fresh install. Most of the
+~25 historical steps happen to be defensive/idempotent against
+already-migrated input (many explicitly guard, e.g. `if (e.typeId) return;`),
+so this had been silently harmless for years - until two steps that
+weren't defensive got hit:
+
+1. **Phase 3's `3.21->3.22` templates-rekey step** (introduced this
+   session) treated every `data.templates` key as an unresolved phase
+   *name* needing lookup-or-placeholder-creation - but a fresh install's
+   `templates` (from `DEFAULT_TEMPLATES`) are already keyed by `phaseId`
+   (e.g. `"phase-capacity"`), not by name. `makePhaseIdResolver` found no
+   `PhaseDef` whose *name* was `"phase-capacity"`, so it created a brand
+   new archived placeholder `PhaseDef` (`{ id: <generated>, name:
+   "phase-capacity", archived: true }`) for every one of the 7 phases -
+   exactly the visible gray/doubled/`"phase-..."`-named symptom reported.
+2. **A pre-existing Phase 1 bug, not caused by this session's work but
+   newly exposed by reproducing the report:** the same fresh-install path
+   also runs Phase 1's `3.16->3.17` Exercise->ExerciseSlot restructure step
+   over `DEFAULT_TEMPLATES`'s exercises, which are already `ExerciseSlot`-
+   shaped (`{ id, typeId, prescribed: {...} }`), not flat `Exercise`. That
+   step's destructuring (`const { id, type, category, typeId, ..., ...rest
+   } = e`) doesn't list `prescribed` among the fields it pulls out, so the
+   existing `prescribed` object fell into `...rest` and got wrapped in a
+   *second* `prescribed` layer (`slot.prescribed.prescribed`), silently
+   hiding every default template's actual exercise values (duration,
+   climbingStyle, etc. all become unreachable at the field names the UI
+   reads). Confirmed this reproduces against the real `DEFAULT_TEMPLATES`
+   constant, not a hypothetical. This bug has been live since Phase 1's
+   commit; it was never caught because every prior phase's manual
+   fresh-install verification was deferred to the user (no browser tooling
+   in-session), and a *pre-existing* install's `_dbState.workouts` is never
+   empty/absent the way a true fresh install's is, so this exact code path
+   (migrations running over `DEFAULT_TEMPLATES` itself) was never actually
+   exercised by any of this session's own fixture tests either - Phase 1's
+   test (f) and Phase 3's equivalent both checked `DEFAULT_TEMPLATES`
+   *directly*, never through `runDataMigrations`, which is precisely the
+   gap that let this ship unnoticed twice.
+
+**Fix (`src/lib/storage/persistence.ts`):** extracted a small, directly
+unit-testable `resolveInitialExportVersion(rawData)`: a **true** fresh
+install (`rawData.workouts == null` - the one field every real install
+always persists, even as `[]`) is now pinned straight to
+`DATA_EXPORT_VERSION`, skipping the migration chain entirely, since
+`DEFAULT_*` data never needs migrating. A real pre-existing install with no
+recorded `exportVersion` (genuine 1.0/2.0-era data, which does have
+persisted `workouts`) still defaults to `"1.0"` exactly as before - this
+fix narrows *when* migrations run, it doesn't change what any step does.
+
+**Defense-in-depth fixes (`src/lib/storage/migrations.ts`), so a future
+regression in the version-detection fix above can't reintroduce silent
+corruption:**
+- `makePhaseIdResolver` now checks "is this key already a valid `PhaseDef.id`"
+  before treating it as an unresolved name - an already-resolved key
+  (whether from a fresh install or genuinely already-migrated data) is
+  returned as-is instead of spawning a placeholder.
+- The `3.16->3.17` restructure step now checks `if (e.prescribed !==
+  undefined || e.logged !== undefined)` and passes an already-slotted
+  exercise through unchanged (still applying the existing id-collision
+  dedup) instead of re-running the flat-`Exercise`-splitting logic on it.
+  This amends a Phase 1 step, same as the Prerequisite step's `3.8->3.9`
+  precedent - additive-only for the new early-return branch, no change to
+  the original transform for genuinely flat old-shape input.
+
+**New test file `src/lib/storage.freshInstall.test.ts`:** unit tests for
+`resolveInitialExportVersion` (true fresh install -> current version; real
+empty-but-persisted install with no version -> `"1.0"`; persisted version
+always wins), plus two integration-style regression tests that build a
+`DEFAULT_*`-sourced fresh-install-shaped object and run it through the real
+`runDataMigrations` - one forcing `exportVersion: "1.0"` (the pre-fix
+behavior, kept as a permanent stress test of the defense-in-depth fixes
+above, independent of whether `resolveInitialExportVersion` itself stays
+correct) asserting exactly 7 non-archived `PhaseDef`s and no double-nested
+`prescribed`, and one at the real post-fix pinned version asserting a true
+no-op.
+
+**Verification performed:**
+- `npm run test` -> 56/56 pass (51 prior + 5 new).
+- `npm run check` -> 0 errors, 0 warnings, 374 files.
+- `npx vite build` -> production build succeeds.
+- Reproduced both bugs directly against `runDataMigrations` with the real
+  `DEFAULT_*` constants before writing the fix (not just reasoned about
+  abstractly), and re-ran the same reproduction after the fix to confirm
+  both are resolved.
+- **Manual verification not performed** (no browser tooling this session -
+  same gap as Phase 3's own entry). The user's browser currently has
+  already-corrupted data persisted at `exportVersion: "3.22"` (the
+  corruption completed "successfully" per `assertMigrationInvariants`,
+  which doesn't check phaseDef-count or prescribed-nesting - only
+  workout/benchmark counts and typeId/phaseId resolvability, and the
+  corrupted archived placeholders *are* self-consistent, just duplicated) -
+  since the stored version already matches current, migrations won't
+  re-run on their own to un-corrupt it. Told the user they need to clear
+  storage **once more** now that the fix is in place for a clean reload to
+  actually take effect.
+
+**Commit:** made as its own commit, separate from Phase 3's own commit,
+since this is a bugfix found and fixed after Phase 3 was already
+committed.
+
 

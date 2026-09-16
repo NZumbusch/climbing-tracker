@@ -7,7 +7,34 @@ import {
   DEFAULT_BENCHMARK_TYPES,
   DEFAULT_ANALYTICS_CATEGORIES,
   DEFAULT_PHASE_DEFS,
+  DATA_EXPORT_VERSION,
 } from "../constants";
+
+/**
+ * Decides what `exportVersion` a freshly-loaded `_dbState` should carry.
+ *
+ * Bug fix (found 2026-09-16, reported by the user as duplicate/gray
+ * "phase-..." entries surviving a storage wipe): a **true fresh install**
+ * (no `workouts` ever persisted - the one field every real install always
+ * has, even as `[]`) populates every other field straight from the
+ * `DEFAULT_*` constants, which are already in the *current* schema shape by
+ * construction. Defaulting `exportVersion` to `"1.0"` in that case (the old
+ * behavior) made `runStartupMigrations` run the *entire* migration chain
+ * over already-current-shape data - most historical steps happen to be
+ * defensive/idempotent against that, but not all of them (confirmed: the
+ * Phase 3 templates-rekey step re-resolved already-correct phaseId keys as
+ * if they were phase *names*, creating an archived placeholder PhaseDef
+ * per phase, and the Phase 1 Exercise->ExerciseSlot restructure step
+ * double-nested `prescribed` on already-slotted default-template
+ * exercises). A real, pre-existing install (has persisted `workouts`, even
+ * an empty array) still defaults to `"1.0"` exactly as before when its
+ * `exportVersion` is missing - that's the genuine 1.0/2.0-era case
+ * migrations exist to handle.
+ */
+export function resolveInitialExportVersion(rawData: { workouts?: unknown; exportVersion?: string }): string {
+  const isFreshInstall = rawData.workouts == null;
+  return isFreshInstall ? DATA_EXPORT_VERSION : (rawData.exportVersion || "1.0");
+}
 
 /**
  * Pure get/set of the raw DB blob - the localforage (web) / Capacitor
@@ -70,7 +97,7 @@ export async function initDB() {
     metricDefs: rawData.metricDefs || [],
     dailyMetrics: rawData.dailyMetrics || [],
     painLogs: rawData.painLogs || [],
-    exportVersion: rawData.exportVersion || "1.0",
+    exportVersion: resolveInitialExportVersion(rawData),
   };
 }
 
