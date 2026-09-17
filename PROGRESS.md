@@ -1678,3 +1678,137 @@ validators (hand-rolled was PLAN.md's stated default, taken as-is).
 **Commit:** made as its own commit, referencing "Phase 5" per the plan's
 convention.
 
+---
+
+## 2026-09-17 — Phase 6 scoping: read PLAN.md/PROGRESS.md, confirmed Phase 5 committed, inspected real `data.csv`
+
+Confirmed via `git log` that `68e57db "Phase 5: AI import/export pipeline"` is
+the tip of `refactor/full-plan` and the tree is clean - Phase 5 is fully
+committed, nothing in-flight. Re-read `PLAN.md`'s Phase 6 section in full
+before writing any code, per its own "read the whole phase before
+implementing" instruction.
+
+**`data.csv` (repo root, untracked, real personal 8a.nu export) inspected
+directly, not guessed** - per the user's explicit instruction not to
+guess/invent the 8a.nu column format. Real header (19 columns):
+`route_boulder,name,location_name,sector_name,area_name,country_code,date,type,sub_type,rating,project,tries,repeats,difficulty,perceived_hardness,comment,height,recommended,sits`.
+Cross-checked several data rows against the header positionally to confirm
+field meaning (e.g. `difficulty` is the actual grade string, `"6A"`/`"7A"`,
+not `rating`; `type` holds short ascent-style codes, `"f"`/`"rp"` observed in
+the sample; missing numeric fields are exported as the **literal string**
+`"null"`, not an empty field or real `null` - the parser must treat that
+string as absent).
+
+**Per the user's explicit instruction, `data.csv` is not being used as a
+committed test fixture and has not been added to git** - the open question
+of whether real personal outdoor-climbing data like this belongs in git
+history at all is still theirs to decide, not assumed. Sidestepped rather
+than blocked on: the CSV parser's tests use small, hand-written synthetic
+CSV strings that match the real header/quoting/`"null"`-sentinel format
+confirmed above, not the real file - same "safe to hand-construct" allowance
+`PLAN.md`'s Prerequisite step already established for low-complexity
+fixtures. `data.csv` itself stays untracked in the working tree, read only,
+never staged.
+
+**Judgment calls made before implementation (not spelled out by `PLAN.md`,
+which left the `OutdoorAscent` shape as an illustrative example and the
+bodyweight UI's exact location as "implementer's call" - flagging rather
+than silently deciding):**
+- **`OutdoorAscent` fields extended slightly beyond `PLAN.md`'s illustrative
+  `{ id, date, name?, grade, style?, notes? }`**: added `crag?: string`
+  (from `location_name`) since a route/boulder name with no crag context is
+  close to useless in a log a user will scroll back through, and mapped
+  `type`'s short code (`f`/`rp`/...) into `style` as a readable label rather
+  than storing the raw code. Deliberately did **not** add `tries`/`repeats`/
+  `rating`/`height`/`sector_name`/`area_name`/`country_code`/`sits` -
+  `PLAN.md` is explicit this is "a lightweight log... not a pyramid-builder
+  or gym-grade tool," and those fields drift toward exactly that.
+- **Ascent-style code mapping is best-effort, not exhaustive**: only `"f"`
+  (Flash) and `"rp"` (Redpoint) are confirmed from the real sample. Added
+  `"o"`→Onsight as a commonly-known third 8a.nu code, but since it wasn't
+  observed in the real sample, the mapping falls back to showing the raw
+  code (uppercased) for anything unrecognized rather than guessing further
+  codes or dropping the field.
+- **Bodyweight UI location: new `src/components/health/` folder** (one of
+  the two options `PLAN.md` explicitly left open), with a thin
+  `HealthSettings.svelte` wrapper under a new Settings tab - mirrors the
+  existing `ExerciseSettings.svelte` (domain component(s) + settings-tab
+  wrapper) pattern rather than inventing a new structure.
+- **Re-used the same `src/components/health/` + `HealthSettings.svelte` tab
+  for the CSV importer too**, rather than putting it in `BackupSettings.svelte`
+  alongside JSON/ICS export - it's a domain data source (outdoor ascents),
+  not a backup mechanism, and both new features are "personal health/outdoor
+  log" concerns that belong together.
+- **Found and fixed a real, pre-existing gap while wiring bodyweight
+  storage, not scope creep**: `metricDefs` has never had a `DEFAULT_METRIC_DEFS`-
+  style seed in `persistence.ts`'s `initDB` (unlike every other catalog -
+  `templates`/`phaseDefs`/`exerciseTypes`/`benchmarkTypes`/`analyticsCategories`
+  all default from a `DEFAULT_*` constant, `metricDefs` has only ever
+  defaulted to `[]`). Combined with the Post-Phase-3 fresh-install fix (a
+  true fresh install now skips the whole migration chain, including the
+  `3.17→3.18` step that seeds `sleep-score`/`hrv`/`rhr`), this means **every
+  fresh install today gets zero built-in `MetricDef`s** - not just missing
+  `bodyweight` for this phase, but a real, currently-shipping gap for the
+  three Phase-1 metrics too. Confirmed directly (not assumed): grepped for
+  `"sleep-score"`/`DEFAULT_METRIC_DEFS` across `src/` and found no seed path
+  besides that one migration step. Fixed by adding a `DEFAULT_METRIC_DEFS`
+  constant (`constants.ts`, all four built-in ids) used as `persistence.ts`'s
+  `metricDefs` default - purely additive, no migration involved, matches the
+  existing pattern for every sibling catalog. The historical `3.17→3.18`
+  migration step itself is left untouched (frozen, per Phase 0 discipline) -
+  this fix only changes what a **fresh** install starts with, not any
+  migration step's behavior for existing users.
+- **Bodyweight entry UI also defensively calls a new `ensureMetricDef`
+  helper before first save** (find-or-create the `bodyweight` `MetricDef` by
+  id), rather than relying solely on the `DEFAULT_METRIC_DEFS` fix above or
+  the new migration step - belt-and-suspenders for any install state that
+  slips through both (e.g. a pre-Phase-6 install that already has some
+  `metricDefs` populated, from a currently-committed version, sitting
+  between the last migration step it ran and this phase's new one, or
+  simply as a general defensive pattern given how many ways this exact class
+  of bug has already shipped once this session - see the Post-Phase-3 entry
+  above).
+
+---
+
+## 2026-09-17 — Phase 6 implemented: bodyweight tracking, extended PDF coach report, 8a.nu CSV import
+
+**Types (`src/lib/types.ts`):** Added `OutdoorAscent { id, date, name?, grade, style?, crag?, notes? }` (fields extended slightly beyond `PLAN.md`'s illustrative shape - see the scoping entry above) and added it to `TrainingData.outdoorAscents`. No new type needed for bodyweight - it's a `DailyMetricEntry` against the new `bodyweight` `MetricDef`, per `PLAN.md`'s explicit scope note.
+
+**Migration (`src/lib/storage/migrations.ts`):** Two new steps, `DATA_EXPORT_VERSION` bumped `"3.24"` -> `"3.26"`:
+- `3.24->3.25`: seeds the built-in `bodyweight` `MetricDef` (idempotent, same `find-or-push` pattern as every prior built-in-catalog seed step).
+- `3.25->3.26`: adds `outdoorAscents: []` (purely additive).
+
+**Storage (`src/lib/storage/persistence.ts`, `src/lib/storage/index.ts`):** `outdoorAscents` plumbed through `initDB`/`flushDB` (web `localforage` key + included automatically in the native `_dbState` JSON blob) and `importData`. New accessors mirroring existing patterns: `getOutdoorAscents`/`saveOutdoorAscents`/`saveOutdoorAscent` (upsert-by-id, like `savePainLog`)/`addOutdoorAscents` (batch-append, for CSV import)/`deleteOutdoorAscent`; `saveDailyMetric`/`deleteDailyMetric` (upsert-by-id, new - `metricsStore` previously only had bulk `updateDailyMetrics`); `ensureMetricDef` (find-or-create, defensive - see the scoping entry above). Also fixed the `DEFAULT_METRIC_DEFS` fresh-install gap described in that entry.
+
+**New store `src/lib/stores/outdoorAscentStore.svelte.ts`** (load/save/add-batch/delete), wired into the `state.svelte.ts` facade alongside new `saveDailyMetric`/`deleteDailyMetric`/`saveOutdoorAscent`/`addOutdoorAscents`/`deleteOutdoorAscent` actions (each following the existing `store action -> refresh()` pattern). `metricsStore` gained matching `saveDailyMetric`/`deleteDailyMetric`/`ensureMetricDef` methods.
+
+**New parser `src/lib/importers/outdoorAscentCsvImport.ts`:** hand-rolled RFC4180-ish CSV row parser (quoted fields, `""`-escaped quotes, embedded commas, matching the "no new dependency" convention from Phase 5's `schema.ts`) plus `parseOutdoorAscentCsv`, which looks up columns **by header name** (not position, so a reordered/extra-column future export still works) and requires `date`+`difficulty` to be present. Treats the literal string `"null"` (confirmed 8a.nu's real missing-value sentinel, not an empty field) and blank fields as absent. Never fabricates a row missing `date`/`grade` - skips it and reports why (`{ line, reason }`), same "surface, don't silently drop" discipline as Phase 5's AI import. Ascent-style codes (`type` column) mapped to a readable label (`f`->Flash, `rp`->Redpoint, `o`->Onsight - only `f`/`rp` confirmed from the real sample, see scoping entry) with a raw-code fallback for anything unrecognized.
+
+**New UI (`src/components/health/`, per the scoping decision above):**
+- `BodyweightLog.svelte`: date+weight form (upsert-by-date - re-logging the same day updates it rather than duplicating), a small hand-rolled bar chart of the last 12 entries (matching `AcwrPanel.svelte`'s existing bar-chart style rather than introducing a charting library - this codebase has no actual Chart.js dependency despite the stale About-tab credit text, confirmed by inspecting `AcwrPanel.svelte`), and a delete-able list.
+- `OutdoorAscentImport.svelte`: file picker -> `parseOutdoorAscentCsv` -> preview (count to import / skipped rows with reasons) -> **dedup against already-logged ascents** (composite key: date+name+grade+style) so re-importing the same/an updated export doesn't duplicate everything - a judgment call, not spelled out by `PLAN.md`, made because a real 8a.nu CSV export is a full history re-export, not a delta -> confirm -> commit; plus a delete-able list of logged ascents.
+- `HealthSettings.svelte` (`src/components/settings/`): thin wrapper hosting both, added as a new "Health & Outdoor Log" tab in `Settings.svelte` (new `SettingsTab` value, overview card, tab routing) - same "domain component + settings-tab wrapper" pattern as `ExerciseSettings.svelte`.
+
+**`ExerciseForm.svelte`:** the `bodyweightPercent` slider now shows a computed `≈ X kg` hint next to the percentage, using the most recently logged bodyweight entry (PLAN.md's "if convenient" bullet) - display-only, doesn't change what's stored (still a %, same as before Phase 6).
+
+**`PDFExportModal.svelte`:** extracted the existing inline week-range-building logic into its own `targetWeekIds` derived (previously computed and used only inside `selectedWorkouts`) so a new `reportAnalytics` derived could reuse it. Added three report sections built on Phase 4's `loadAnalytics.ts` (adherence summary, ACWR/load trend, injury/pain summary), rendered before the existing week-by-week listing, matching `PLAN.md`'s exact three-section list. Each section only renders when it has data (e.g. no adherence rows for a range with no completed workouts) rather than printing an empty table.
+
+**Bug found and fixed during manual verification (not scope creep - directly in the new code this phase wrote):** `OutdoorAscentImport.svelte`'s "Confirm Import" threw `Failed to execute 'put' on 'IDBObjectStore': #<Object> could not be cloned` - `newAscents` is a `$derived` value, and passing the resulting reactive Svelte proxy straight into `trainingState.addOutdoorAscents(...)` fails IndexedDB's structured-clone step inside `localforage`. Fixed by snapshotting at the call site (`$state.snapshot(newAscents)`), matching this codebase's existing, established convention for every other `trainingState.save*` call site that passes a locally-built/derived object (confirmed via `grep -rn 'state\.snapshot'` - `Settings.svelte`, `BenchmarkForm.svelte`, `CompetitionCalendar.svelte`, `BlockManager.svelte`, `workoutStore.svelte.ts`, `uiStore.svelte.ts` all already do this). `BodyweightLog.svelte`'s `entry` object didn't need the same fix - it's built from plain primitive fields (an `existing?.id` string read, not the reactive object itself), not a `$derived` array/object passed through wholesale.
+
+**Manual verification: performed this session** (a display *and* a working headless-Chromium driver were both available - `chromium-cli` wasn't installed, but `google-chrome` was present system-wide and `npx playwright` could drive it directly via `channel: 'chrome'`; installed as an ephemeral `--no-save` dependency, removed afterward, `git status` confirms `package.json`/`package-lock.json` are untouched). Drove the actual running app end-to-end, not just unit tests:
+- Logged a bodyweight entry via the new Settings tab; confirmed it persisted and displayed correctly (`Latest: 74.5 kg`) after navigating away and back.
+- Imported a synthetic (hand-written, not `data.csv`-derived) CSV matching the real 8a.nu column format: confirmed the preview correctly reported "2 ascents will be imported" / "1 row could not be read: Line 4: Missing difficulty/grade", confirmed the imported ascents display with the correct resolved style labels (Flash/Redpoint) and crag - this run is what caught the `$state.snapshot` bug above; re-ran after the fix and confirmed a clean import with zero console errors.
+- Logged an 80kg bodyweight entry, then opened the exercise form for the default "Max Hangs" exercise type (which has `bodyweightPercent` as an active default parameter) and confirmed the new "≈ 80.0 kg" hint renders correctly at the default 100%.
+- Opened the PDF export modal and generated a PDF (empty-data case - no completed workouts/pain logs exist in this fresh browser session, so the new "Training Summary" section correctly renders nothing per its own guard rather than an empty table) - confirmed the download fires and zero console errors, i.e. the new `loadAnalytics.ts` wiring doesn't throw even on the empty-input edge case. The report sections' actual *values* are not independently re-verified here beyond that - they call the same `calculateAcwrForWeeks`/`calculateWeeklyAdherence`/`correlatePainWithLoadSpikes` functions Phase 4's `loadAnalytics.test.ts` already exhaustively covers with hand-computed expected values, so correctness of the numbers themselves rests on that existing coverage, not a fresh manual check of PDF output with populated data.
+- Checked the browser console for errors after every step above (`page.on('pageerror'/'console')`) - clean except for the one bug found and fixed.
+
+**Verification performed:**
+- `npm run test` -> 166/166 pass (149 prior + 10 new `outdoorAscentCsvImport.test.ts` + 7 new `storage.phase6.test.ts`; 6 pre-existing `storage.migrations.test.ts` version-literal assertions updated from `"3.24"` to `"3.26"`/current-shape - same reasoning as every prior phase's test-update entries, not new tests).
+- `npm run check` -> 0 errors, 0 warnings, 400 files.
+- `npx vite build` -> production build succeeds (same pre-existing >500kB `Settings` chunk warning as every prior phase, now larger due to the new Health tab components - unrelated to correctness).
+
+**Explicitly not done here** (deferred, consistent with `PLAN.md`'s own framing or this session's scoping decisions): committing `data.csv` (real personal data) as a fixture - the user's call to make, not assumed (see the scoping entry above); an outdoor-ascent-vs-training-load analytics panel - `PLAN.md`'s Phase 6 "Concrete scope" only lists the bodyweight UI/PDF sections/CSV importer, the "correlating outdoor performance" framing is the *why*, not a listed deliverable; fuzzy/partial matching in the CSV import's duplicate-detection (exact composite-key match only, same "no surprising auto-links" reasoning Phase 5 used for AI-import name matching).
+
+**Commit:** made as its own commit, referencing "Phase 6" per the plan's convention.
+

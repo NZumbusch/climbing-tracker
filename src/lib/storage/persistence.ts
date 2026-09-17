@@ -7,6 +7,7 @@ import {
   DEFAULT_BENCHMARK_TYPES,
   DEFAULT_ANALYTICS_CATEGORIES,
   DEFAULT_PHASE_DEFS,
+  DEFAULT_METRIC_DEFS,
   DATA_EXPORT_VERSION,
 } from "../constants";
 
@@ -83,6 +84,7 @@ export async function initDB() {
       metricDefs: await localforage.getItem("metricDefs"),
       dailyMetrics: await localforage.getItem("dailyMetrics"),
       painLogs: await localforage.getItem("painLogs"),
+      outdoorAscents: await localforage.getItem("outdoorAscents"),
       exportVersion: await localforage.getItem("database_version"),
     };
   }
@@ -98,9 +100,12 @@ export async function initDB() {
     benchmarks: rawData.benchmarks || [],
     benchmarkTypes: rawData.benchmarkTypes || DEFAULT_BENCHMARK_TYPES,
     analyticsCategories: rawData.analyticsCategories || DEFAULT_ANALYTICS_CATEGORIES,
-    metricDefs: rawData.metricDefs || [],
+    // See constants.ts's DEFAULT_METRIC_DEFS doc comment: fixes a
+    // pre-existing gap where a fresh install got zero built-in MetricDefs.
+    metricDefs: rawData.metricDefs || DEFAULT_METRIC_DEFS,
     dailyMetrics: rawData.dailyMetrics || [],
     painLogs: rawData.painLogs || [],
+    outdoorAscents: rawData.outdoorAscents || [],
     exportVersion: resolveInitialExportVersion(rawData),
   };
 }
@@ -137,6 +142,7 @@ export async function flushDB() {
     await localforage.setItem("metricDefs", _dbState.metricDefs);
     await localforage.setItem("dailyMetrics", _dbState.dailyMetrics);
     await localforage.setItem("painLogs", _dbState.painLogs);
+    await localforage.setItem("outdoorAscents", _dbState.outdoorAscents);
     await localforage.setItem("database_version", _dbState.exportVersion);
   }
 }

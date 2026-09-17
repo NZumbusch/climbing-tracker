@@ -15,6 +15,7 @@ import type {
   MetricDef,
   DailyMetricEntry,
   PainLog,
+  OutdoorAscent,
 } from "../types";
 import { calculatePlannedLoad } from "../types";
 import { DEFAULT_TEMPLATES, DATA_EXPORT_VERSION } from "../constants";
@@ -45,6 +46,7 @@ export const storage = {
   async _getMetricDefs(): Promise<MetricDef[]> { await initDB(); return _dbState.metricDefs; },
   async _getDailyMetrics(): Promise<DailyMetricEntry[]> { await initDB(); return _dbState.dailyMetrics; },
   async _getPainLogs(): Promise<PainLog[]> { await initDB(); return _dbState.painLogs; },
+  async _getOutdoorAscents(): Promise<OutdoorAscent[]> { await initDB(); return _dbState.outdoorAscents; },
 
   async _saveWorkouts(workouts: Workout[]): Promise<void> { await initDB(); _dbState.workouts = workouts; await flushDB(); },
   async _saveTrainingBlocks(blocks: TrainingBlock[]): Promise<void> { await initDB(); _dbState.trainingBlocks = blocks; await flushDB(); },
@@ -59,6 +61,7 @@ export const storage = {
   async _saveMetricDefs(defs: MetricDef[]): Promise<void> { await initDB(); _dbState.metricDefs = defs; await flushDB(); },
   async _saveDailyMetrics(entries: DailyMetricEntry[]): Promise<void> { await initDB(); _dbState.dailyMetrics = entries; await flushDB(); },
   async _savePainLogs(logs: PainLog[]): Promise<void> { await initDB(); _dbState.painLogs = logs; await flushDB(); },
+  async _saveOutdoorAscents(ascents: OutdoorAscent[]): Promise<void> { await initDB(); _dbState.outdoorAscents = ascents; await flushDB(); },
 
   // --- Public Interface ---
 
@@ -280,6 +283,37 @@ export const storage = {
     await this._saveDailyMetrics(entries);
   },
 
+  /** Upsert-by-id, mirroring the existing savePainLog pattern. */
+  async saveDailyMetric(entry: DailyMetricEntry): Promise<void> {
+    const entries = await this._getDailyMetrics();
+    const index = entries.findIndex((e) => e.id === entry.id);
+    if (index !== -1) {
+      entries[index] = entry;
+    } else {
+      entries.push(entry);
+    }
+    await this._saveDailyMetrics(entries);
+  },
+
+  async deleteDailyMetric(id: string): Promise<void> {
+    const entries = await this._getDailyMetrics();
+    await this._saveDailyMetrics(entries.filter((e) => e.id !== id));
+  },
+
+  /**
+   * Finds an existing MetricDef by id, or creates it from the given
+   * defaults. Defensive belt-and-suspenders alongside the fresh-install
+   * default (constants.ts's DEFAULT_METRIC_DEFS) and the 3.24->3.25
+   * migration step - see PROGRESS.md 2026-09-17.
+   */
+  async ensureMetricDef(def: MetricDef): Promise<void> {
+    const defs = await this._getMetricDefs();
+    if (!defs.some((d) => d.id === def.id)) {
+      defs.push(def);
+      await this._saveMetricDefs(defs);
+    }
+  },
+
   async getPainLogs(): Promise<PainLog[]> {
     return this._getPainLogs();
   },
@@ -302,6 +336,36 @@ export const storage = {
   async deletePainLog(id: string): Promise<void> {
     const logs = await this._getPainLogs();
     await this._savePainLogs(logs.filter((l) => l.id !== id));
+  },
+
+  async getOutdoorAscents(): Promise<OutdoorAscent[]> {
+    return this._getOutdoorAscents();
+  },
+
+  async saveOutdoorAscents(ascents: OutdoorAscent[]): Promise<void> {
+    await this._saveOutdoorAscents(ascents);
+  },
+
+  async saveOutdoorAscent(ascent: OutdoorAscent): Promise<void> {
+    const ascents = await this._getOutdoorAscents();
+    const index = ascents.findIndex((a) => a.id === ascent.id);
+    if (index !== -1) {
+      ascents[index] = ascent;
+    } else {
+      ascents.push(ascent);
+    }
+    await this._saveOutdoorAscents(ascents);
+  },
+
+  /** Appends a batch of ascents (e.g. from a CSV import) in one write. */
+  async addOutdoorAscents(newAscents: OutdoorAscent[]): Promise<void> {
+    const ascents = await this._getOutdoorAscents();
+    await this._saveOutdoorAscents([...ascents, ...newAscents]);
+  },
+
+  async deleteOutdoorAscent(id: string): Promise<void> {
+    const ascents = await this._getOutdoorAscents();
+    await this._saveOutdoorAscents(ascents.filter((a) => a.id !== id));
   },
 
   /**
@@ -450,6 +514,7 @@ export const storage = {
           if (data.metricDefs) _dbState.metricDefs = data.metricDefs;
           if (data.dailyMetrics) _dbState.dailyMetrics = data.dailyMetrics;
           if (data.painLogs) _dbState.painLogs = data.painLogs;
+          if (data.outdoorAscents) _dbState.outdoorAscents = data.outdoorAscents;
           _dbState.exportVersion = data.exportVersion || "1.0";
 
           await flushDB();

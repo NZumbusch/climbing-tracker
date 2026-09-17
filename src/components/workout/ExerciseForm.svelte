@@ -3,7 +3,7 @@
   import { storage } from '../../lib/storage';
   import { trainingState } from '../../lib/state.svelte';
   import type { ExerciseSlot, ExerciseTypeDef, ExerciseValues, ParameterBlock } from '../../lib/types';
-  import { PARAMETER_LABELS } from '../../lib/constants';
+  import { PARAMETER_LABELS, BODYWEIGHT_METRIC_ID } from '../../lib/constants';
   import Icon from '@iconify/svelte';
 
   // --- Props ---
@@ -51,6 +51,18 @@
   let plannedLoad = $state(5);
   let notes = $state('');
   let categoryOverride = $state<string>('');
+
+  // Optional convenience (PLAN.md Phase 6): shows the absolute added weight
+  // implied by the bodyweightPercent slider, using the most recently logged
+  // bodyweight entry - doesn't change what's stored (still a %, same as
+  // before), just a display hint.
+  const latestBodyweightKg = $derived.by(() => {
+    const entries = trainingState.dailyMetrics
+      .filter((m) => m.metricId === BODYWEIGHT_METRIC_ID)
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return entries[0]?.value;
+  });
 
   // --- Lifecycle ---
   onMount(async () => {
@@ -276,7 +288,7 @@
     {#if activeParams.includes('restTime')}<div class="space-y-1.5"><label for="ex-rest" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Between Sets (s)</label><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
     {#if activeParams.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.holdSize ? 'border-danger/50' : ''}" />{#if validationErrors.holdSize}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.holdSize}</p>{/if}</div>{/if}
     {#if activeParams.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" placeholder="e.g. 10" /></div>{/if}
-    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Added Weight (% of BW)</span><span class="text-blue-500 font-mono text-[10px]">{bodyweightPercent}%</span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
+    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Added Weight (% of BW)</span><span class="text-blue-500 font-mono text-[10px]">{bodyweightPercent}%{#if latestBodyweightKg} <span class="text-content-subtle">(≈ {(latestBodyweightKg * bodyweightPercent / 100).toFixed(1)} kg)</span>{/if}</span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
     {#if activeParams.includes('maxWeightPercent')}<div class="space-y-4 pt-1"><label for="ex-mw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Load (% of Max)</span><span class="text-emerald-500 font-mono text-[10px]">{maxWeightPercent}%</span></label><input id="ex-mw" type="range" min="10" max="150" bind:value={maxWeightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-emerald-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>10%</span><span>100% (Max)</span><span>150%</span></div></div>{/if}
     {#if activeParams.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
     {#if activeParams.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}

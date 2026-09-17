@@ -3,6 +3,7 @@ import {
   DEFAULT_TEMPLATES,
   DEFAULT_BENCHMARK_TYPES,
   DEFAULT_ANALYTICS_CATEGORIES,
+  BODYWEIGHT_METRIC_ID,
 } from "../constants";
 import { generateId } from "../utils";
 
@@ -1058,6 +1059,25 @@ const MIGRATIONS: MigrationStep[] = [
     describe: "Phase 4: add competitionEvents (empty by default, purely additive)",
     migrate: (data: any) => {
       data.competitionEvents = data.competitionEvents || [];
+    },
+  },
+  {
+    from: "3.24",
+    to: "3.25",
+    describe: "Phase 6: seed the built-in bodyweight MetricDef",
+    migrate: (data: any) => {
+      data.metricDefs = data.metricDefs || [];
+      if (!data.metricDefs.some((m: any) => m.id === BODYWEIGHT_METRIC_ID)) {
+        data.metricDefs.push({ id: BODYWEIGHT_METRIC_ID, name: "Bodyweight", unit: "kg" });
+      }
+    },
+  },
+  {
+    from: "3.25",
+    to: "3.26",
+    describe: "Phase 6: add outdoorAscents (empty by default, purely additive)",
+    migrate: (data: any) => {
+      data.outdoorAscents = data.outdoorAscents || [];
     },
   },
 ];

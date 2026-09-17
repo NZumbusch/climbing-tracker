@@ -31,6 +31,18 @@ export class MetricsStore {
     await storage.saveDailyMetrics(entries);
   }
 
+  async saveDailyMetric(entry: DailyMetricEntry) {
+    await storage.saveDailyMetric(entry);
+  }
+
+  async deleteDailyMetric(id: string) {
+    await storage.deleteDailyMetric(id);
+  }
+
+  async ensureMetricDef(def: MetricDef) {
+    await storage.ensureMetricDef(def);
+  }
+
   async updatePainLogs(logs: PainLog[]) {
     await storage.savePainLogs(logs);
   }

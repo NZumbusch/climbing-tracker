@@ -370,6 +370,26 @@ export interface PainLog {
 }
 
 /**
+ * A single outdoor ascent, optionally imported from an 8a.nu CSV export
+ * (`src/lib/importers/outdoorAscentCsvImport.ts`) or entered by hand.
+ * Deliberately a lightweight log for correlating outdoor performance
+ * against training blocks/load - **not** a pyramid-builder or gym-grade
+ * tool (see PLAN.md Phase 6's locked-in scope note).
+ */
+export interface OutdoorAscent {
+  id: string;
+  /** ISO date string */
+  date: string;
+  name?: string;
+  grade: string;
+  /** Readable ascent style, e.g. "Flash"/"Redpoint"/"Onsight" - resolved from the source's style code where possible. */
+  style?: string;
+  /** Crag/area name */
+  crag?: string;
+  notes?: string;
+}
+
+/**
  * The complete schema for all local user data.
  * Used for exporting and importing full database backups.
  */
@@ -387,4 +407,5 @@ export interface TrainingData {
   metricDefs: MetricDef[];
   dailyMetrics: DailyMetricEntry[];
   painLogs: PainLog[];
+  outdoorAscents: OutdoorAscent[];
 }

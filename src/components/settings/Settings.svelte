@@ -9,6 +9,7 @@
   import BenchmarkTypeSettings from './BenchmarkTypeSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
   import PreferencesSettings from './PreferencesSettings.svelte';
+  import HealthSettings from './HealthSettings.svelte';
   import Icon from "@iconify/svelte";
 
   // --- Props ---
@@ -21,7 +22,7 @@
   }>();
 
   // --- State: Tabs ---
-  type SettingsTab = 'overview' | 'customization' | 'design' | 'integration' | 'about';
+  type SettingsTab = 'overview' | 'customization' | 'design' | 'integration' | 'health' | 'about';
   let currentTab = $state<SettingsTab>('overview');
 
   // --- State: local editable copies of every catalog, saved together via "Save All" ---
@@ -75,6 +76,7 @@
           {#if currentTab === 'customization'}Customization
           {:else if currentTab === 'design'}Appearance & Design
           {:else if currentTab === 'integration'}Data & Exports
+          {:else if currentTab === 'health'}Health & Outdoor Log
           {:else if currentTab === 'about'}About & Impressum{/if}
         </h2>
       {/if}
@@ -107,6 +109,13 @@
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
+      <button onclick={() => currentTab = 'health'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
+        <div class="flex items-center gap-4">
+          <div class="p-3 bg-tertiary-hover/10 rounded-2xl text-tertiary group-hover:bg-tertiary-hover group-hover:text-white transition-colors"><Icon icon="ic:baseline-monitor-weight" class="text-2xl" /></div>
+          <div class="text-left"><p class="text-base font-bold text-content">Health & Outdoor Log</p><p class="text-[11px] text-content-subtle mt-1">Bodyweight tracking and 8a.nu ascent import</p></div>
+        </div>
+        <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
+      </button>
       <button onclick={() => currentTab = 'about'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-3xl transition-all group backdrop-blur-sm shadow-xl">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-zinc-500/10 rounded-2xl text-content-subtle group-hover:bg-zinc-500 group-hover:text-content transition-colors"><Icon icon="ic:baseline-info" class="text-2xl" /></div>
@@ -134,6 +143,8 @@
     <PreferencesSettings />
   {:else if currentTab === 'integration'}
     <BackupSettings {onExport} {onImport} />
+  {:else if currentTab === 'health'}
+    <HealthSettings />
   {:else if currentTab === 'about'}
     <div class="space-y-6">
       <div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl animate-in fade-in">

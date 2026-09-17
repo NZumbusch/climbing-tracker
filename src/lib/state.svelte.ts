@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import type { Workout, WorkoutTemplate, PhaseDef, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType, TrainingBlock, CompetitionEvent, PainLog } from './types';
+import type { Workout, WorkoutTemplate, PhaseDef, Benchmark, BenchmarkTypeDef, AnalyticsCategory, ExerciseTypeDef, ViewType, TrainingBlock, CompetitionEvent, PainLog, DailyMetricEntry, MetricDef, OutdoorAscent } from './types';
 import { getWeekId } from './dateUtils';
 import { showAlert, showConfirm } from './utils';
 import { WorkoutStore } from './stores/workoutStore.svelte';
@@ -7,6 +7,7 @@ import { PlanningStore } from './stores/planningStore.svelte';
 import { CatalogStore } from './stores/catalogStore.svelte';
 import { BenchmarkStore } from './stores/benchmarkStore.svelte';
 import { MetricsStore } from './stores/metricsStore.svelte';
+import { OutdoorAscentStore } from './stores/outdoorAscentStore.svelte';
 import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
 
@@ -24,6 +25,7 @@ class TrainingState {
   catalogStore = new CatalogStore();
   benchmarkStore = new BenchmarkStore();
   metricsStore = new MetricsStore();
+  outdoorAscentStore = new OutdoorAscentStore();
   uiStore = new UiStore();
   backupStore = new BackupStore();
 
@@ -48,6 +50,7 @@ class TrainingState {
   get metricDefs() { return this.metricsStore.metricDefs; }
   get dailyMetrics() { return this.metricsStore.dailyMetrics; }
   get painLogs() { return this.metricsStore.painLogs; }
+  get outdoorAscents() { return this.outdoorAscentStore.outdoorAscents; }
 
   // --- Delegated UI state ---
 
@@ -77,6 +80,7 @@ class TrainingState {
         this.catalogStore.load(),
         this.benchmarkStore.load(),
         this.metricsStore.load(),
+        this.outdoorAscentStore.load(),
       ]);
     } finally {
       this.isLoading = false;
@@ -341,6 +345,53 @@ class TrainingState {
     const confirmed = await showConfirm('Delete Log', 'Delete this pain/discomfort log entry?');
     if (!confirmed) return;
     await this.metricsStore.deletePainLog(id);
+    await this.refresh();
+  }
+
+  /**
+   * Logs (or updates) a daily metric entry, e.g. a bodyweight reading.
+   * Ensures the referenced MetricDef exists first - defensive, see
+   * PROGRESS.md 2026-09-17 (fresh-install MetricDef seeding gap).
+   */
+  async saveDailyMetric(entry: DailyMetricEntry, def: MetricDef) {
+    await this.metricsStore.ensureMetricDef(def);
+    await this.metricsStore.saveDailyMetric(entry);
+    await this.refresh();
+  }
+
+  /**
+   * Deletes a daily metric entry (e.g. a bodyweight reading) after confirmation.
+   */
+  async deleteDailyMetric(id: string) {
+    const confirmed = await showConfirm('Delete Entry', 'Delete this log entry?');
+    if (!confirmed) return;
+    await this.metricsStore.deleteDailyMetric(id);
+    await this.refresh();
+  }
+
+  /**
+   * Saves (or updates) a single outdoor ascent.
+   */
+  async saveOutdoorAscent(ascent: OutdoorAscent) {
+    await this.outdoorAscentStore.saveOutdoorAscent(ascent);
+    await this.refresh();
+  }
+
+  /**
+   * Appends a batch of outdoor ascents (e.g. from a CSV import) in one write.
+   */
+  async addOutdoorAscents(ascents: OutdoorAscent[]) {
+    await this.outdoorAscentStore.addOutdoorAscents(ascents);
+    await this.refresh();
+  }
+
+  /**
+   * Deletes an outdoor ascent after confirmation.
+   */
+  async deleteOutdoorAscent(id: string) {
+    const confirmed = await showConfirm('Delete Ascent', 'Delete this logged ascent?');
+    if (!confirmed) return;
+    await this.outdoorAscentStore.deleteOutdoorAscent(id);
     await this.refresh();
   }
 
