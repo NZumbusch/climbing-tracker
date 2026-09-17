@@ -94,11 +94,15 @@ relitigate these):
   this, and it's gym-grading-dependent/confusing per user). A lightweight
   *optional* 8a.nu outdoor-ascent CSV import is in scope instead (Phase 6),
   since 8a.nu has no public API but does support CSV export.
-- "Garmin integration" is scoped realistically as Apple Health / Health
-  Connect import (Phase 7), since Garmin's own API requires a business
-  partnership not available to a solo dev. Garmin Connect syncs into both
-  platforms already, so this covers Garmin (and Apple Watch/Whoop/Oura)
-  data without needing Garmin-specific access.
+- "Garmin integration" was originally scoped as Apple Health / Health
+  Connect import (Phase 7), on the theory that Garmin Connect syncs into
+  both platforms so this would cover Garmin without needing Garmin-specific
+  API access. **Dropped 2026-09-17** (see Phase 7): the user's phone
+  doesn't support syncing Garmin into Health Connect, so that path doesn't
+  work for their actual device, and no maintained plugin candidate covered
+  the needed metrics (sleep/HRV/RHR) anyway. No health-platform import is
+  in scope for this plan. Readiness metrics stay manual-entry only via
+  Phase 1's `MetricDef`/`DailyMetricEntry` system.
 
 ---
 
@@ -998,13 +1002,33 @@ restructuring of existing data.
 
 ---
 
-## Phase 7 — Mobile integration: notifications & health platform import
+## Phase 7 — Mobile integration: local notifications
 
-**Goal / why:** The two mobile-native features from the feature
-brainstorm: a local reminder to log fatigue/RPE after a session, and
-importing readiness data (sleep, HRV, resting HR) from Apple Health /
-Health Connect instead of manual entry — which also covers Garmin data
-indirectly, since Garmin Connect already syncs into both platforms.
+**Goal / why:** A local reminder to log fatigue/RPE after a session, so
+readiness/load data (Phase 1/4) doesn't depend on the user remembering to
+open the app.
+
+**Descoped 2026-09-17 (user decision, see `PROGRESS.md`):** this phase
+originally also included importing readiness data (sleep, HRV, resting HR)
+from Apple Health / Health Connect, framed as an indirect way to cover
+Garmin data (since Garmin Connect syncs into both platforms). The user's
+phone does not support syncing Garmin into Health Connect, so that framing
+doesn't hold for their actual device, and the feature is dropped rather
+than built speculatively. A maintenance-status check was still done before
+dropping it (per this plan's own instruction not to skip that check): the
+most current unified candidate, `capacitor-health` (mley/capacitor-health,
+npm, actively maintained — v8.2.0, tracks Capacitor's major version,
+published via CI 4 weeks prior to this check), was inspected and found to
+**not** support sleep score, HRV, or resting heart rate at all — only
+steps, active calories, mindfulness minutes, body composition, and
+workout-embedded heart-rate samples. So even absent the Garmin constraint,
+this would have needed a different/less-maintained plugin (e.g. the
+iOS-only, not-updated-since-2025 `@perfood/capacitor-healthkit`, or the
+Capacitor-5-targeted, not-updated-since-2024 `capacitor-health-connect`) to
+cover the three metrics this plan actually wants. Not pursued further.
+**If this is revisited later**, treat plugin selection as unresolved again
+— re-run the maintenance-status check rather than reusing this note, since
+findings will likely be stale by then.
 
 **Concrete scope:**
 - Local push notifications: add `@capacitor/local-notifications` (official
@@ -1012,48 +1036,33 @@ indirectly, since Garmin Connect already syncs into both platforms.
   workout's `startTime` has likely passed without the workout being marked
   completed, prompting the user to log fatigue. Needs iOS/Android
   permission-request UX (first-run prompt, respect denial gracefully).
-- Health platform import: research and select a maintained Capacitor-8-
-  compatible plugin for HealthKit (iOS) and Health Connect (Android) at
-  implementation time — **do not assume a specific package name/version
-  without verifying it's current and maintained**, this ecosystem changes
-  frequently. Import sleep score, HRV, and resting heart rate as
-  `DailyMetricEntry` rows under the three well-known `MetricDef` ids seeded
-  in Phase 1 (`sleep-score`, `hrv`, `rhr`) — reuse those ids rather than
-  creating new ones, so Phase 4's readiness-correlation analytics pick this
-  data up automatically with no further changes.
-- Settings UI to connect/disconnect health platform sync and to review what
-  will be imported before the first sync (respect user privacy — this is
-  health data).
 
-**Dependencies on earlier phases:** Phase 1 (the `MetricDef`/
-`DailyMetricEntry` system this writes into) and Phase 2 (`metricsStore`).
-Not dependent on Phases 3–6.
+**Dependencies on earlier phases:** None structurally (this phase no
+longer writes into the `MetricDef`/`DailyMetricEntry` system now that
+health import is dropped) — sequenced after Phase 1/2 in this plan only
+because it was originally scoped alongside health import.
 
-**Risk level: Medium.** Not a data-migration risk (this only adds new
-`DailyMetricEntry` rows via the existing Phase 1 mechanism), but real
-platform-integration risk: native permission flows, plugin availability/
-maintenance status, and iOS/Android-specific testing that can't be fully
-validated outside real devices.
+**Risk level: Low–Medium.** Not a data-migration risk — no schema change
+at all now that health import is dropped. Remaining risk is native
+permission-flow/scheduling correctness, which can't be fully validated
+outside a real device.
 
 **Definition of done:**
-- `npm run check` passes; native-specific code is guarded appropriately
-  (mirroring the existing `Capacitor.isNativePlatform()` pattern already
-  used in `storage.ts`) so the web build isn't broken by native-only
-  plugins.
+- `npm run test` and `npm run check` both pass; native-specific code is
+  guarded appropriately (mirroring the existing `Capacitor.isNativePlatform()`
+  pattern already used in `storage.ts`/`storage/persistence.ts`) so the web
+  build isn't broken by the native-only plugin.
 - Manual test on an actual iOS and/or Android device (not just the browser
   dev server, since this phase is inherently native): notification fires
-  as expected, health data import writes correct `DailyMetricEntry` rows,
-  denying permissions doesn't crash the app.
+  as expected when a planned workout's start time passes uncompleted,
+  denying permissions doesn't crash the app. (Per this session's working
+  agreement, this manual device test is left to the user — not attempted
+  via browser automation, since it needs a real native runtime anyway.)
 - Git commit made.
 
 **Assumptions / open questions:**
-- **Which specific HealthKit/Health Connect Capacitor plugin to use is an
-  open research question**, not a decision made in this plan — verify
-  current maintenance status and Capacitor 8 compatibility before adding
-  the dependency.
-- How much historical health data to backfill on first connect (e.g. last
-  30 days) vs. only syncing going forward is a product decision left for
-  the user to confirm during implementation of this phase.
+- None remaining — the one open question this phase had (which health
+  plugin to use) is moot now that health import is dropped.
 
 ---
 
@@ -1069,4 +1078,4 @@ validated outside real devices.
 | 4 | Periodization science & load analytics | Medium–High | 1, 2, 3 |
 | 5 | AI import/export pipeline | Low–Medium | 1, 2, 3, 4 |
 | 6 | Extended reporting & logs | Low | 1, 4 |
-| 7 | Mobile: notifications & health import | Medium | 1, 2 |
+| 7 | Mobile: local notifications (health import descoped, see Phase 7) | Low–Medium | — |

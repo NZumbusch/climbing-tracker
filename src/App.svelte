@@ -14,6 +14,12 @@
       document.documentElement.setAttribute('data-theme', trainingState.theme);
     }
   });
+
+  $effect(() => {
+    if (!trainingState.isLoading) {
+      trainingState.maybePromptForNotifications();
+    }
+  });
 </script>
 
 <main class="flex flex-col h-screen overflow-hidden bg-app-bg text-content font-sans">

@@ -10,6 +10,7 @@ import { MetricsStore } from './stores/metricsStore.svelte';
 import { OutdoorAscentStore } from './stores/outdoorAscentStore.svelte';
 import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
+import { syncFatigueReminders } from './notifications/fatigueReminder';
 
 /**
  * Global reactive state for the application, composed from the domain
@@ -58,6 +59,8 @@ class TrainingState {
   get activeWorkout() { return this.uiStore.activeWorkout; }
   get showFatigue() { return this.uiStore.showFatigue; }
   get theme() { return this.uiStore.theme; }
+  get notificationsEnabled() { return this.uiStore.notificationsEnabled; }
+  get notificationPermission() { return this.uiStore.notificationPermission; }
 
   get selectedWeekId() { return this.uiStore.selectedWeekId; }
   set selectedWeekId(value: string | null) { this.uiStore.selectedWeekId = value; }
@@ -82,6 +85,14 @@ class TrainingState {
         this.metricsStore.load(),
         this.outdoorAscentStore.load(),
       ]);
+
+      if (this.uiStore.notificationsEnabled) {
+        try {
+          await syncFatigueReminders(this.workoutStore.workouts);
+        } catch (err) {
+          console.error('Failed to sync fatigue-reminder notifications:', err);
+        }
+      }
     } finally {
       this.isLoading = false;
     }
@@ -164,6 +175,26 @@ class TrainingState {
    */
   setTheme(newTheme: 'dark' | 'light' | 'contrast') {
     this.uiStore.setTheme(newTheme);
+  }
+
+  /**
+   * Enables or disables fatigue-log reminder notifications, refreshing
+   * scheduled notifications immediately afterward so a toggle takes
+   * effect right away rather than waiting for the next unrelated refresh.
+   */
+  async setNotificationsEnabled(enabled: boolean) {
+    const result = await this.uiStore.setNotificationsEnabled(enabled);
+    await this.refresh();
+    return result;
+  }
+
+  /**
+   * Shows the one-time first-run prompt asking whether to enable
+   * fatigue-log reminders. Safe to call on every app load - it no-ops
+   * after the first time (see `UiStore.maybePromptForNotifications`).
+   */
+  async maybePromptForNotifications() {
+    await this.uiStore.maybePromptForNotifications();
   }
 
   /**
