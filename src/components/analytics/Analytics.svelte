@@ -236,13 +236,7 @@
 <div class="w-full max-w-lg space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
   <div class="flex items-center justify-between px-1">
     <div class="flex items-center gap-4">
-      <button
-        onclick={() => trainingState.navigate('plan')}
-        class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-muted hover:text-content transition-colors"
-      >
-        <Icon icon="ic:baseline-arrow-back" class="text-xl" />
-      </button>
-      <h2 class="text-title text-content">Training Analytics</h2>
+      <h2 class="text-title text-content">Analytics</h2>
     </div>
 
     <button
