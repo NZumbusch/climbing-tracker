@@ -17,6 +17,7 @@
 
   // --- State ---
   let fingers = $state(5);
+  let arms = $state(5);
   let core = $state(5);
   let systemic = $state(5);
   let notes = $state('');
@@ -33,14 +34,20 @@
   $effect(() => {
     if (trainingState.showFatigue && initialData) {
       fingers = initialData.fingers ?? 5;
+      arms = initialData.arms ?? 5;
       core = initialData.core ?? 5;
       systemic = initialData.systemic ?? 5;
-      
+
       const genericNames = ['New Session', 'New Default Workout'];
       notes = genericNames.includes(initialData.notes || '') ? '' : (initialData.notes ?? '');
     }
   });
 
+  // calculateLoadFactor deliberately keeps its existing fingers/core/systemic
+  // signature - arms is collected as data (UI_PLAN.md §5.4) but is not a
+  // load-formula input. Collecting it and using it in the load calculation
+  // are separate decisions; only the first is in scope here, so don't "fix"
+  // this apparent inconsistency without re-reading §5.4/§8.
   const loadFactor = $derived(calculateLoadFactor(duration, fingers, core, systemic));
 
   async function handleSave() {
@@ -54,7 +61,7 @@
         notes: painNotes || undefined,
       });
     }
-    onConfirm({ fingers, core, systemic, notes, loadFactor });
+    onConfirm({ fingers, arms, core, systemic, notes, loadFactor });
   }
 </script>
 
@@ -78,10 +85,18 @@
       <div class="space-y-4">
         <div class="space-y-3">
           <label for="fingers-range" class="flex justify-between text-label text-content-subtle ml-1">
-            <span>Fingers/Arms</span>
+            <span>Fingers</span>
             <span class="text-primary font-mono text-caption tabular-nums">{fingers}/10</span>
           </label>
           <input id="fingers-range" type="range" min="1" max="10" bind:value={fingers} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" />
+        </div>
+
+        <div class="space-y-3">
+          <label for="arms-range" class="flex justify-between text-label text-content-subtle ml-1">
+            <span>Arms / Pulling</span>
+            <span class="text-primary font-mono text-caption tabular-nums">{arms}/10</span>
+          </label>
+          <input id="arms-range" type="range" min="1" max="10" bind:value={arms} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" />
         </div>
 
         <div class="space-y-3">
