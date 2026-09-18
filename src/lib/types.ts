@@ -1,7 +1,7 @@
 /**
  * Valid navigation views within the application.
  */
-export type ViewType = "plan" | "add" | "history" | "settings" | "analytics";
+export type ViewType = "home" | "plan" | "add" | "history" | "settings" | "analytics";
 
 /**
  * High-level categorization of exercises for analytics and UI color-coding.

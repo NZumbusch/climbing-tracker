@@ -68,7 +68,7 @@
   <div class="flex items-center justify-between px-1">
     <div class="flex items-center gap-4">
       {#if currentTab === 'overview'}
-        <button onclick={() => trainingState.navigate('history')} class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-muted hover:text-content transition-colors"><Icon icon="ic:baseline-arrow-back" class="text-xl" /></button>
+        <button onclick={() => trainingState.navigate('home')} class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-muted hover:text-content transition-colors"><Icon icon="ic:baseline-arrow-back" class="text-xl" /></button>
         <h2 class="text-title text-content">Settings</h2>
       {:else}
         <button onclick={() => currentTab = 'overview'} class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-muted hover:text-content transition-colors"><Icon icon="ic:baseline-arrow-back" class="text-xl" /></button>

@@ -11,7 +11,7 @@ const NOTIFICATIONS_PROMPTED_KEY = 'boulder_tracker_notifications_prompted';
  * View/navigation, theme, notification preferences, and modal visibility.
  */
 export class UiStore {
-  view = $state<ViewType>('plan');
+  view = $state<ViewType>('home');
   activeWorkout = $state<Workout | null>(null);
   selectedWeekId = $state<string | null>(null);
   weekOffset = $state(0);

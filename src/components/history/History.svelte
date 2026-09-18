@@ -48,13 +48,6 @@
 <div class="w-full max-w-lg space-y-5 animate-in fade-in duration-700 pb-12">
   <div class="flex items-center justify-between px-1">
     <div class="flex items-center gap-3">
-      <button 
-        onclick={() => trainingState.navigate('settings')}
-        class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-subtle hover:text-content transition-colors"
-        aria-label="Settings"
-      >
-        <Icon icon="ic:baseline-settings" class="text-lg" />
-      </button>
       <h3 class="text-title text-content">Timeline</h3>
     </div>
     <div class="h-px flex-1 bg-surface mx-3"></div>

@@ -106,13 +106,6 @@
 
   const weekBenchmarks = $derived(trainingState.benchmarks.filter((b: Benchmark) => b.weekId === trainingState.selectedWeekId));
 
-  const rollingLoad = $derived.by(() => {
-    const completed = trainingState.completedWorkouts;
-    const recent = completed.slice(-5);
-    if (recent.length === 0) return 0;
-    return recent.reduce((acc: number, w: Workout) => acc + (w.loadFactor || 0), 0) / recent.length;
-  });
-  
   const weeklyWorkoutsCount = $derived.by(() => {
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return trainingState.completedWorkouts.filter((w: Workout) => {
@@ -216,19 +209,7 @@
       {/each}
     </div>
 
-    <div class="grid grid-cols-2 gap-3 px-1">
-      <button
-        onclick={() => trainingState.navigate('analytics')}
-        class="bg-surface/50 border border-border p-4 rounded-card backdrop-blur-sm relative overflow-hidden group text-left transition-all hover:bg-surface-elevated/80 active:scale-95"
-      >
-        <span class="block text-label text-content-subtle mb-1">Rolling Load</span>
-        <div class="flex items-baseline gap-1">
-          <span class="text-metric text-content tabular-nums">{Math.round(rollingLoad)}</span>
-          <span class="text-caption font-bold text-primary">AVG</span>
-        </div>
-        <Icon icon="ic:baseline-chevron-right" class="absolute right-3 bottom-3 text-content-subtle group-hover:text-primary transition-colors" />
-      </button>
-
+    <div class="px-1">
       <div class="bg-surface/50 border border-border p-4 rounded-card backdrop-blur-sm relative overflow-hidden group">
         <span class="block text-label text-content-subtle mb-1">Weekly Sessions</span>
         <div class="flex items-baseline gap-1">
