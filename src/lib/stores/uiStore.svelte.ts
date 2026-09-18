@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import type { PermissionState } from '@capacitor/core';
 import type { Workout, ViewType } from '../types';
 import { showConfirm } from '../utils';
-import { requestNotificationPermission, cancelAllFatigueReminders } from '../notifications/fatigueReminder';
+import { requestNotificationPermission, cancelAllReminders } from '../notifications/fatigueReminder';
 
 const NOTIFICATIONS_ENABLED_KEY = 'boulder_tracker_notifications_enabled';
 const NOTIFICATIONS_PROMPTED_KEY = 'boulder_tracker_notifications_prompted';
@@ -81,7 +81,7 @@ export class UiStore {
         return false;
       }
     } else {
-      await cancelAllFatigueReminders();
+      await cancelAllReminders();
     }
     this.notificationsEnabled = enabled;
     this.persistNotificationsEnabled(enabled);

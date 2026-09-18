@@ -2156,5 +2156,32 @@ After Stage 7 landed, the user asked whether the "Generate Plan"/"Analyze Past"/
 
 Not implemented yet - this entry is the scoping decision only. Continuing with Stage 8 per the user's explicit instruction to add this to the plan and move on.
 
+## 2026-09-18 — UI overhaul Stage 8, part 1: notification id-ownership refactor
+
+Implemented `UI_PLAN.md` §5.6's id-ownership fix, as its own commit landing first within Stage 8, per this session's kickoff instruction. Stayed strictly within id-ownership scope - nothing outside `fatigueReminder.ts`, its test file, and the one import/call-site update in `uiStore.svelte.ts` needed touching, so there is nothing to flag per that same instruction's "flag immediately if the refactor needs to touch anything outside id-ownership."
+
+**The fix (`src/lib/notifications/fatigueReminder.ts`):** every reminder type now gets a disjoint slice of the positive-32-bit-int id space - the top 4 bits of every generated id encode a `ReminderType` tag (`fatigue` = 0, `dailyMetrics` = 1, 14 tags left unused for future types), leaving 27 bits (~134M) for each type's own hash. `reminderTypeOf(id)` recovers the owning type from an id alone by reading those top bits back out - no separate id-to-type mapping table needed, and it stays correct across app restarts since nothing depends on in-memory state surviving. `workoutReminderId(workoutId)` (unchanged signature, existing call sites untouched) is now `reminderId('fatigue', workoutId)` under the hood. New `dailyMetricsReminderId()` returns one fixed id in the `dailyMetrics` namespace - that reminder (next part of this stage) is a single recurring "have you logged today's metrics" notification, not one per workout, so it needs no variable key to hash.
+
+**Cancel-all replaced with cancel-mine, but two different functions for two different cases - not one:**
+- `cancelRemindersOfType(type)` - reads `getPending()`, filters to `reminderTypeOf(n.id) === type`, cancels only those. This is what `syncFatigueReminders` now calls before rescheduling (previously `cancelAllFatigueReminders()`, which really did cancel *everything* pending) - the actual regression fix, since a second reminder type's sync running afterward can no longer wipe out reminders this sync just scheduled, or vice versa.
+- `cancelAllReminders()` (renamed from `cancelAllFatigueReminders` - its one call site, `UiStore.setNotificationsEnabled(false)`, wants every pending notification gone regardless of type when the user turns notifications off entirely, which is a genuinely different case from a single type reconciling itself and is spelled out as such in both functions' doc comments so a future reader doesn't merge them back into one "cancel everything" helper.
+
+**Deliberately left in `fatigueReminder.ts` rather than extracted to a new shared module** - it's still the only reminder-type file that exists; splitting the shared id-ownership bits out now would touch import sites for no functional benefit. Flagged in the code as worth revisiting once the daily-metrics reminder (next) has its own real scheduling logic alongside this.
+
+**Tests updated/added (`fatigueReminder.test.ts`), per the plan's explicit instructions:**
+- The old `cancelAllFatigueReminders` describe block is now two: `cancelRemindersOfType` (no-op cases, plus a case with both a fatigue- and a dailyMetrics-tagged pending notification asserting only the fatigue one gets cancelled) and `cancelAllReminders` (asserts both get cancelled together, unfiltered).
+- `syncFatigueReminders`'s cancel-then-reschedule happy-path test was kept but its fixture id renamed from the old arbitrary `999` to an actual `workoutReminderId(...)` output, for clarity now that ids are meaningfully structured.
+- **New: the actual coexistence regression test** - a pending `dailyMetricsReminderId()` notification is seeded, `syncFatigueReminders` is run, and the test asserts `cancel` was never called at all (nothing fatigue-owned was pending) while the fatigue reschedule still happens normally. This is the exact scenario §5.6 says the whole refactor exists to prevent.
+- New `describe("id ownership")` block: `reminderTypeOf` round-trips correctly for both types, ids from different types never collide, `dailyMetricsReminderId()` is stable/deterministic, and an id outside any known type's range resolves to `undefined` rather than a wrong guess.
+
+**Verification performed (per the plan's explicit gate - "don't proceed within the stage until it's green"):**
+- `npx vitest run src/lib/notifications/fatigueReminder.test.ts` -> 24/24 pass (was 15 before this commit's additions).
+- `npm run test` (full suite) -> 253/253 pass.
+- `npm run check` -> 0 errors, 0 warnings, 416 files.
+- `npx vite build` -> succeeds.
+- No manual verification of actual native notification behaviour (no device/emulator in this environment) - this was already true before this refactor (Phase 7's own verification notes say the same); the refactor is covered by the same rigor Phase 7's tests already established, just extended for the new contract.
+
+**Commit:** one commit (`fatigueReminder.ts`, `fatigueReminder.test.ts`, `uiStore.svelte.ts`) - the id-ownership refactor only, landing before the daily-metrics reminder itself (next).
+
 
 
