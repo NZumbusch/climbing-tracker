@@ -3,6 +3,7 @@
   import { generateId, showConfirm } from '../../lib/utils';
   import type { Workout, ExerciseSlot, ExerciseValues, ParameterBlock, DayOfWeek } from '../../lib/types';
   import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import { calculateWorkoutAdherence } from '../../lib/analytics/loadAnalytics';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
   import ExerciseForm from './ExerciseForm.svelte';
@@ -31,6 +32,14 @@
   // planned/completed status distinction (see PLAN.md Phase 1).
   const exerciseFormMode = $derived<'prescribed' | 'logged'>(
     workout?.status === 'completed' ? 'logged' : 'prescribed',
+  );
+
+  // Session progress (UI_PLAN.md §4.4: "3 of 6 logged" + a bar) - only
+  // meaningful while actively logging, not while still planning. Reuses
+  // `calculateWorkoutAdherence` rather than recomputing the same
+  // `logged !== undefined` count, per the plan's explicit instruction.
+  const adherence = $derived(
+    workout && exerciseFormMode === 'logged' ? calculateWorkoutAdherence(workout) : null,
   );
 
   /** For every slot missing `logged`, seed it from `prescribed` as the starting point for editing - never leave it undefined once a workout is being actively logged. */
@@ -129,6 +138,14 @@
     if (confirmed) {
       workout.exercises = workout.exercises.filter((e: ExerciseSlot) => e.id !== id);
     }
+  }
+
+  /** UI_PLAN.md §4.4: "one tap marks a slot logged exactly as prescribed". */
+  function quickLogExercise(id: string) {
+    if (!workout) return;
+    workout.exercises = workout.exercises.map((e: ExerciseSlot) =>
+      e.id === id ? { ...e, logged: { ...(e.prescribed ?? {}) } } : e,
+    );
   }
 
   function handleDndConsider(e: CustomEvent<DndEvent<ExerciseSlot>>) {
@@ -338,6 +355,18 @@
           </div>
         </div>
 
+        {#if adherence && adherence.totalSlots > 0}
+          <div class="px-1 space-y-1.5">
+            <div class="flex items-center justify-between text-label text-content-subtle">
+              <span>{adherence.loggedSlots} of {adherence.totalSlots} logged</span>
+              <span class="tabular-nums">{Math.round(adherence.completionRate * 100)}%</span>
+            </div>
+            <div class="h-1.5 bg-surface-elevated rounded-control overflow-hidden">
+              <div class="h-full bg-success rounded-control transition-all duration-500" style="width: {adherence.completionRate * 100}%"></div>
+            </div>
+          </div>
+        {/if}
+
         <section
           class="space-y-2.5 outline-none min-h-[50px]"
           use:dndzone={{items: workout.exercises, dropTargetStyle: {}}}
@@ -358,6 +387,16 @@
               </div>
 
               <div class="flex items-center gap-1">
+                {#if exerciseFormMode === 'logged'}
+                  <button
+                    onclick={() => quickLogExercise(exercise.id)}
+                    class="p-2 transition-colors {exercise.logged !== undefined ? 'text-success' : 'text-content-subtle hover:text-success'}"
+                    aria-label="Quick-log as prescribed"
+                    title="Quick-log as prescribed"
+                  >
+                    <Icon icon="ic:baseline-flash-on" class="text-sm" />
+                  </button>
+                {/if}
                 <button
                   onclick={() => handleEditExercise(exercise)}
                   class="p-2 text-content-subtle hover:text-primary transition-colors"
