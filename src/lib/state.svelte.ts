@@ -11,6 +11,9 @@ import { OutdoorAscentStore } from './stores/outdoorAscentStore.svelte';
 import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
 import { PreferencesStore } from './stores/preferencesStore.svelte';
+import { WeatherStore } from './stores/weatherStore.svelte';
+import type { WeatherLocation } from './preferences/migrate';
+import { geocodeCity } from './weather/api';
 import type { TextScale, MotionPreference } from './preferences/migrate';
 import { syncFatigueReminders } from './notifications/fatigueReminder';
 import { syncDailyMetricsReminder } from './notifications/dailyMetricsReminder';
@@ -34,6 +37,7 @@ class TrainingState {
   uiStore = new UiStore();
   backupStore = new BackupStore();
   preferencesStore = new PreferencesStore();
+  weatherStore = new WeatherStore();
 
   isLoading = $state(true);
 
@@ -101,6 +105,38 @@ class TrainingState {
     if (this.dailyMetricsReminderEnabled) {
       await syncDailyMetricsReminder(this.dailyMetrics, time);
     }
+  }
+
+  // --- Weather (UI_PLAN.md §5.5) ---
+
+  get homeLocation() { return this.preferencesStore.homeLocation; }
+  get tripLocation() { return this.preferencesStore.tripLocation; }
+  get homeWeather() { return this.weatherStore.home; }
+  get tripWeather() { return this.weatherStore.trip; }
+
+  /** Sets the home location and immediately fetches for it (or clears the card if `location` is `null`). */
+  async setHomeLocation(location: WeatherLocation | null) {
+    this.preferencesStore.setHomeLocation(location);
+    await this.weatherStore.loadHome(location);
+  }
+
+  /** Sets the trip location and immediately fetches for it (or clears the card if `location` is `null`). */
+  async setTripLocation(location: WeatherLocation | null) {
+    this.preferencesStore.setTripLocation(location);
+    await this.weatherStore.loadTrip(location);
+  }
+
+  /** Re-fetches whichever locations are currently set - called from Home on mount, not on every `refresh()` (a network call on every save would be excessive for data that changes over hours, not seconds). */
+  async refreshWeather() {
+    await Promise.all([
+      this.weatherStore.loadHome(this.homeLocation),
+      this.weatherStore.loadTrip(this.tripLocation),
+    ]);
+  }
+
+  /** City name -> candidate locations, for the Settings location picker (UI_PLAN.md §10 open question 3 - raw lat/lon entry bypasses this entirely). */
+  async geocodeCity(query: string) {
+    return geocodeCity(query);
   }
 
   /**

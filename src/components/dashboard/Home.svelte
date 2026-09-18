@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { trainingState } from '../../lib/state.svelte';
   import { formatDate, getWeekIdRange, toUtcDayIndex } from '../../lib/dateUtils';
   import { generateId } from '../../lib/utils';
@@ -6,6 +7,7 @@
   import { computeFatigueDecay, computeHrvBaseline, computeReadiness, type ReadinessStatus } from '../../lib/analytics/readiness';
   import { calculateRollingAcwr } from '../../lib/analytics/loadAnalytics';
   import { calculateWeeklyAdherence } from '../../lib/analytics/loadAnalytics';
+  import { describeWeatherCode } from '../../lib/weather/codes';
   import type { DailyMetricEntry, DayOfWeek } from '../../lib/types';
   import Icon from "@iconify/svelte";
 
@@ -20,6 +22,21 @@
   const DAY_NAMES: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const todayName = DAY_NAMES[asOf.getDay()];
   const today = formatDate(asOf.toISOString());
+
+  // --- Weather (UI_PLAN.md §5.5) - fetched once per mount, not on every
+  // `refresh()` (a network call on every save would be excessive for
+  // conditions that change over hours). No-ops per-location if it isn't set.
+  onMount(() => {
+    trainingState.refreshWeather();
+  });
+
+  function formatRelativeAge(iso: string): string {
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+  }
 
   // --- Header: block/phase context ---
   const currentWeekId = trainingState.currentWeekId;
@@ -309,12 +326,63 @@
     {/each}
   </div>
 
-  <!-- Weather (UI_PLAN.md §5.5/§8 - Stage 8, not yet built) -->
+  <!-- Weather (UI_PLAN.md §5.5) -->
   <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1.5">
     <div class="flex items-center gap-2 text-content-muted">
       <Icon icon="ic:baseline-cloud" class="text-lg" />
       <span class="text-section uppercase">Weather</span>
     </div>
-    <p class="text-caption text-content-subtle">Conditions at your home location will appear here once weather is set up in Settings (Stage 8).</p>
+    {#if !trainingState.homeLocation}
+      <p class="text-caption text-content-subtle italic">Set a home location in Settings to see conditions here.</p>
+    {:else if trainingState.homeWeather.unavailable}
+      <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
+    {:else if trainingState.homeWeather.snapshot}
+      {@const w = trainingState.homeWeather.snapshot}
+      {@const code = describeWeatherCode(w.currentWeatherCode)}
+      <div class="flex items-center gap-3">
+        <Icon icon={code.icon} class="text-3xl text-primary" />
+        <div class="min-w-0">
+          <p class="text-metric text-content tabular-nums">{Math.round(w.currentTempC)}°C</p>
+          <p class="text-caption text-content-subtle truncate">{code.label} · {trainingState.homeLocation.name}</p>
+        </div>
+      </div>
+      {#if trainingState.homeWeather.stale && trainingState.homeWeather.fetchedAt}
+        <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.homeWeather.fetchedAt)}</p>
+      {/if}
+    {:else}
+      <p class="text-caption text-content-subtle italic">Loading conditions…</p>
+    {/if}
   </div>
+
+  <!-- Trip forecast (UI_PLAN.md §5.5 - optional second location, user addition) -->
+  {#if trainingState.tripLocation}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-luggage" class="text-lg" />
+        <span class="text-section uppercase">Trip Forecast</span>
+      </div>
+      {#if trainingState.tripWeather.unavailable}
+        <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
+      {:else if trainingState.tripWeather.snapshot}
+        {@const t = trainingState.tripWeather.snapshot}
+        <p class="text-caption text-content-subtle">{trainingState.tripLocation.name}</p>
+        <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+          {#each t.daily as day}
+            {@const code = describeWeatherCode(day.weatherCode)}
+            <div class="flex flex-col items-center gap-1 shrink-0 w-12">
+              <span class="text-caption text-content-subtle">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
+              <Icon icon={code.icon} class="text-lg text-primary" />
+              <span class="text-caption text-content tabular-nums">{Math.round(day.tempMaxC)}°</span>
+              <span class="text-caption text-content-subtle tabular-nums">{Math.round(day.tempMinC)}°</span>
+            </div>
+          {/each}
+        </div>
+        {#if trainingState.tripWeather.stale && trainingState.tripWeather.fetchedAt}
+          <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.tripWeather.fetchedAt)}</p>
+        {/if}
+      {:else}
+        <p class="text-caption text-content-subtle italic">Loading forecast…</p>
+      {/if}
+    </div>
+  {/if}
 </div>

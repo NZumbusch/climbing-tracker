@@ -11,6 +11,8 @@ describe('defaultPreferences', () => {
       notificationsEnabled: false,
       dailyMetricsReminderEnabled: true,
       dailyMetricsReminderTime: '20:00',
+      homeLocation: null,
+      tripLocation: null,
     });
   });
 });
@@ -52,6 +54,8 @@ describe('migratePreferences', () => {
       notificationsEnabled: true,
       dailyMetricsReminderEnabled: false,
       dailyMetricsReminderTime: '07:30',
+      homeLocation: { name: 'Munich, DE', latitude: 48.1374, longitude: 11.5755 },
+      tripLocation: null,
     };
     expect(migratePreferences(valid)).toEqual(valid);
   });
@@ -150,5 +154,46 @@ describe('migratePreferences', () => {
     expect(result.theme).toBe('light');
     expect(result.notificationsEnabled).toBe(true);
     expect(result.textScale).toBe('md'); // the corrupt blob's data is not trusted
+  });
+});
+
+describe('homeLocation / tripLocation (UI_PLAN.md §5.5)', () => {
+  it('default to null - the whole weather feature is off until a location is set', () => {
+    expect(defaultPreferences().homeLocation).toBeNull();
+    expect(defaultPreferences().tripLocation).toBeNull();
+  });
+
+  it('accepts a valid location object for either field', () => {
+    const home = { name: 'Munich, DE', latitude: 48.1374, longitude: 11.5755 };
+    const trip = { name: 'Fontainebleau, FR', latitude: 48.4042, longitude: 2.7017 };
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeLocation: home, tripLocation: trip });
+    expect(result.homeLocation).toEqual(home);
+    expect(result.tripLocation).toEqual(trip);
+  });
+
+  it('an explicit null clears a location back to unset', () => {
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeLocation: null });
+    expect(result.homeLocation).toBeNull();
+  });
+
+  it('rejects a location missing a name, or with out-of-range coordinates, falling back to null rather than throwing', () => {
+    const badShapes = [
+      { latitude: 48, longitude: 11 }, // no name
+      { name: 'Nowhere', latitude: 95, longitude: 11 }, // latitude out of range
+      { name: 'Nowhere', latitude: 48, longitude: 200 }, // longitude out of range
+      { name: '', latitude: 48, longitude: 11 }, // blank name
+      'not an object',
+      42,
+    ];
+    for (const bad of badShapes) {
+      const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeLocation: bad });
+      expect(result.homeLocation).toBeNull();
+    }
+  });
+
+  it('accepts boundary-valid coordinates (poles and the antimeridian)', () => {
+    const location = { name: 'North Pole', latitude: 90, longitude: -180 };
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeLocation: location });
+    expect(result.homeLocation).toEqual(location);
   });
 });

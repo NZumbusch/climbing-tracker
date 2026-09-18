@@ -41,9 +41,25 @@ export interface Preferences {
   dailyMetricsReminderEnabled: boolean;
   /** "HH:mm", 24-hour, local time. Default 20:00 per UI_PLAN.md §10 open question 4. */
   dailyMetricsReminderTime: string;
+  /**
+   * Weather (UI_PLAN.md §5.5) - both `null` by default, meaning the whole
+   * feature is off until the user sets a location (Stage 8's Settings
+   * screen, not yet built - these fields are inert until then). `trip` is
+   * the optional second location for planning outdoor trips; `home` alone
+   * drives the Home strip.
+   */
+  homeLocation: WeatherLocation | null;
+  tripLocation: WeatherLocation | null;
 }
 
 export const DEFAULT_DAILY_METRICS_REMINDER_TIME = '20:00';
+
+/** A resolved lat/lon plus a display label - either geocoded from a city name or entered directly (UI_PLAN.md §10 open question 3: raw lat/lon must work with no geocoding call). */
+export interface WeatherLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+}
 
 /** Values a fresh install (or an unreadable/corrupt blob) starts from. */
 export function defaultPreferences(): Preferences {
@@ -55,12 +71,24 @@ export function defaultPreferences(): Preferences {
     notificationsEnabled: false,
     dailyMetricsReminderEnabled: true,
     dailyMetricsReminderTime: DEFAULT_DAILY_METRICS_REMINDER_TIME,
+    homeLocation: null,
+    tripLocation: null,
   };
 }
 
 const TEXT_SCALES: TextScale[] = ['sm', 'md', 'lg'];
 const MOTION_PREFS: MotionPreference[] = ['system', 'full', 'reduced'];
 const THEMES: ThemePreference[] = ['dark', 'light', 'contrast'];
+
+/** Validates an unknown value as a `WeatherLocation`, or `null` if it isn't one - never throws, mirrors every other field's independent-defaulting discipline. */
+function validateLocation(raw: unknown): WeatherLocation | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  if (typeof c.name !== 'string' || c.name.trim() === '') return null;
+  if (typeof c.latitude !== 'number' || c.latitude < -90 || c.latitude > 90) return null;
+  if (typeof c.longitude !== 'number' || c.longitude < -180 || c.longitude > 180) return null;
+  return { name: c.name, latitude: c.latitude, longitude: c.longitude };
+}
 
 /** The legacy standalone values to fold in when no preferences blob exists yet. */
 export interface LegacyPreferenceValues {
@@ -111,5 +139,7 @@ export function migratePreferences(raw: unknown, legacy?: LegacyPreferenceValues
     notificationsEnabled: typeof candidate.notificationsEnabled === 'boolean'
       ? candidate.notificationsEnabled
       : defaults.notificationsEnabled,
+    homeLocation: candidate.homeLocation === undefined ? defaults.homeLocation : validateLocation(candidate.homeLocation),
+    tripLocation: candidate.tripLocation === undefined ? defaults.tripLocation : validateLocation(candidate.tripLocation),
   };
 }

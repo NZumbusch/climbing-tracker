@@ -2211,5 +2211,29 @@ Implemented the daily-metrics reminder itself (`UI_PLAN.md §2/§5.8`), on top o
 
 **Commit:** one commit (`src/lib/notifications/*`, `preferences/migrate.ts` + its tests, `preferencesStore.svelte.ts`, `state.svelte.ts`) - the daily-metrics reminder's logic and preferences, landing before its own Settings UI (this stage's last part).
 
+## 2026-09-18 — UI overhaul Stage 8, part 3: weather (Open-Meteo, home + trip forecast on Home)
+
+Implemented `UI_PLAN.md §5.5`, on top of part 2. Same "no Settings UI yet" pattern as parts 1-2's precedent - `homeLocation`/`tripLocation` are real, wired preferences, but nothing in Settings can set them until this stage's last part (the full Appearance & Behaviour screen, which §4.7 itemizes as owning both location fields). Until then the feature is genuinely inert on a fresh install, exactly as §5.5 specifies ("off by default until a location is set").
+
+**`src/lib/weather/` (new, pure + isolated per §5.5's explicit instruction):**
+- `codes.ts` - the standard WMO weather-interpretation code table (Open-Meteo's `weathercode` values) mapped to a label + Iconify icon, with an `describeWeatherCode` lookup that degrades to a generic "Unknown" for anything unrecognised rather than throwing.
+- `api.ts` - `geocodeCity(query)` and `fetchWeatherSnapshot(lat, lon)`, the only two functions in the app that call `fetch()` against a third party. Both **never throw** - a network failure, a non-ok response, or an unexpected shape all resolve to `[]`/`null` respectively, so the caller (the store, next) never needs its own try/catch around them. `fetchWeatherSnapshot` deliberately uses Open-Meteo's simpler `current_weather=true` flag rather than the newer unified `current=`/`hourly=` parameters - its response shape is well-documented and unambiguous, whereas the newer interface's exact field names couldn't be verified against a live call in this environment; noted in a code comment as a possible future refinement, not a compromise made silently.
+
+**`src/lib/stores/weatherStore.svelte.ts` (new):** one `WeatherState` (`snapshot`/`fetchedAt`/`locationName`/`stale`/`loading`/`unavailable`) per location (`home`/`trip`), each independently loadable. **Caches the last successful snapshot in `localStorage` with its fetch timestamp** (§5.5's explicit instruction) - on construction, any cached entry loads immediately marked `stale: true` (unconfirmed until this session's own fetch succeeds), so a cold start while offline shows last-known conditions labelled with their age rather than a blank card - the exact anti-pattern the stash's `Dashboard.svelte` had (an indefinite "Syncing sensors…" spinner), explicitly called out in the original stash audit as not to repeat. A failed fetch with nothing cached at all is the one genuine `unavailable` state - "degrade to absent, never broken" (§5.5). **No direct test for this store** - matches this codebase's own established convention (confirmed repeatedly this session: no `*.svelte.ts` rune-based store has ever had a direct test, only the pure logic it composes) - `api.ts`/`codes.ts` carry the real test coverage.
+
+**Preferences (`migrate.ts`):** new `homeLocation`/`tripLocation` fields, both `WeatherLocation | null` (`{ name, latitude, longitude }`), both defaulting to `null`. Validated defensively (name non-blank, latitude in [-90,90], longitude in [-180,180], `null` accepted as "explicitly unset") with its own dedicated test suite, including the boundary cases (poles, antimeridian) and every malformed shape defaulting to `null` rather than throwing. No version bump, same reasoning as part 2's daily-metrics fields.
+
+**Home.svelte:** the Stage 1/2 Weather placeholder is now real - current conditions + icon, or an explicit "set a home location" prompt when none is set, an "unavailable" message on total fetch failure, or "Stale - last updated Xh ago" when showing a cached-but-refresh-failed snapshot. A **new Trip Forecast card** (§5.5's user addition), only rendered when a trip location is set, shows a 7-day horizontal strip (day name, icon, high/low). Weather fetches once per Home mount (`onMount`, not wired into `refresh()`) - a network call on every workout save would be excessive for data that changes over hours, not seconds; `formatRelativeAge` (small local helper, matching this file's own "simple display derivations with no other natural home" precedent) turns a fetch timestamp into "2h ago"/"3d ago" for the stale label.
+
+**Verification performed:**
+- `npx vitest run src/lib/weather/` -> 11/11 pass (`codes.test.ts`, `api.test.ts` with a mocked global `fetch`).
+- `npx vitest run src/lib/preferences/migrate.test.ts` -> 19/19 pass (was 14, +5 for `homeLocation`/`tripLocation`).
+- `npm run test` (full suite) -> 286/286 pass.
+- `npm run check` -> 0 errors, 0 warnings, 425 files.
+- `npx vite build` -> succeeds; `Home`'s chunk grew (17.7kB) to include the weather cards, no errors.
+- **No manual verification of a real Open-Meteo call** - this environment has no way to exercise a live network request end-to-end, and the feature is inert anyway (no location can be set yet) until this stage's last part ships the Settings UI. `api.ts`'s tests exercise the exact response-parsing logic a real call would hit, against a hand-built fixture shaped to match Open-Meteo's documented response - worth the user's attention once a location can actually be set, to confirm the real API's shape matches what was assumed here.
+
+**Commit:** one commit (`src/lib/weather/*`, `weatherStore.svelte.ts`, `preferences/migrate.ts` + tests, `preferencesStore.svelte.ts`, `state.svelte.ts`, `Home.svelte`) - weather's logic, preferences, and Home wiring, landing before its own Settings UI (this stage's last part, next).
+
 
 

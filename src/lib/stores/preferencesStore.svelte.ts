@@ -1,4 +1,4 @@
-import { migratePreferences, defaultPreferences, type TextScale, type MotionPreference, type Preferences } from '../preferences/migrate';
+import { migratePreferences, defaultPreferences, type TextScale, type MotionPreference, type Preferences, type WeatherLocation } from '../preferences/migrate';
 
 const PREFERENCES_KEY = 'boulder_tracker_preferences';
 const LEGACY_THEME_KEY = 'boulder_tracker_theme';
@@ -15,6 +15,8 @@ export class PreferencesStore {
   motion = $state<MotionPreference>('system');
   dailyMetricsReminderEnabled = $state(true);
   dailyMetricsReminderTime = $state('20:00');
+  homeLocation = $state<WeatherLocation | null>(null);
+  tripLocation = $state<WeatherLocation | null>(null);
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -37,6 +39,8 @@ export class PreferencesStore {
     this.motion = prefs.motion;
     this.dailyMetricsReminderEnabled = prefs.dailyMetricsReminderEnabled;
     this.dailyMetricsReminderTime = prefs.dailyMetricsReminderTime;
+    this.homeLocation = prefs.homeLocation;
+    this.tripLocation = prefs.tripLocation;
 
     // Persist immediately so the fold (or a version migration) only ever
     // has to happen once, and so a fresh install's defaults are recorded
@@ -66,6 +70,16 @@ export class PreferencesStore {
     this.persist();
   }
 
+  setHomeLocation(location: WeatherLocation | null) {
+    this.homeLocation = location;
+    this.persist();
+  }
+
+  setTripLocation(location: WeatherLocation | null) {
+    this.tripLocation = location;
+    this.persist();
+  }
+
   /**
    * Re-reads the legacy theme/notification keys at persist time (rather
    * than trusting a value captured at construction) so this blob's copies
@@ -82,6 +96,8 @@ export class PreferencesStore {
       motion: this.motion,
       dailyMetricsReminderEnabled: this.dailyMetricsReminderEnabled,
       dailyMetricsReminderTime: this.dailyMetricsReminderTime,
+      homeLocation: this.homeLocation,
+      tripLocation: this.tripLocation,
       theme: (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'contrast')
         ? legacyTheme
         : defaultPreferences().theme,
