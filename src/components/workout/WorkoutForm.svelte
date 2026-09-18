@@ -8,6 +8,7 @@
   import ExerciseForm from './ExerciseForm.svelte';
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIImportModal from '../plan/AIImportModal.svelte';
+  import TimerWidget from './TimerWidget.svelte';
   import Icon from "@iconify/svelte";
 
   // --- Props ---
@@ -401,6 +402,8 @@
         {/if}
       </div>
     </div>
+
+    <TimerWidget currentSlot={editingSlot} />
   {/if}
 </div>
 

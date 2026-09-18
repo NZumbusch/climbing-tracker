@@ -3,16 +3,18 @@
   import type { Workout } from '../../lib/types';
   import { formatDate } from '../../lib/dateUtils';
   import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import WorkoutShareImage from './WorkoutShareImage.svelte';
   import Icon from "@iconify/svelte";
 
   const completedWorkouts = $derived(trainingState.completedWorkouts);
   let limit = $state(50);
-  
+
   let showFilters = $state(false);
   let filterFromDate = $state<string>('');
   let filterAnalyticsType = $state<string>('');
   let filterMinDuration = $state<number | ''>('');
   let filterMaxDuration = $state<number | ''>('');
+  let workoutToShare = $state<Workout | null>(null);
 
   const filteredWorkouts = $derived(completedWorkouts.slice().sort((a, b) => {
     const timeA = new Date(a.date || 0).getTime();
@@ -129,6 +131,12 @@
                 Edit
               </button>
               <button
+                onclick={() => workoutToShare = workout}
+                class="text-label text-content-subtle hover:text-success transition-colors"
+              >
+                Share
+              </button>
+              <button
                 onclick={() => trainingState.deleteWorkout(workout.id)}
                 class="text-label text-content-subtle hover:text-danger transition-colors"
               >
@@ -161,3 +169,7 @@
     {/if}
   </div>
 </div>
+
+{#if workoutToShare}
+  <WorkoutShareImage workout={workoutToShare} onClose={() => workoutToShare = null} />
+{/if}
