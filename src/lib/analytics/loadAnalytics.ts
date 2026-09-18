@@ -1,16 +1,22 @@
 import type { Workout, DailyMetricEntry, PainLog } from "../types";
 import { calculatePlannedLoad } from "../types";
-import { getWeekId } from "../dateUtils";
+import { getWeekId, getWeekDates, toUtcDayIndex } from "../dateUtils";
 
 /**
  * Pure, independently-testable load-management analytics (PLAN.md Phase 4).
- * Operates on week-buckets (`Workout.weekId`/`loadFactor`) rather than a
- * continuous rolling daily window - the app's data model is already
- * week-oriented (periodization, templates, the existing Analytics.svelte
- * charts), and workouts don't reliably carry a `date` until completed, so a
- * week-bucketed "ACWR-style" calculation is the honest fit for this
- * codebase's data rather than a literal 7-day/28-day rolling window over
- * daily totals.
+ * Most of this module still operates on week-buckets (`Workout.weekId`/
+ * `loadFactor`) - the app's data model is week-oriented (periodization,
+ * templates, the Analytics.svelte charts), and most of these metrics
+ * (adherence, ramp rate) are inherently week-over-week comparisons anyway.
+ *
+ * ACWR is the one exception (UI_PLAN.md §5.3, 2026-09-18): every completed
+ * workout always has a real `date`, so a week-bucketed ratio isn't actually
+ * forced by the data model for that specific metric, and a bucketed ratio
+ * makes ACWR unusable as a *daily* readiness input (it would spuriously
+ * swing every Monday/Sunday). `calculateRollingAcwr`/`calculateRollingAcwrSeries`
+ * below are the canonical rolling 7-day-acute/28-day-chronic definition;
+ * `calculateAcwrForWeeks` samples them at each week's end date rather than
+ * keeping its own separate bucketed ratio calculation.
  */
 
 // A commonly cited sports-science rule of thumb (the ACWR framework
@@ -35,45 +41,122 @@ export function calculateWeeklyLoad(workouts: Workout[], weekId: string): number
     .reduce((sum, w) => sum + (w.loadFactor || 0), 0);
 }
 
+export interface RollingAcwrResult {
+  /** Sum of completed `loadFactor` over the trailing `acuteDays` (today back `acuteDays - 1`), ending at `asOf`. */
+  acuteLoad: number;
+  /** Sum of completed `loadFactor` over the trailing `chronicDays`, divided by `chronicDays / acuteDays` - a weekly-equivalent average directly comparable to `acuteLoad`. */
+  chronicLoad: number;
+  /** acuteLoad / chronicLoad, undefined when chronicLoad is 0 (no baseline load to compare against, regardless of `sufficient`). */
+  ratio: number | undefined;
+  /** Calendar days from the earliest completed workout through `asOf`, inclusive. 0 if there are no completed workouts. */
+  daysCovered: number;
+  /**
+   * True once `daysCovered >= chronicDays` - i.e. the chronic window is
+   * actually backed by that many days of real history, not padded with
+   * zeros. Before that, `chronicLoad` is understated and `ratio` reads
+   * alarmingly high; callers must degrade (skip a penalty, label it
+   * "building history") rather than present the ratio as fact - see
+   * UI_PLAN.md §5.2/§5.3. Independent of whether `ratio` itself is defined:
+   * a long-inactive athlete can have `sufficient: true` (plenty of history)
+   * and `ratio: undefined` (literally zero load in the current window).
+   */
+  sufficient: boolean;
+}
+
+/**
+ * Rolling 7-day-acute/28-day-chronic ACWR (UI_PLAN.md §5.3), recalculated
+ * fresh as of any `asOf` date - the canonical definition of "ACWR" in this
+ * app, replacing the old week-bucketed ratio. Works in UTC calendar-day
+ * indices throughout (`toUtcDayIndex`) rather than millisecond arithmetic on
+ * local dates, per §5.3's explicit DST warning.
+ */
+export function calculateRollingAcwr(
+  workouts: Workout[],
+  asOf: Date,
+  { acuteDays = 7, chronicDays = 28 }: { acuteDays?: number; chronicDays?: number } = {},
+): RollingAcwrResult {
+  const completed = workouts.filter((w) => w.status === "completed" && w.date);
+  if (completed.length === 0) {
+    return { acuteLoad: 0, chronicLoad: 0, ratio: undefined, daysCovered: 0, sufficient: false };
+  }
+
+  const asOfDay = toUtcDayIndex(asOf.toISOString());
+  const loadByDay = new Map<number, number>();
+  let earliestDay = Infinity;
+  for (const w of completed) {
+    const day = toUtcDayIndex(w.date!);
+    loadByDay.set(day, (loadByDay.get(day) ?? 0) + (w.loadFactor || 0));
+    if (day < earliestDay) earliestDay = day;
+  }
+
+  const sumWindow = (days: number): number => {
+    let sum = 0;
+    for (let d = asOfDay - days + 1; d <= asOfDay; d++) sum += loadByDay.get(d) ?? 0;
+    return sum;
+  };
+
+  const acuteLoad = sumWindow(acuteDays);
+  const chronicLoad = sumWindow(chronicDays) / (chronicDays / acuteDays);
+  const ratio = chronicLoad > 0 ? acuteLoad / chronicLoad : undefined;
+  const daysCovered = asOfDay - earliestDay + 1;
+
+  return { acuteLoad, chronicLoad, ratio, daysCovered, sufficient: daysCovered >= chronicDays };
+}
+
+export interface RollingAcwrPoint extends RollingAcwrResult {
+  /** ISO datetime of the sample point (the `asOf` passed in), for chart x-axes and week-end lookups. */
+  date: string;
+}
+
+/** `calculateRollingAcwr` sampled at each of `sampleDates` - one code path so a chart and a same-day readiness score can never disagree (UI_PLAN.md §5.3/§4.6). */
+export function calculateRollingAcwrSeries(workouts: Workout[], sampleDates: Date[]): RollingAcwrPoint[] {
+  return sampleDates.map((asOf) => ({ date: asOf.toISOString(), ...calculateRollingAcwr(workouts, asOf) }));
+}
+
+/** `calculateRollingAcwr` sampled at `weekId`'s UTC end date (Sunday), or zeroed fields for a malformed id rather than a nondeterministic "now" fallback. */
+function rollingAcwrAtWeekEnd(workouts: Workout[], weekId: string): RollingAcwrResult {
+  const dates = getWeekDates(weekId);
+  if (!dates) return { acuteLoad: 0, chronicLoad: 0, ratio: undefined, daysCovered: 0, sufficient: false };
+  return calculateRollingAcwr(workouts, dates.end);
+}
+
 export interface AcwrResult {
   weekId: string;
-  /** This week's total completed load - the "acute" window. */
+  /** Rolling 7-day acute load as of this week's end date - see `calculateRollingAcwr`. Not a week-bucket total. */
   acuteLoad: number;
-  /** Average completed load over this week and up to the previous 3 (the "chronic" baseline, a 4-week/28-day window). */
+  /** Rolling 28-day chronic load (weekly-equivalent average) as of this week's end date. */
   chronicLoad: number;
-  /** acuteLoad / chronicLoad, 0 if chronicLoad is 0 (no baseline to compare against). */
-  ratio: number;
-  /** Week-over-week % change in acute load vs the previous week, 0 if there's no previous week or it had no load. */
+  /** acuteLoad / chronicLoad, undefined when chronicLoad is 0. */
+  ratio: number | undefined;
+  /** Whether the rolling window above is backed by enough history to trust - see `RollingAcwrResult.sufficient`. */
+  sufficient: boolean;
+  /** Week-over-week % change in this week's *bucketed* completed load vs the previous week - a deliberately different, still week-bucketed metric from the rolling ratio above (UI_PLAN.md §5.3: "a different metric from ACWR, not a bucketed version of it"). 0 if there's no previous week or it had no load. */
   rampRate: number;
   /** rampRate exceeds RAMP_RATE_SPIKE_THRESHOLD. */
   spike: boolean;
 }
 
 /**
- * Computes ACWR-style acute:chronic load ratios and week-over-week
- * ramp-rate for every week in `orderedWeekIds` (must be in chronological
- * order - the chronic window and ramp-rate both look backward from each
- * entry's position in this array, not by parsing the week id itself).
+ * Computes the rolling ACWR ratio (sampled at each week's end date) plus
+ * week-over-week ramp-rate for every week in `orderedWeekIds` (must be in
+ * chronological order - ramp-rate looks backward from each entry's position
+ * in this array, not by parsing the week id itself).
  */
 export function calculateAcwrForWeeks(workouts: Workout[], orderedWeekIds: string[]): AcwrResult[] {
   return orderedWeekIds.map((weekId, i) => {
-    const acuteLoad = calculateWeeklyLoad(workouts, weekId);
+    const rolling = rollingAcwrAtWeekEnd(workouts, weekId);
 
-    const chronicWindow = orderedWeekIds.slice(Math.max(0, i - 3), i + 1);
-    const chronicLoad =
-      chronicWindow.reduce((sum, w) => sum + calculateWeeklyLoad(workouts, w), 0) / chronicWindow.length;
-
-    const ratio = chronicLoad > 0 ? acuteLoad / chronicLoad : 0;
-
+    const weeklyLoad = calculateWeeklyLoad(workouts, weekId);
     const prevWeekId = i > 0 ? orderedWeekIds[i - 1] : undefined;
     const prevLoad = prevWeekId !== undefined ? calculateWeeklyLoad(workouts, prevWeekId) : undefined;
-    const rampRate = prevLoad ? (acuteLoad - prevLoad) / prevLoad : 0;
+    const rampRate = prevLoad ? (weeklyLoad - prevLoad) / prevLoad : 0;
 
     return {
       weekId,
-      acuteLoad,
-      chronicLoad,
-      ratio,
+      acuteLoad: rolling.acuteLoad,
+      chronicLoad: rolling.chronicLoad,
+      ratio: rolling.ratio,
+      sufficient: rolling.sufficient,
       rampRate,
       spike: rampRate > RAMP_RATE_SPIKE_THRESHOLD,
     };
@@ -272,10 +355,15 @@ export function correlatePainWithLoadSpikes(
     const week = i !== undefined ? acwr[i] : undefined;
     const prevWeek = i !== undefined && i > 0 ? acwr[i - 1] : undefined;
 
+    // The high-ratio check additionally requires `sufficient` - an inflated
+    // ratio from an understated chronic baseline (early history) isn't a
+    // real signal, same reasoning as readiness's penalty skip (UI_PLAN.md
+    // §5.2/§5.3). `spike` (rampRate-based) is unaffected - it's a distinct,
+    // always-week-bucketed metric.
     const loadSpikeNearby = !!(
       week?.spike ||
       prevWeek?.spike ||
-      (week && week.ratio > ACWR_HIGH_RISK_RATIO)
+      (week && week.sufficient && week.ratio !== undefined && week.ratio > ACWR_HIGH_RISK_RATIO)
     );
 
     return {

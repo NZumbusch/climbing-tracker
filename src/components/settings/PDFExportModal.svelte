@@ -235,12 +235,15 @@
                     <td class="py-1.5 font-bold">{r.weekId}</td>
                     <td class="text-right py-1.5">{r.acuteLoad}</td>
                     <td class="text-right py-1.5">{Math.round(r.chronicLoad)}</td>
-                    <td class="text-right py-1.5">{r.ratio.toFixed(2)}</td>
+                    <td class="text-right py-1.5">{r.ratio !== undefined ? r.ratio.toFixed(2) : '—'}{r.ratio !== undefined && !r.sufficient ? '*' : ''}</td>
                     <td class="text-right py-1.5" style={r.spike ? 'color: #b91c1c; font-weight: 700;' : ''}>{Math.round(r.rampRate * 100)}%{r.spike ? ' SPIKE' : ''}</td>
                   </tr>
                 {/each}
               </tbody>
             </table>
+            {#if reportAnalytics.acwr.some((r) => r.ratio !== undefined && !r.sufficient)}
+              <p class="text-xs mt-1.5" style="color: #9ca3af;">* fewer than 28 days of history behind this ratio - treat as a rough estimate, not a reliable baseline</p>
+            {/if}
           </div>
         {/if}
 

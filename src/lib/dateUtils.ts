@@ -76,12 +76,16 @@ export function formatDate(dateStr: string | null): string {
 }
 
 /**
- * Returns the start and end dates (as a formatted string) for a given ISO week ID.
+ * Returns the UTC start (Monday) and end (Sunday) `Date`s of a given ISO
+ * week ID, or `null` if `weekId` isn't in `YYYY-Www` shape. Extracted out of
+ * `getWeekDateRange` (below) so callers that need an actual sample `Date` -
+ * e.g. the rolling-ACWR window arithmetic in `loadAnalytics.ts`, which
+ * samples the ratio "as of" a week's end date - don't have to re-parse a
+ * formatted display string back into one.
  */
-export function getWeekDateRange(weekId: string): string {
-  if (!weekId) return '';
+export function getWeekDates(weekId: string): { start: Date; end: Date } | null {
   const match = weekId.match(/^(\d{4})-W(\d{2})$/);
-  if (!match) return '';
+  if (!match) return null;
 
   const year = parseInt(match[1]);
   const week = parseInt(match[2]);
@@ -91,10 +95,37 @@ export function getWeekDateRange(weekId: string): string {
   const dayOfWeek = (jan4.getUTCDay() + 6) % 7; // Monday = 0
   const firstMonday = new Date(Date.UTC(year, 0, 4 - dayOfWeek));
 
-  const startOfWeek = new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-  const endOfWeek = new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const start = new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+/**
+ * Returns the start and end dates (as a formatted string) for a given ISO week ID.
+ */
+export function getWeekDateRange(weekId: string): string {
+  if (!weekId) return '';
+  const dates = getWeekDates(weekId);
+  if (!dates) return '';
 
   const formatOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${startOfWeek.toLocaleDateString(undefined, formatOpts)} - ${endOfWeek.toLocaleDateString(undefined, formatOpts)}`;
+  return `${dates.start.toLocaleDateString(undefined, formatOpts)} - ${dates.end.toLocaleDateString(undefined, formatOpts)}`;
+}
+
+/**
+ * Converts an ISO date or datetime string to a UTC calendar-day index (whole
+ * days since the Unix epoch). Every `date` this codebase stores is either a
+ * bare `YYYY-MM-DD` (parsed by JS as UTC midnight already) or a
+ * `.toISOString()` output (always UTC, `Z`-suffixed) - so extracting UTC
+ * calendar components here is safe and DST-proof for both shapes actually in
+ * use. Exists specifically so day-window arithmetic (rolling ACWR, see
+ * `loadAnalytics.ts`) can do plain integer day-index subtraction instead of
+ * the `new Date(t - n * 86400000)` + `.toISOString().split('T')[0]` pattern
+ * UI_PLAN.md §5.3 explicitly warns drifts across DST boundaries by mixing
+ * local and UTC time.
+ */
+export function toUtcDayIndex(isoDate: string): number {
+  const d = new Date(isoDate);
+  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86400000);
 }
 
