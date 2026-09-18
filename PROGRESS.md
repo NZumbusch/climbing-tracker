@@ -2145,5 +2145,16 @@ Implemented `UI_PLAN.md` §4.4/§6 Stage 7. Two of the five bullets in §2's sum
 
 **Commit:** one commit (`WorkoutForm.svelte`, `ExerciseForm.svelte`, new `TargetHint.svelte`) - `UI_PLAN.md §6` scopes the whole workout-form overhaul as one Sequencing-table row, and every piece here is a facet of that one concern.
 
+## 2026-09-18 — UI_PLAN.md updated: new Stage 10 added (AI integration), between Stage 7 and Stage 8
+
+After Stage 7 landed, the user asked whether the "Generate Plan"/"Analyze Past"/"Context Only" AI prompts (`AIPromptModal.svelte`, `PLAN.md` Phase 5) actually contain everything the AI needs, prompted by noticing analytics categories weren't mentioned. Investigated (`AIPromptModal.svelte`, `src/lib/ai/schema.ts`, `src/lib/ai/planImport.ts`) before answering rather than guessing - confirmed the concern is real, not hypothetical:
+
+- The prompts send exercise type names + default parameters, the last 20 workouts reduced to `{date, status, exercise names}` (no duration/sets/reps/load/fatigue), phase names, and benchmarks. Nothing from `TrainingBlock`s, `CompetitionEvent`s, readiness/daily metrics, pain logs, or outdoor ascents reaches the AI - Phase 5 shipped before Phase 4/6/7 existed and was never revisited.
+- **Analytics categories specifically can't reach the AI even if added to the prompt text** - the JSON contract (`AIExercise` in `schema.ts`) has no field for one. When the AI invents a new exercise type, `planImport.ts`'s `buildPlanCommit` assigns it to whichever analytics category happens to be first in the list (`ctx.analyticsCategories.find(c => !c.archived) ?? ctx.analyticsCategories[0]`), regardless of what the AI meant. This needs a schema field on the AI contract, not just more prompt text.
+
+**Decision (user, 2026-09-18):** scope this as a new stage at the end of the plan rather than a quick inline fix, covering both the context expansion and a new Settings surface for what data gets shared with the AI (health-adjacent data like sleep/HRV/pain logs is a distinct privacy decision from "does the AI have enough context"). Added as **Stage 10** in `UI_PLAN.md` (§5.8 for the full scope, §6's Sequencing table, §7's schema-impact section explicitly noting the AI JSON contract's `categoryName` addition is not a `TrainingData` change and so doesn't trip the "no schema changes" tripwire). Full scope, including the proposed default sharing toggles (Training Blocks/Competitions/Outdoor Ascents default **on**, Readiness & Daily Metrics/Pain Logs default **off**, opt-in) is written into `UI_PLAN.md` itself, not duplicated here - read that section before implementing Stage 10.
+
+Not implemented yet - this entry is the scoping decision only. Continuing with Stage 8 per the user's explicit instruction to add this to the plan and move on.
+
 
 

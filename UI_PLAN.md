@@ -575,6 +575,88 @@ Port `TimerWidget.svelte` (105 lines, clean), then:
 - Audible beep needs a first-interaction unlock for browser audio policy.
 - **Background execution is out of scope.**
 
+### 5.8 AI integration: more context, and a settings surface for what gets shared
+
+**Added 2026-09-18**, mid-session, after the user asked whether the
+"Generate Plan"/"Analyze Past"/"Context Only" prompts (`AIPromptModal.svelte`,
+built in `PLAN.md` Phase 5) actually contain everything the AI needs. They
+don't — investigated and confirmed real gaps, not a hypothetical concern:
+
+- **The prompts predate Phase 4/6/7 entirely.** They send exercise type
+  names + default parameters, the last 20 workouts reduced to
+  `{date, status, exercise names}` — no duration, sets/reps, load, or
+  fatigue — plus phase names and benchmarks. Nothing from periodization
+  (`TrainingBlock`s), competitions, readiness/daily metrics (sleep, HRV,
+  RHR, bodyweight), pain logs, or outdoor ascents ever reaches the AI,
+  because none of those systems existed yet when Phase 5 shipped.
+- **Analytics categories can't reach the AI even if added to the prompt
+  text**, because the JSON contract has nowhere to put one: `AIExercise`
+  (`src/lib/ai/schema.ts`) has only `exerciseTypeName` and `values`. When
+  the AI invents a new exercise type, `planImport.ts`'s `buildPlanCommit`
+  assigns it to `ctx.analyticsCategories.find(c => !c.archived) ??
+  ctx.analyticsCategories[0]` — whichever category happens to be first,
+  regardless of what the AI meant. This needs a schema field, not just
+  more prompt text.
+
+**Scope:**
+
+1. **Expand what the prompt-building code sends** (`AIPromptModal.svelte`
+   and wherever its data-gathering gets extracted to, given the size this
+   is becoming — likely worth its own `src/lib/ai/context.ts`, pure and
+   testable, producing the condensed JSON blob independently of the
+   Svelte component): analytics categories; recent workouts with real
+   duration/load/fatigue, not just names; active `TrainingBlock`s
+   covering or near the target weeks; upcoming `CompetitionEvent`s
+   (A-priority especially — a coaching prompt should know what the athlete
+   is peaking for); a readiness/metrics snapshot (current
+   `computeReadiness` output, recent sleep/HRV/RHR/bodyweight trend);
+   recent `PainLog` entries; recent `OutdoorAscent` grade history. Not
+   every mode needs every category (e.g. "Analyze Past" already scopes to
+   a date range and doesn't need the full exercise catalog) — sort out
+   per-mode relevance rather than dumping everything into all three
+   prompts uniformly.
+2. **Add an optional category field to the AI JSON contract**
+   (`schema.ts`'s `AIExercise`, e.g. `categoryName?: string`), validated
+   the same permissive way every other optional field is, and wire it
+   through `planImport.ts`: when creating a new exercise type, resolve
+   `categoryName` against `AnalyticsCategory` by name (same
+   case-insensitive exact-match convention `findExerciseTypeByName`/
+   `findPhaseByName` already use) before falling back to today's
+   first-non-archived default. **This is a schema change to the AI JSON
+   contract, not to `TrainingData`** — it has its own independent
+   shape/versioning (there is no version field on it today; consider
+   whether it needs one once this lands) and is explicitly exempt from
+   §7's "no schema changes" tripwire, which is about the persisted
+   database only. Flag this distinction in `PROGRESS.md` when
+   implementing, since it's an easy thing for a future session to
+   misread as violating the tripwire.
+3. **New Settings surface for what gets shared.** Sending health-adjacent
+   personal data (sleep/HRV/RHR/bodyweight/pain) to an external AI service
+   the user pastes this into is a real, distinct privacy decision from
+   "does the AI have enough context to write a good plan" — the user
+   should control it explicitly, not have it silently bundled in because
+   it makes the plan better. A new subsection (working name "AI Sharing",
+   under Settings' existing five-tab shell — decide at implementation time
+   whether it's a General/Customization subsection or its own tab) with a
+   toggle per data category this section adds: Training Blocks,
+   Competitions, Readiness & Daily Metrics, Pain Logs, Outdoor Ascents.
+   Persisted the same way every other device-local preference is (§5.1's
+   `PreferencesStore`, not `TrainingData`). Toggles gate what
+   `AIPromptModal.svelte` includes; a disabled category is simply omitted
+   from the generated prompt, never sent-but-redacted.
+
+### Open question forced by this stage
+
+**Default state of the new sharing toggles.** Training Blocks/Competitions
+are plan-structure data already adjacent to what's shared today (phases,
+benchmarks) — **default on**. Readiness & Daily Metrics / Pain Logs are
+health data in a stricter sense — **default off**, opt-in, so a user who
+never opens the new settings section gets the same AI-sharing footprint as
+before this stage, not a silent expansion into health data. Outdoor
+Ascents is borderline (performance data, not health data) — **default
+on**. Revisit if this reads wrong once built; not blocking, since every
+toggle is changeable regardless of its starting value.
+
 ---
 
 ## 6. Sequencing
@@ -594,9 +676,12 @@ gets its own commit(s).
 | 7 | Workout form: inline targets, progress, quick-log, reorder, grouped picker. | Medium |
 | 8 | **Notification id-ownership refactor first (§5.6, own commit)**, then the daily-metrics reminder, weather (home + trip forecast), and the full Appearance & Behaviour settings screen. | Medium — network + native |
 | 9 | 7-column grid week layout as the alternate Plan view. | Deferred |
+| 10 | AI integration (§5.8): expand prompt context (categories, load/fatigue, training blocks, competitions, readiness/metrics, pain logs, outdoor ascents), add a `categoryName` field to the AI JSON contract, and a new Settings surface for what gets shared with the AI. **Added 2026-09-18**, after Stage 7. | Medium — touches an existing AI JSON contract, plus a genuine privacy-default decision |
 
 Stages 2 and 5 should get their pure logic written test-first, consistent
-with how Phase 4's `loadAnalytics.ts` was built.
+with how Phase 4's `loadAnalytics.ts` was built. Stage 10's new
+`src/lib/ai/context.ts` (§5.8) should too, matching this project's
+standing "pure data-shaping logic gets tests" convention.
 
 ---
 
@@ -612,9 +697,15 @@ with how Phase 4's `loadAnalytics.ts` was built.
   existing field.
 - Preferences live in `localStorage` with their own independent version, fully
   outside the `TrainingData` chain.
+- Stage 10's new `categoryName` field on the AI JSON contract
+  (`src/lib/ai/schema.ts`'s `AIExercise`, §5.8) is **not** a `TrainingData`
+  schema change — that contract is a separate, independently-shaped
+  interface for AI-generated input, not part of the persisted database or
+  its migration chain. It is called out explicitly here so it is never
+  mistaken for a tripwire violation.
 
-If any stage appears to require a schema change, that is a design problem to
-raise, not a migration to write.
+If any stage appears to require a `TrainingData` schema change, that is a
+design problem to raise, not a migration to write.
 
 **Not schema changes, but deliberate behaviour changes** — both require
 updating existing tests, and both must be logged in `PROGRESS.md` rather than
