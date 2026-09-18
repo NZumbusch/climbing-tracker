@@ -149,28 +149,28 @@
 <div class="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-background/80 backdrop-blur-md animate-in fade-in duration-300 p-0 sm:p-4 pb-[80px]">
   <div class="absolute inset-0" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="button" tabindex="0" aria-label="Close AI Import"></div>
 
-  <div class="relative w-full sm:max-w-lg bg-surface border-t sm:border border-border-strong rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh]">
-    <div class="p-6 border-b border-border-strong flex items-center justify-between shrink-0">
+  <div class="relative w-full sm:max-w-lg bg-surface border-t sm:border border-border-strong rounded-t-2xl sm:rounded-card shadow-2xl flex flex-col max-h-[85vh]">
+    <div class="p-5 border-b border-border-strong flex items-center justify-between shrink-0">
       <div>
-        <h2 class="text-lg font-black text-content flex items-center gap-2">
+        <h2 class="text-title text-content flex items-center gap-2">
           <Icon icon="ic:baseline-auto-awesome" class="text-primary text-xl" />
           {mode === 'plan' ? 'Import AI Plan' : 'Import AI Workout Log'}
         </h2>
-        <p class="text-[10px] text-content-subtle mt-1 uppercase tracking-widest">Paste JSON - nothing is saved until you confirm</p>
+        <p class="text-caption text-content-subtle mt-1">Paste JSON - nothing is saved until you confirm</p>
       </div>
-      <button onclick={onClose} class="p-2 text-content-muted hover:text-content bg-surface-elevated/50 hover:bg-surface-elevated rounded-xl transition-all"><Icon icon="ic:baseline-close" class="text-lg" /></button>
+      <button onclick={onClose} class="p-2 text-content-muted hover:text-content bg-surface-elevated/50 hover:bg-surface-elevated rounded-control transition-all"><Icon icon="ic:baseline-close" class="text-lg" /></button>
     </div>
 
-    <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-5">
+    <div class="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4">
       {#if mode === 'workoutLog'}
         <div class="space-y-2">
-          <button onclick={() => showInstructions = !showInstructions} class="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1">
+          <button onclick={() => showInstructions = !showInstructions} class="text-label text-primary flex items-center gap-1">
             <Icon icon="ic:baseline-info" class="text-sm" /> How does this work?
           </button>
           {#if showInstructions}
-            <div class="p-3.5 bg-surface-elevated/50 border border-border-strong rounded-xl text-xs text-content-muted space-y-2">
+            <div class="p-3.5 bg-surface-elevated/50 border border-border-strong rounded-control text-body text-content-muted space-y-2">
               <p>Copy the instructions below, paste them into any AI chat followed by your own free-text training notes ("did 5x hangboard sets, 30 min bouldering..."), then paste the AI's JSON reply into the box below.</p>
-              <button onclick={handleCopyInstructions} class="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1">
+              <button onclick={handleCopyInstructions} class="text-label text-primary flex items-center gap-1">
                 <Icon icon="ic:baseline-content-copy" class="text-sm" /> Copy Instructions
               </button>
             </div>
@@ -179,22 +179,22 @@
       {/if}
 
       <div class="space-y-1.5">
-        <label for="ai-import-paste" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Paste JSON Here</label>
+        <label for="ai-import-paste" class="text-label text-content-subtle ml-1">Paste JSON Here</label>
         <textarea
           id="ai-import-paste"
           bind:value={pasteText}
           rows="6"
           placeholder={mode === 'plan' ? 'Paste the JSON your AI generated...' : 'Paste the structured workout JSON your AI generated...'}
-          class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-xs font-mono resize-none"
+          class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-xs font-mono resize-none"
         ></textarea>
       </div>
 
       {#if pasteText.trim() && issues.length > 0}
-        <div class="p-3.5 bg-danger/10 border border-danger/30 rounded-xl space-y-1.5">
-          <p class="text-[10px] font-black text-danger uppercase tracking-widest flex items-center gap-1.5">
+        <div class="p-3.5 bg-danger/10 border border-danger/30 rounded-control space-y-1.5">
+          <p class="text-label text-danger flex items-center gap-1.5">
             <Icon icon="ic:baseline-error-outline" class="text-sm" /> Couldn't validate this JSON
           </p>
-          <ul class="text-xs text-content-muted space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+          <ul class="text-body text-content-muted space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
             {#each issues as issue}
               <li>{issue.path ? `${issue.path}: ` : ''}{issue.message}</li>
             {/each}
@@ -204,14 +204,14 @@
 
       {#if mode === 'plan' && planPreview}
         <div class="space-y-3">
-          <p class="text-[10px] font-black text-content-subtle uppercase tracking-widest">
+          <p class="text-label text-content-subtle">
             Preview - {planPreview.weeks.length} week(s), {planPreview.totalWorkouts} workout(s), {planPreview.totalExercises} exercise(s)
           </p>
           <div class="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
             {#each planPreview.weeks as week}
-              <div class="flex items-center justify-between px-3 py-2 bg-surface-elevated/50 rounded-lg text-xs">
+              <div class="flex items-center justify-between px-3 py-2 bg-surface-elevated/50 rounded-control text-body">
                 <span class="font-bold text-content">{week.weekId}</span>
-                <span class="flex items-center gap-1.5 {week.phaseResolved ? 'text-content-muted' : 'text-amber-500'}">
+                <span class="flex items-center gap-1.5 {week.phaseResolved ? 'text-content-muted' : 'text-warning'}">
                   {#if !week.phaseResolved}<Icon icon="ic:baseline-warning" class="text-sm" />{/if}
                   {week.phaseName}
                 </span>
@@ -222,17 +222,17 @@
 
           {#if planPreview.unresolvedPhaseNames.length > 0}
             <div class="space-y-2">
-              <p class="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Unresolved Phases</p>
+              <p class="text-label text-warning">Unresolved Phases</p>
               {#each planPreview.unresolvedPhaseNames as name}
                 <div class="flex items-center justify-between gap-2 px-1">
-                  <span class="text-xs text-content truncate">{name}</span>
+                  <span class="text-body text-content truncate">{name}</span>
                   <select
                     value={mappingSelectValue(phaseMapping[normalizeName(name)])}
                     onchange={(e) => {
                       const v = e.currentTarget.value;
                       setPhaseMapping(name, v === 'create' ? { action: 'create' } : { action: 'map', id: v });
                     }}
-                    class="bg-surface-elevated text-content text-xs p-2 rounded-lg border border-border-strong outline-none"
+                    class="bg-surface-elevated text-content text-xs p-2 rounded-control border border-border-strong outline-none"
                   >
                     <option value="create">+ Create new phase "{name}"</option>
                     {#each trainingState.phaseDefs.filter(p => !p.archived) as phase}
@@ -248,7 +248,7 @@
 
       {#if mode === 'workoutLog' && logPreview}
         <div class="space-y-3">
-          <p class="text-[10px] font-black text-content-subtle uppercase tracking-widest">
+          <p class="text-label text-content-subtle">
             Preview - {logPreview.workouts.length} workout(s), {logPreview.totalExercises} exercise(s) will be added to this session
           </p>
         </div>
@@ -256,17 +256,17 @@
 
       {#if (planPreview?.unresolvedExerciseTypeNames.length ?? logPreview?.unresolvedExerciseTypeNames.length ?? 0) > 0}
         <div class="space-y-2">
-          <p class="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Unresolved Exercise Types</p>
+          <p class="text-label text-warning">Unresolved Exercise Types</p>
           {#each (planPreview?.unresolvedExerciseTypeNames ?? logPreview?.unresolvedExerciseTypeNames ?? []) as name}
             <div class="flex items-center justify-between gap-2 px-1">
-              <span class="text-xs text-content truncate">{name}</span>
+              <span class="text-body text-content truncate">{name}</span>
               <select
                 value={mappingSelectValue(exerciseTypeMapping[normalizeName(name)])}
                 onchange={(e) => {
                   const v = e.currentTarget.value;
                   setExerciseMapping(name, v === 'create' ? { action: 'create' } : { action: 'map', id: v });
                 }}
-                class="bg-surface-elevated text-content text-xs p-2 rounded-lg border border-border-strong outline-none"
+                class="bg-surface-elevated text-content text-xs p-2 rounded-control border border-border-strong outline-none"
               >
                 <option value="create">+ Create new type "{name}"</option>
                 {#each trainingState.exerciseTypes.filter(t => !t.archived) as type}
@@ -281,7 +281,7 @@
       <button
         onclick={handleConfirm}
         disabled={!canConfirm || committing}
-        class="w-full py-4 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-black tracking-widest uppercase rounded-2xl shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2"
+        class="w-full py-4 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-control shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2"
       >
         <Icon icon={committing ? 'ic:baseline-hourglass-empty' : 'ic:baseline-check'} />
         {committing ? 'Importing...' : 'Confirm Import'}

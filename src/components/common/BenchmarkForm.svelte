@@ -95,9 +95,9 @@
 </script>
 
 <!-- UI Structure -->
-<div class="space-y-4 p-5 bg-surface/80 rounded-3xl border border-border animate-in zoom-in-95 shadow-2xl">
+<div class="space-y-4 p-5 bg-surface/80 rounded-card border border-border animate-in zoom-in-95 shadow-2xl">
   <div class="flex items-center justify-between px-1">
-    <h3 class="text-sm font-bold text-content tracking-tight">Benchmark Test</h3>
+    <h3 class="text-title text-content">Benchmark Test</h3>
     <button onclick={onCancel} class="text-content-subtle hover:text-content transition-colors">
       <Icon icon="ic:baseline-close" />
     </button>
@@ -105,12 +105,12 @@
 
   <div class="space-y-3">
     <div class="space-y-1">
-      <label for="benchmark-type" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Type</label>
-      <select 
+      <label for="benchmark-type" class="text-label text-content-subtle ml-1">Type</label>
+      <select
         id="benchmark-type"
-        bind:value={benchmark.typeId} 
+        bind:value={benchmark.typeId}
         onchange={handleTypeChange}
-        class="w-full bg-surface-elevated text-content p-3 rounded-xl border border-border-strong outline-none text-sm appearance-none"
+        class="w-full bg-surface-elevated text-content p-3 rounded-control border border-border-strong outline-none text-sm appearance-none"
       >
         <option value="" disabled>Select Type</option>
         {#each benchmarkTypes as type}
@@ -121,38 +121,38 @@
 
     <div class="flex gap-3">
       <div class="flex-1 space-y-1">
-        <label for="benchmark-value" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Result</label>
-        <input 
+        <label for="benchmark-value" class="text-label text-content-subtle ml-1">Result</label>
+        <input
           id="benchmark-value"
-          type="number" 
-          bind:value={benchmark.value} 
-          class="w-full bg-surface-elevated text-content p-3 rounded-xl border border-border-strong outline-none text-sm"
+          type="number"
+          bind:value={benchmark.value}
+          class="w-full bg-surface-elevated text-content p-3 rounded-control border border-border-strong outline-none text-sm"
         />
       </div>
       <div class="w-24 space-y-1">
-        <label for="benchmark-unit" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Unit</label>
-        <input 
+        <label for="benchmark-unit" class="text-label text-content-subtle ml-1">Unit</label>
+        <input
           id="benchmark-unit"
-          bind:value={benchmark.unit} 
+          bind:value={benchmark.unit}
           readonly
-          class="w-full bg-surface-elevated-hover/50 text-content-muted p-3 rounded-xl border border-border-strong outline-none text-sm"
+          class="w-full bg-surface-elevated-hover/50 text-content-muted p-3 rounded-control border border-border-strong outline-none text-sm"
         />
       </div>
     </div>
 
     <div class="space-y-1">
-      <label for="benchmark-notes" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Notes</label>
-      <textarea 
+      <label for="benchmark-notes" class="text-label text-content-subtle ml-1">Notes</label>
+      <textarea
         id="benchmark-notes"
-        bind:value={benchmark.notes} 
-        class="w-full bg-surface-elevated text-content p-3 rounded-xl border border-border-strong outline-none text-sm h-20"
+        bind:value={benchmark.notes}
+        class="w-full bg-surface-elevated text-content p-3 rounded-control border border-border-strong outline-none text-sm h-20"
       ></textarea>
     </div>
   </div>
 
-  <button 
+  <button
     onclick={handleSubmit}
-    class="w-full py-3.5 bg-primary hover:bg-primary-hover text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
+    class="w-full py-3.5 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-control transition-all shadow-lg active:scale-95"
   >
     Save Benchmark
   </button>

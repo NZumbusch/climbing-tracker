@@ -1,0 +1,94 @@
+/**
+ * Device-local UI preferences (text scale, motion, and - going forward -
+ * anything else purely cosmetic/device-specific). Deliberately outside
+ * `TrainingData`: see UI_PLAN.md §5.1 - these are not athlete data, and
+ * routing them through the `TrainingData` migration chain would mean a
+ * schema field + migration step + `DATA_EXPORT_VERSION` bump for every new
+ * toggle, against the highest-blast-radius part of the app.
+ *
+ * `theme` and `notificationsEnabled` are included in this shape for forward
+ * compatibility (a future stage can move their live ownership here without
+ * another shape change) but are NOT yet live-managed by this module - they
+ * stay on their existing standalone `localStorage` keys, owned by `UiStore`,
+ * per UI_PLAN.md §5.1. `migratePreferences` only folds their *current*
+ * values in once, at first load, so a fresh `boulder_tracker_preferences`
+ * blob does not silently reset a returning user's theme/notification choice
+ * back to defaults. After that fold, this module never re-reads or
+ * overwrites those two fields - `UiStore` remains their sole writer.
+ */
+
+export const CURRENT_PREFERENCES_VERSION = 1;
+
+export type TextScale = 'sm' | 'md' | 'lg';
+export type MotionPreference = 'system' | 'full' | 'reduced';
+export type ThemePreference = 'dark' | 'light' | 'contrast';
+
+export interface Preferences {
+  version: number;
+  textScale: TextScale;
+  motion: MotionPreference;
+  /** Forward-compat only - see module doc comment. Not live-managed here yet. */
+  theme: ThemePreference;
+  /** Forward-compat only - see module doc comment. Not live-managed here yet. */
+  notificationsEnabled: boolean;
+}
+
+/** Values a fresh install (or an unreadable/corrupt blob) starts from. */
+export function defaultPreferences(): Preferences {
+  return {
+    version: CURRENT_PREFERENCES_VERSION,
+    textScale: 'md',
+    motion: 'system',
+    theme: 'dark',
+    notificationsEnabled: false,
+  };
+}
+
+const TEXT_SCALES: TextScale[] = ['sm', 'md', 'lg'];
+const MOTION_PREFS: MotionPreference[] = ['system', 'full', 'reduced'];
+const THEMES: ThemePreference[] = ['dark', 'light', 'contrast'];
+
+/** The legacy standalone values to fold in when no preferences blob exists yet. */
+export interface LegacyPreferenceValues {
+  theme?: ThemePreference;
+  notificationsEnabled?: boolean;
+}
+
+/**
+ * Pure, never throws. Unknown/corrupt/missing input returns defaults
+ * (folding in `legacy` values, if given, so a returning user's theme/
+ * notification choice survives this preferences key not existing yet).
+ * Unknown extra keys are dropped; each known key is validated and falls
+ * back to its own default independently, rather than discarding the whole
+ * object over one bad field. An unrecognised `version` (including a future
+ * one newer than `CURRENT_PREFERENCES_VERSION`) is treated the same as
+ * missing/corrupt input - safest default when this code doesn't know what
+ * that version's shape means.
+ */
+export function migratePreferences(raw: unknown, legacy?: LegacyPreferenceValues): Preferences {
+  const defaults = defaultPreferences();
+  if (legacy?.theme && THEMES.includes(legacy.theme)) defaults.theme = legacy.theme;
+  if (typeof legacy?.notificationsEnabled === 'boolean') {
+    defaults.notificationsEnabled = legacy.notificationsEnabled;
+  }
+
+  if (typeof raw !== 'object' || raw === null) return defaults;
+  const candidate = raw as Record<string, unknown>;
+  if (candidate.version !== CURRENT_PREFERENCES_VERSION) return defaults;
+
+  return {
+    version: CURRENT_PREFERENCES_VERSION,
+    textScale: TEXT_SCALES.includes(candidate.textScale as TextScale)
+      ? (candidate.textScale as TextScale)
+      : defaults.textScale,
+    motion: MOTION_PREFS.includes(candidate.motion as MotionPreference)
+      ? (candidate.motion as MotionPreference)
+      : defaults.motion,
+    theme: THEMES.includes(candidate.theme as ThemePreference)
+      ? (candidate.theme as ThemePreference)
+      : defaults.theme,
+    notificationsEnabled: typeof candidate.notificationsEnabled === 'boolean'
+      ? candidate.notificationsEnabled
+      : defaults.notificationsEnabled,
+  };
+}

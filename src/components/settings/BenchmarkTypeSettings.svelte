@@ -53,32 +53,32 @@
   }
 </script>
 
-<div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
+<div class="bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card">
   <div class="space-y-2">
-    <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest px-1">Benchmark Types</h3>
-    <p class="text-[10px] text-content-subtle px-1 leading-relaxed">Periodic performance tests (max hang, max pull-up, ...) tracked over time. These are separate from Exercise Modalities — you log a result under "Benchmark Tests" on the Training Plan screen, not as part of a workout.</p>
+    <h3 class="text-section uppercase text-content-muted px-1">Benchmark Types</h3>
+    <p class="text-caption text-content-subtle px-1 leading-relaxed">Periodic performance tests (max hang, max pull-up, ...) tracked over time. These are separate from Exercise Modalities — you log a result under "Benchmark Tests" on the Training Plan screen, not as part of a workout.</p>
   </div>
 
   {#if isAddingBenchmark && editingBenchmarkType}
-    <div class="p-5 bg-surface-elevated/50 border border-emerald-500/30 rounded-2xl space-y-4 animate-in zoom-in-95 shadow-inner">
+    <div class="p-5 bg-surface-elevated/50 border border-success/30 rounded-card space-y-4 animate-in zoom-in-95 shadow-inner">
       <div class="space-y-3">
-        <div class="space-y-1"><label for="bench-name" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Test Name</label><input id="bench-name" bind:value={editingBenchmarkType.name} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong focus:ring-1 focus:ring-emerald-500 outline-none text-sm" placeholder="e.g., 20mm Max Hang" /></div>
-        <div class="space-y-1"><label for="bench-unit" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Result Unit</label><input id="bench-unit" bind:value={editingBenchmarkType.unit} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong focus:ring-1 focus:ring-emerald-500 outline-none text-sm" placeholder="e.g., kg, reps, s" /></div>
+        <div class="space-y-1"><label for="bench-name" class="text-label text-content-subtle ml-1">Test Name</label><input id="bench-name" bind:value={editingBenchmarkType.name} class="w-full bg-surface text-content p-3 rounded-control border border-border-strong focus:ring-1 focus:ring-success outline-none text-sm" placeholder="e.g., 20mm Max Hang" /></div>
+        <div class="space-y-1"><label for="bench-unit" class="text-label text-content-subtle ml-1">Result Unit</label><input id="bench-unit" bind:value={editingBenchmarkType.unit} class="w-full bg-surface text-content p-3 rounded-control border border-border-strong focus:ring-1 focus:ring-success outline-none text-sm" placeholder="e.g., kg, reps, s" /></div>
       </div>
-      <div class="flex gap-2 pt-2"><button onclick={saveBenchmarkType} class="flex-1 py-3 bg-success text-white text-[10px] font-black uppercase tracking-widest rounded-xl">Save</button><button onclick={() => { isAddingBenchmark = false; editingBenchmarkType = null; }} class="px-5 py-3 bg-surface-elevated text-content-muted text-[10px] font-black uppercase tracking-widest rounded-xl">Cancel</button></div>
+      <div class="flex gap-2 pt-2"><button onclick={saveBenchmarkType} class="flex-1 py-3 bg-success text-white text-sm font-bold rounded-control">Save</button><button onclick={() => { isAddingBenchmark = false; editingBenchmarkType = null; }} class="px-5 py-3 bg-surface-elevated text-content-muted text-sm font-bold rounded-control">Cancel</button></div>
     </div>
   {:else}
     <div class="space-y-2">
       {#each benchmarkTypes as type}
-        <div class="flex items-center justify-between p-3.5 bg-surface-elevated/30 border border-border-strong/50 rounded-2xl group transition-all hover:bg-surface-elevated/50">
-          <div><p class="text-sm font-bold text-content">{type.name}</p><p class="text-[9px] text-content-subtle uppercase tracking-tighter">Unit: {type.unit}</p></div>
+        <div class="flex items-center justify-between p-3.5 bg-surface-elevated/30 border border-border-strong/50 rounded-card group transition-all hover:bg-surface-elevated/50">
+          <div><p class="text-body font-bold text-content">{type.name}</p><p class="text-caption text-content-subtle">Unit: {type.unit}</p></div>
           <div class="flex items-center gap-1">
             <button onclick={() => { editingBenchmarkType = { ...type }; isAddingBenchmark = true; }} class="p-2 text-content-subtle hover:text-content transition-colors" aria-label="Edit Benchmark"><Icon icon="ic:baseline-edit" /></button>
             <button onclick={() => deleteBenchmarkType(type.id)} class="p-2 text-content-subtle hover:text-danger transition-colors" aria-label="Delete Benchmark"><Icon icon="ic:baseline-delete" /></button>
           </div>
         </div>
       {/each}
-      <button onclick={startAddBenchmark} class="w-full py-3.5 border-2 border-dashed border-border hover:border-border-strong rounded-2xl flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" /><span class="text-[10px] font-black uppercase tracking-widest">Add Benchmark Type</span></button>
+      <button onclick={startAddBenchmark} class="w-full py-3.5 border-2 border-dashed border-border hover:border-border-strong rounded-card flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" /><span class="text-label">Add Benchmark Type</span></button>
     </div>
   {/if}
 </div>

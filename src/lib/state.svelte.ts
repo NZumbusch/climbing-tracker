@@ -10,6 +10,8 @@ import { MetricsStore } from './stores/metricsStore.svelte';
 import { OutdoorAscentStore } from './stores/outdoorAscentStore.svelte';
 import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
+import { PreferencesStore } from './stores/preferencesStore.svelte';
+import type { TextScale, MotionPreference } from './preferences/migrate';
 import { syncFatigueReminders } from './notifications/fatigueReminder';
 
 /**
@@ -29,6 +31,7 @@ class TrainingState {
   outdoorAscentStore = new OutdoorAscentStore();
   uiStore = new UiStore();
   backupStore = new BackupStore();
+  preferencesStore = new PreferencesStore();
 
   isLoading = $state(true);
 
@@ -67,6 +70,11 @@ class TrainingState {
 
   get weekOffset() { return this.uiStore.weekOffset; }
   set weekOffset(value: number) { this.uiStore.weekOffset = value; }
+
+  get textScale() { return this.preferencesStore.textScale; }
+  get motion() { return this.preferencesStore.motion; }
+  setTextScale(scale: TextScale) { this.preferencesStore.setTextScale(scale); }
+  setMotion(motion: MotionPreference) { this.preferencesStore.setMotion(motion); }
 
   /**
    * Refreshes all data from storage.

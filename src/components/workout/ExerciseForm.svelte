@@ -218,11 +218,11 @@
   const leadStyles: NonNullable<ExerciseValues['leadStyle']>[number][] = ['Onsight', 'Flash', 'Redpoint', 'Projecting'];
 </script>
 
-<div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-5 backdrop-blur-sm animate-in zoom-in-95 duration-300">
+<div class="bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
   <div class="space-y-1.5">
-    <label for="modality-select" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Modality</label>
+    <label for="modality-select" class="text-label text-content-subtle ml-1">Modality</label>
     <div class="relative">
-      <select id="modality-select" bind:value={selectedTypeId} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong focus:ring-2 focus:ring-blue-500/50 focus:border-primary outline-none appearance-none transition-all cursor-pointer text-sm font-medium">
+      <select id="modality-select" bind:value={selectedTypeId} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none appearance-none transition-all cursor-pointer text-sm font-medium">
         {#each exerciseTypes as t} <option value={t.id}>{t.name}</option> {/each}
       </select>
     </div>
@@ -230,31 +230,31 @@
 
   {#if activeParams.includes('duration')}
     <div class="space-y-1.5">
-      <label for="ex-duration" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Duration (min)</label>
-      <input id="ex-duration" type="number" bind:value={duration} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none transition-all text-sm {validationErrors.duration ? 'border-danger/50 focus:border-danger' : ''}" />
-      {#if validationErrors.duration}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.duration}</p>{/if}
+      <label for="ex-duration" class="text-label text-content-subtle ml-1">Duration (min)</label>
+      <input id="ex-duration" type="number" bind:value={duration} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none transition-all text-sm {validationErrors.duration ? 'border-danger/50 focus:border-danger' : ''}" />
+      {#if validationErrors.duration}<p class="text-label text-danger ml-1">{validationErrors.duration}</p>{/if}
     </div>
   {/if}
 
   <div class="grid grid-cols-1 gap-5 pt-1">
     {#if activeParams.includes('boulderingGrades') || activeParams.includes('grades')}
       <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5"><label for="ex-min-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-grade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
-        <div class="space-y-1.5"><label for="ex-max-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-grade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-min-grade" class="text-label text-content-subtle ml-1">Min Grade</label><select id="ex-min-grade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-max-grade" class="text-label text-content-subtle ml-1">Max Grade</label><select id="ex-max-grade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
       </div>
     {/if}
 
     {#if activeParams.includes('routeGrades')}
       <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
-        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-label text-content-subtle ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-label text-content-subtle ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
       </div>
     {/if}
 
-    {#if activeParams.includes('cadence')}<div class="space-y-1.5"><label for="ex-cadence" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Cadence (boulders or routes / min)</label><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('cadence')}<div class="space-y-1.5"><label for="ex-cadence" class="text-label text-content-subtle ml-1">Cadence (boulders or routes / min)</label><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
     {#if activeParams.includes('climbingStyle')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Climbing Style</p>
+        <p class="text-label text-content-subtle ml-1">Climbing Style</p>
         <div class="flex flex-wrap gap-2">
           {#each climbingStyles as style}
             <button
@@ -266,7 +266,7 @@
                   climbingStyle = [...climbingStyle, style];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {climbingStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {climbingStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {style}
             </button>
@@ -274,27 +274,27 @@
         </div>
       </div>
     {/if}
-    {#if activeParams.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-label text-content-subtle ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-label text-content-subtle ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
 
     <div class="grid grid-cols-2 gap-3">
-      {#if activeParams.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Sets</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.sets ? 'border-danger/50' : ''}" />{#if validationErrors.sets}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.sets}</p>{/if}</div>{/if}
-      {#if activeParams.includes('reps')}<div class="space-y-1.5"><label for="ex-reps" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Reps</label><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-      {#if activeParams.includes('movesPerRoute')}<div class="space-y-1.5"><label for="ex-moves" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Moves per route</label><input id="ex-moves" type="number" bind:value={movesPerRoute} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
+      {#if activeParams.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-label text-content-subtle ml-1">Sets</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm {validationErrors.sets ? 'border-danger/50' : ''}" />{#if validationErrors.sets}<p class="text-label text-danger ml-1">{validationErrors.sets}</p>{/if}</div>{/if}
+      {#if activeParams.includes('reps')}<div class="space-y-1.5"><label for="ex-reps" class="text-label text-content-subtle ml-1">Reps</label><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+      {#if activeParams.includes('movesPerRoute')}<div class="space-y-1.5"><label for="ex-moves" class="text-label text-content-subtle ml-1">Moves per route</label><input id="ex-moves" type="number" bind:value={movesPerRoute} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
     </div>
-    {#if activeParams.includes('holdType')}<div class="space-y-1.5"><label for="ex-hold" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Hold Type</label><select id="ex-hold" bind:value={holdType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each holdTypes as h} <option value={h}>{h}</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('timeOn')}<div class="space-y-1.5"><label for="ex-on" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Time On (s)</label><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('timeOff')}<div class="space-y-1.5"><label for="ex-off" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Time Off (s)</label><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('restTime')}<div class="space-y-1.5"><label for="ex-rest" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Between Sets (s)</label><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.holdSize ? 'border-danger/50' : ''}" />{#if validationErrors.holdSize}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.holdSize}</p>{/if}</div>{/if}
-    {#if activeParams.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" placeholder="e.g. 10" /></div>{/if}
-    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Added Weight (% of BW)</span><span class="text-blue-500 font-mono text-[10px]">{bodyweightPercent}%{#if latestBodyweightKg} <span class="text-content-subtle">(≈ {(latestBodyweightKg * bodyweightPercent / 100).toFixed(1)} kg)</span>{/if}</span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
-    {#if activeParams.includes('maxWeightPercent')}<div class="space-y-4 pt-1"><label for="ex-mw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Load (% of Max)</span><span class="text-emerald-500 font-mono text-[10px]">{maxWeightPercent}%</span></label><input id="ex-mw" type="range" min="10" max="150" bind:value={maxWeightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-emerald-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>10%</span><span>100% (Max)</span><span>150%</span></div></div>{/if}
-    {#if activeParams.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('holdType')}<div class="space-y-1.5"><label for="ex-hold" class="text-label text-content-subtle ml-1">Hold Type</label><select id="ex-hold" bind:value={holdType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each holdTypes as h} <option value={h}>{h}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('timeOn')}<div class="space-y-1.5"><label for="ex-on" class="text-label text-content-subtle ml-1">Time On (s)</label><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('timeOff')}<div class="space-y-1.5"><label for="ex-off" class="text-label text-content-subtle ml-1">Time Off (s)</label><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('restTime')}<div class="space-y-1.5"><label for="ex-rest" class="text-label text-content-subtle ml-1">Between Sets (s)</label><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-label text-content-subtle ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm {validationErrors.holdSize ? 'border-danger/50' : ''}" />{#if validationErrors.holdSize}<p class="text-label text-danger ml-1">{validationErrors.holdSize}</p>{/if}</div>{/if}
+    {#if activeParams.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-label text-content-subtle ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" placeholder="e.g. 10" /></div>{/if}
+    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-label text-content-subtle ml-1"><span>Added Weight (% of BW)</span><span class="text-primary font-mono text-caption tabular-nums">{bodyweightPercent}%{#if latestBodyweightKg} <span class="text-content-subtle">(≈ {(latestBodyweightKg * bodyweightPercent / 100).toFixed(1)} kg)</span>{/if}</span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" /><div class="flex justify-between text-caption text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
+    {#if activeParams.includes('maxWeightPercent')}<div class="space-y-4 pt-1"><label for="ex-mw" class="flex justify-between text-label text-content-subtle ml-1"><span>Load (% of Max)</span><span class="text-success font-mono text-caption tabular-nums">{maxWeightPercent}%</span></label><input id="ex-mw" type="range" min="10" max="150" bind:value={maxWeightPercent} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-success" /><div class="flex justify-between text-caption text-content-muted px-1 mt-1"><span>10%</span><span>100% (Max)</span><span>150%</span></div></div>{/if}
+    {#if activeParams.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-label text-content-subtle ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-label text-content-subtle ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
     {#if activeParams.includes('mobilityType')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Mobility Focus</p>
+        <p class="text-label text-content-subtle ml-1">Mobility Focus</p>
         <div class="flex flex-wrap gap-2">
           {#each mobilityTypes as type}
             <button
@@ -306,7 +306,7 @@
                   mobilityType = [...mobilityType, type];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {mobilityType.includes(type) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {mobilityType.includes(type) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {type}
             </button>
@@ -316,7 +316,7 @@
     {/if}
     {#if activeParams.includes('leadStyle')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Style</p>
+        <p class="text-label text-content-subtle ml-1">Style</p>
         <div class="flex flex-wrap gap-2">
           {#each leadStyles as style}
             <button
@@ -328,7 +328,7 @@
                   leadStyle = [...leadStyle, style];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {leadStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {leadStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {style}
             </button>
@@ -336,11 +336,11 @@
         </div>
       </div>
     {/if}
-    {#if activeParams.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Difficulty</span><span class="text-primary font-mono text-[10px]">{difficulty}/10</span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>{/if}
-    {#if activeParams.includes('routeDifficulty')}<div class="space-y-1.5"><label for="ex-route-diff" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Route Difficulty</label><select id="ex-route-diff" bind:value={routeDifficulty} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none cursor-pointer"><option value="Easy">Easy</option><option value="Moderate">Moderate</option><option value="Hard">Hard</option></select></div>{/if}
+    {#if activeParams.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-label text-content-subtle ml-1"><span>Difficulty</span><span class="text-primary font-mono text-caption tabular-nums">{difficulty}/10</span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" /></div>{/if}
+    {#if activeParams.includes('routeDifficulty')}<div class="space-y-1.5"><label for="ex-route-diff" class="text-label text-content-subtle ml-1">Route Difficulty</label><select id="ex-route-diff" bind:value={routeDifficulty} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none cursor-pointer"><option value="Easy">Easy</option><option value="Moderate">Moderate</option><option value="Hard">Hard</option></select></div>{/if}
 
     <details class="group border-t border-border/50 pt-4">
-      <summary class="flex justify-between items-center cursor-pointer list-none text-[10px] font-black text-content-subtle hover:text-content uppercase tracking-widest outline-none transition-colors">
+      <summary class="flex justify-between items-center cursor-pointer list-none text-section uppercase text-content-subtle hover:text-content outline-none transition-colors">
         <span>Customize Tracked Fields</span>
         <Icon icon="ic:baseline-keyboard-arrow-down" class="text-lg group-open:rotate-180 transition-transform" />
       </summary>
@@ -355,7 +355,7 @@
                 activeParams = [...activeParams, id];
               }
             }}
-            class="px-3 py-2 rounded-lg text-[9px] font-bold border transition-all flex items-center gap-2 {activeParams.includes(id) ? 'bg-primary-hover/10 border-primary/50 text-primary-hover' : 'bg-surface border-border text-content-subtle'}"
+            class="px-3 py-2 rounded-control text-label border transition-all flex items-center gap-2 {activeParams.includes(id) ? 'bg-primary-hover/10 border-primary/50 text-primary-hover' : 'bg-surface border-border text-content-subtle'}"
           >
             <Icon icon={activeParams.includes(id) ? 'ic:baseline-check-box' : 'ic:baseline-check-box-outline-blank'} class="text-sm" />
             <span class="text-left flex-1">{PARAMETER_LABELS[id] || id}</span>
@@ -365,8 +365,8 @@
     </details>
 
     <div class="space-y-1.5 pt-4 border-t border-border/50">
-      <label for="ex-category" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Analytics Type</label>
-      <select id="ex-category" bind:value={categoryOverride} class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none cursor-pointer">
+      <label for="ex-category" class="text-label text-content-subtle ml-1">Analytics Type</label>
+      <select id="ex-category" bind:value={categoryOverride} class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none cursor-pointer">
         <option value="">Default ({activeTypeDef?.category || 'Other'})</option>
         {#each trainingState.analyticsCategories as cat}
           <option value={cat.id}>{cat.name}</option>
@@ -375,24 +375,24 @@
     </div>
 
     <div class="space-y-1.5 pt-4 border-t border-border/50">
-      <label for="ex-notes" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Exercise Notes</label>
-      <textarea id="ex-notes" bind:value={notes} placeholder="Focus on footwork..." class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border-strong outline-none transition-all placeholder:text-content-subtle text-sm" rows="2"></textarea>
+      <label for="ex-notes" class="text-label text-content-subtle ml-1">Exercise Notes</label>
+      <textarea id="ex-notes" bind:value={notes} placeholder="Focus on footwork..." class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-control border border-border-strong outline-none transition-all placeholder:text-content-subtle text-sm" rows="2"></textarea>
     </div>
 
     <div class="space-y-4 pt-4 border-t border-border/50">
-      <label for="ex-planned-load" class="flex justify-between text-[9px] font-bold text-success uppercase tracking-widest ml-1">
+      <label for="ex-planned-load" class="flex justify-between text-label text-success ml-1">
         <span>Target Intensity / Load</span>
-        <span class="text-success font-mono text-[10px]">{plannedLoad}/10</span>
+        <span class="text-success font-mono text-caption tabular-nums">{plannedLoad}/10</span>
       </label>
-      <input id="ex-planned-load" type="range" min="1" max="10" bind:value={plannedLoad} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-emerald-500" />
-      <p class="text-[8px] text-content-subtle italic ml-1 leading-relaxed">Estimated stress for this specific exercise.</p>
+      <input id="ex-planned-load" type="range" min="1" max="10" bind:value={plannedLoad} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-success" />
+      <p class="text-caption text-content-subtle italic ml-1 leading-relaxed">Estimated stress for this specific exercise.</p>
     </div>
   </div>
 
   <button
     onclick={handleSubmit}
     disabled={!isValid}
-    class="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/20 transition-all active:scale-[0.98]"
+    class="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-4 rounded-control shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
   >
     {initialSlot ? 'Update Exercise' : 'Add Exercise'}
   </button>

@@ -67,13 +67,13 @@
   );
 </script>
 
-<div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-6 backdrop-blur-sm shadow-xl">
+<div class="bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card">
   <div class="flex items-center justify-between px-1">
     <div>
-      <h3 class="text-xs font-bold text-content-muted uppercase tracking-widest">Outdoor Ascent Log</h3>
-      <p class="text-[9px] text-content-subtle uppercase mt-0.5">Import from an 8a.nu CSV export</p>
+      <h3 class="text-section uppercase text-content-muted">Outdoor Ascent Log</h3>
+      <p class="text-caption text-content-subtle mt-0.5">Import from an 8a.nu CSV export</p>
     </div>
-    <div class="p-2 bg-tertiary-hover/10 rounded-xl text-tertiary">
+    <div class="p-2 bg-tertiary-hover/10 rounded-control text-tertiary">
       <Icon icon="ic:baseline-terrain" class="text-lg" />
     </div>
   </div>
@@ -82,15 +82,15 @@
     <div class="relative">
       <button
         onclick={() => fileInput?.click()}
-        class="w-full flex items-center justify-between p-4 bg-surface-elevated/50 hover:bg-surface-elevated rounded-2xl border border-border-strong/50 transition-all group"
+        class="w-full flex items-center justify-between p-4 bg-surface-elevated/50 hover:bg-surface-elevated rounded-card border border-border-strong/50 transition-all group"
       >
         <div class="flex items-center gap-3">
-          <div class="p-2.5 bg-primary-hover/10 rounded-xl text-primary group-hover:bg-primary-hover group-hover:text-white transition-colors">
+          <div class="p-2.5 bg-primary-hover/10 rounded-control text-primary group-hover:bg-primary-hover group-hover:text-white transition-colors">
             <Icon icon="ic:baseline-upload-file" class="text-xl" />
           </div>
           <div class="text-left">
-            <p class="text-sm font-bold text-content">Import CSV</p>
-            <p class="text-[9px] text-content-subtle uppercase">8a.nu ascent export</p>
+            <p class="text-body font-bold text-content">Import CSV</p>
+            <p class="text-caption text-content-subtle">8a.nu ascent export</p>
           </div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-xl" />
@@ -98,29 +98,29 @@
       <input bind:this={fileInput} type="file" accept=".csv,text/csv" class="hidden" onchange={handleFileChange} />
     </div>
   {:else}
-    <div class="space-y-3 p-4 bg-surface-elevated/50 rounded-2xl border border-border-strong/50">
-      <p class="text-xs font-bold text-content">
+    <div class="space-y-3 p-4 bg-surface-elevated/50 rounded-card border border-border-strong/50">
+      <p class="text-label text-content">
         {newAscents.length} ascent{newAscents.length === 1 ? '' : 's'} will be imported
       </p>
       {#if duplicateCount > 0}
-        <p class="text-[10px] text-content-subtle">{duplicateCount} already logged (skipped as duplicates)</p>
+        <p class="text-caption text-content-subtle">{duplicateCount} already logged (skipped as duplicates)</p>
       {/if}
       {#if preview.skipped.length > 0}
-        <p class="text-[10px] text-warning">
+        <p class="text-caption text-warning">
           {preview.skipped.length} row{preview.skipped.length === 1 ? '' : 's'} could not be read:
         </p>
-        <ul class="text-[9px] text-content-subtle space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar">
+        <ul class="text-caption text-content-subtle space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar">
           {#each preview.skipped as s}
             <li>Line {s.line}: {s.reason}</li>
           {/each}
         </ul>
       {/if}
       <div class="flex gap-2 pt-2">
-        <button onclick={handleCancel} class="flex-1 py-2.5 bg-surface-elevated text-content-muted text-xs font-bold rounded-xl border border-border-strong">Cancel</button>
+        <button onclick={handleCancel} class="flex-1 py-2.5 bg-surface-elevated text-content-muted text-sm font-bold rounded-control border border-border-strong">Cancel</button>
         <button
           onclick={handleConfirm}
           disabled={newAscents.length === 0 || isImporting}
-          class="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-lg disabled:opacity-50 disabled:pointer-events-none"
+          class="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-control shadow-lg disabled:opacity-50 disabled:pointer-events-none"
         >
           {isImporting ? 'Importing...' : 'Confirm Import'}
         </button>
@@ -131,10 +131,10 @@
   {#if recentAscents.length > 0}
     <div class="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
       {#each recentAscents as a}
-        <div class="flex items-center justify-between p-2.5 bg-surface-elevated/50 rounded-xl border border-border-strong/50">
+        <div class="flex items-center justify-between p-2.5 bg-surface-elevated/50 rounded-control border border-border-strong/50">
           <div class="min-w-0">
-            <p class="text-xs font-bold text-content truncate">{a.name || 'Unnamed'} <span class="text-content-muted font-mono">{a.grade}</span></p>
-            <p class="text-[9px] text-content-subtle uppercase truncate">{formatDate(a.date)}{a.crag ? ` · ${a.crag}` : ''}{a.style ? ` · ${a.style}` : ''}</p>
+            <p class="text-label text-content truncate">{a.name || 'Unnamed'} <span class="text-content-muted font-mono">{a.grade}</span></p>
+            <p class="text-caption text-content-subtle truncate">{formatDate(a.date)}{a.crag ? ` · ${a.crag}` : ''}{a.style ? ` · ${a.style}` : ''}</p>
           </div>
           <button onclick={() => handleDelete(a.id)} class="text-content-subtle hover:text-danger transition-colors shrink-0 ml-2" aria-label="Delete ascent">
             <Icon icon="ic:baseline-close" class="text-sm" />

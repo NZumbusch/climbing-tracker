@@ -103,7 +103,7 @@
 
 <div class="space-y-3 pt-1">
   {#each phaseWorkouts as workout, wIndex}
-    <div class="p-5 bg-surface-elevated/30 border border-border-strong/50 rounded-2xl space-y-4 shadow-inner relative">
+    <div class="p-5 bg-surface-elevated/30 border border-border-strong/50 rounded-card space-y-4 shadow-inner relative">
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0 flex-1">
           <input bind:value={workout.name} class="w-full bg-transparent text-sm font-bold text-content border-b border-transparent focus:border-primary/30 outline-none pb-1 truncate" placeholder="Session Name" />
@@ -132,7 +132,7 @@
         {#each days as day}
           <button
             onclick={() => workout.dayOfWeek = day}
-            class="px-2 py-1 rounded-md text-[8px] font-black uppercase transition-all border
+            class="px-2 py-1 rounded-control text-label transition-all border
               {workout.dayOfWeek === day
                 ? 'bg-primary border-primary text-white shadow-lg'
                 : 'bg-surface-elevated/50 border-border-strong text-content-subtle hover:text-content-muted'}"
@@ -142,7 +142,7 @@
         {/each}
         <button
           onclick={() => workout.dayOfWeek = undefined}
-          class="px-2 py-1 rounded-md text-[8px] font-black uppercase transition-all border
+          class="px-2 py-1 rounded-control text-label transition-all border
             {!workout.dayOfWeek
               ? 'bg-surface-elevated-hover border-border-strong text-content shadow-lg'
               : 'bg-surface-elevated/50 border-border-strong text-content-subtle hover:text-content-muted'}"
@@ -158,12 +158,12 @@
           onfinalize={(e) => handleTemplateDndFinalize(wIndex, e)}
         >
           {#each workout.exercises || [] as exercise, eIndex (exercise.id)}
-            <div animate:flip={{duration: 200}} class="flex items-center justify-between p-2 bg-surface/50 rounded-xl border border-border transition-all hover:border-border-strong group/ex">
+            <div animate:flip={{duration: 200}} class="flex items-center justify-between p-2 bg-surface/50 rounded-control border border-border transition-all hover:border-border-strong group/ex">
               <div class="flex items-center gap-2">
                 <div class="flex flex-col items-center justify-center gap-0 opacity-40 group-hover/ex:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
                   <Icon icon="ic:baseline-drag-indicator" class="text-[16px]" />
                 </div>
-                <span class="text-[10px] font-medium text-content-muted truncate">{slotTypeName(exercise, trainingState.exerciseTypes)}</span>
+                <span class="text-label text-content-muted truncate">{slotTypeName(exercise, trainingState.exerciseTypes)}</span>
               </div>
               <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick={() => duplicateExerciseInTemplate(wIndex, exercise)} class="text-content-subtle hover:text-content transition-colors p-1" title="Duplicate Exercise"><Icon icon="ic:baseline-content-copy" class="text-xs" /></button>
@@ -174,21 +174,21 @@
           {/each}
         </section>
         {#if editingWorkoutIndex === wIndex && isAddingExercise}
-          <div class="mt-4 p-4 bg-surface/80 rounded-2xl border border-border-strong animate-in zoom-in-95">
+          <div class="mt-4 p-4 bg-surface/80 rounded-card border border-border-strong animate-in zoom-in-95">
             <ExerciseForm
               initialSlot={editingExerciseId ? workout.exercises?.find((e) => e.id === editingExerciseId) : null}
               mode="prescribed"
               onSave={saveExerciseToTemplate}
             />
-            <button onclick={() => { isAddingExercise = false; editingWorkoutIndex = null; editingExerciseId = null; }} class="w-full mt-3 py-2 text-[9px] font-black text-content-subtle uppercase tracking-widest hover:text-content">Cancel</button>
+            <button onclick={() => { isAddingExercise = false; editingWorkoutIndex = null; editingExerciseId = null; }} class="w-full mt-3 py-2 text-label text-content-subtle hover:text-content">Cancel</button>
           </div>
         {:else}
-          <button onclick={() => { editingWorkoutIndex = wIndex; isAddingExercise = true; editingExerciseId = null; }} class="w-full py-2.5 border border-dashed border-border-strong rounded-xl text-[9px] font-black text-content-subtle uppercase tracking-widest hover:border-border-strong hover:text-content-muted transition-all">Add Component</button>
+          <button onclick={() => { editingWorkoutIndex = wIndex; isAddingExercise = true; editingExerciseId = null; }} class="w-full py-2.5 border border-dashed border-border-strong rounded-control text-label text-content-subtle hover:border-border-strong hover:text-content-muted transition-all">Add Component</button>
         {/if}
       </div>
     </div>
   {:else}
-    <div class="p-4 bg-surface-elevated/20 rounded-xl border border-dashed border-border text-center"><p class="text-[10px] text-content-subtle italic uppercase tracking-widest">No sessions yet</p></div>
+    <div class="p-4 bg-surface-elevated/20 rounded-control border border-dashed border-border text-center"><p class="text-caption text-content-subtle italic">No sessions yet</p></div>
   {/each}
-  <button onclick={addWorkoutToPhase} class="w-full py-2.5 border-2 border-dashed border-border hover:border-border-strong rounded-2xl flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" class="text-sm" /><span class="text-[9px] font-black uppercase tracking-widest">Add Session</span></button>
+  <button onclick={addWorkoutToPhase} class="w-full py-2.5 border-2 border-dashed border-border hover:border-border-strong rounded-card flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" class="text-sm" /><span class="text-label">Add Session</span></button>
 </div>

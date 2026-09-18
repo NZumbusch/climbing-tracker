@@ -111,43 +111,43 @@ Based on this data, please evaluate:
   <!-- Clickable backdrop to close -->
   <div class="absolute inset-0" onclick={onClose} onkeydown={(e) => e.key === 'Escape' && onClose()} role="button" tabindex="0" aria-label="Close AI Generator"></div>
   
-  <div class="relative w-full sm:max-w-md bg-surface border-t sm:border border-border-strong rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh]">
-    <div class="p-6 border-b border-border-strong flex items-center justify-between shrink-0">
+  <div class="relative w-full sm:max-w-md bg-surface border-t sm:border border-border-strong rounded-t-2xl sm:rounded-card shadow-2xl flex flex-col max-h-[85vh]">
+    <div class="p-5 border-b border-border-strong flex items-center justify-between shrink-0">
       <div>
-        <h2 class="text-lg font-black text-content flex items-center gap-2">
+        <h2 class="text-title text-content flex items-center gap-2">
           <Icon icon="ic:baseline-auto-awesome" class="text-primary text-xl" />
           AI Coach Prompt
         </h2>
-        <p class="text-[10px] text-content-subtle mt-1 uppercase tracking-widest">Generate a prompt to copy/paste</p>
+        <p class="text-caption text-content-subtle mt-1">Generate a prompt to copy/paste</p>
       </div>
-      <button onclick={onClose} class="p-2 text-content-muted hover:text-content bg-surface-elevated/50 hover:bg-surface-elevated rounded-xl transition-all"><Icon icon="ic:baseline-close" class="text-lg" /></button>
+      <button onclick={onClose} class="p-2 text-content-muted hover:text-content bg-surface-elevated/50 hover:bg-surface-elevated rounded-control transition-all"><Icon icon="ic:baseline-close" class="text-lg" /></button>
     </div>
 
-    <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+    <div class="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4">
       <div class="space-y-4">
-        <div class="flex bg-surface-elevated/50 p-1 rounded-xl">
-          <button onclick={() => mode = 'generate'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'generate' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Generate Plan</button>
-          <button onclick={() => mode = 'analyze'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'analyze' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Analyze Past</button>
-          <button onclick={() => mode = 'context'} class="flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all {mode === 'context' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Context Only</button>
+        <div class="flex bg-surface-elevated/50 p-1 rounded-control">
+          <button onclick={() => mode = 'generate'} class="flex-1 py-2 text-label rounded-control transition-all {mode === 'generate' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Generate Plan</button>
+          <button onclick={() => mode = 'analyze'} class="flex-1 py-2 text-label rounded-control transition-all {mode === 'analyze' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Analyze Past</button>
+          <button onclick={() => mode = 'context'} class="flex-1 py-2 text-label rounded-control transition-all {mode === 'context' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Context Only</button>
         </div>
 
         {#if mode === 'context'}
-          <p class="text-xs text-content-subtle px-1">
+          <p class="text-body text-content-subtle px-1">
             Copies just your training profile - no coaching prompt attached. Paste it into any AI chat to ask your own free-form questions.
           </p>
         {:else}
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
-              <label for="ai-start-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Start Week</label>
-              <select id="ai-start-week" bind:value={startWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
+              <label for="ai-start-week" class="text-label text-content-subtle ml-1">Start Week</label>
+              <select id="ai-start-week" bind:value={startWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none">
                 {#each weekOptions as opt}
                   <option value={opt.id}>{opt.label}</option>
                 {/each}
               </select>
             </div>
             <div class="space-y-1.5">
-              <label for="ai-end-week" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">End Week</label>
-              <select id="ai-end-week" bind:value={endWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none">
+              <label for="ai-end-week" class="text-label text-content-subtle ml-1">End Week</label>
+              <select id="ai-end-week" bind:value={endWeek} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none">
                 {#each weekOptions as opt}
                   <option value={opt.id}>{opt.label}</option>
                 {/each}
@@ -156,19 +156,19 @@ Based on this data, please evaluate:
           </div>
 
           <div class="space-y-1.5">
-            <label for="ai-goal" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Your Goal / Notes</label>
-            <textarea id="ai-goal" bind:value={goal} rows="4" placeholder="e.g. I want to prepare for a trip to Font in 4 weeks. Focus on Power Endurance and slopers." class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm resize-none"></textarea>
+            <label for="ai-goal" class="text-label text-content-subtle ml-1">Your Goal / Notes</label>
+            <textarea id="ai-goal" bind:value={goal} rows="4" placeholder="e.g. I want to prepare for a trip to Font in 4 weeks. Focus on Power Endurance and slopers." class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm resize-none"></textarea>
           </div>
 
           {#if mode === 'generate'}
-            <p class="text-[10px] text-content-subtle px-1">
+            <p class="text-caption text-content-subtle px-1">
               The copied prompt asks the AI to reply with strict JSON - paste its reply into "Import AI Plan" on the Training Plan screen afterward.
             </p>
           {/if}
         {/if}
       </div>
 
-      <button onclick={handleCopyPrompt} class="w-full py-4 bg-primary hover:bg-primary-hover text-white text-sm font-black tracking-widest uppercase rounded-2xl shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2">
+      <button onclick={handleCopyPrompt} class="w-full py-4 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-control shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2">
         <Icon icon="ic:baseline-content-copy" /> Copy {mode === 'context' ? 'Context' : 'Prompt'}
       </button>
     </div>

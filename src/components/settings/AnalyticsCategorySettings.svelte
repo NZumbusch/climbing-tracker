@@ -143,24 +143,24 @@
 </script>
 
 {#if isAddingAnalyticsCategory && editingAnalyticsCategory}
-    <div class="p-5 bg-surface-elevated/50 border border-tertiary/30 rounded-2xl space-y-4 animate-in zoom-in-95 shadow-inner">
+    <div class="p-5 bg-surface-elevated/50 border border-tertiary/30 rounded-card space-y-4 animate-in zoom-in-95 shadow-inner">
       <div class="space-y-3">
-        <div class="space-y-1"><label for="ac-name" class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Category Name</label><input id="ac-name" bind:value={editingAnalyticsCategory.name} class="w-full bg-surface text-content p-3 rounded-xl border border-border-strong focus:ring-1 focus:ring-purple-500 outline-none text-sm" placeholder="e.g., Flexibility" /></div>
-        <div class="space-y-1"><p class="text-[8px] font-black text-content-subtle uppercase tracking-widest ml-1">Color</p>
+        <div class="space-y-1"><label for="ac-name" class="text-label text-content-subtle ml-1">Category Name</label><input id="ac-name" bind:value={editingAnalyticsCategory.name} class="w-full bg-surface text-content p-3 rounded-control border border-border-strong focus:ring-1 focus:ring-tertiary outline-none text-sm" placeholder="e.g., Flexibility" /></div>
+        <div class="space-y-1"><p class="text-label text-content-subtle ml-1">Color</p>
           <div class="flex flex-wrap gap-2">
             {#each predefinedColors as color}
-              <button type="button" aria-label="Select color {color}" onclick={() => editingAnalyticsCategory!.color = color} class="w-6 h-6 rounded-full {color} {editingAnalyticsCategory!.color === color ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : 'opacity-70 hover:opacity-100'} transition-all"></button>
+              <button type="button" aria-label="Select color {color}" onclick={() => editingAnalyticsCategory!.color = color} class="w-6 h-6 rounded-full {color} {editingAnalyticsCategory!.color === color ? 'ring-2 ring-white ring-offset-2 ring-offset-surface' : 'opacity-70 hover:opacity-100'} transition-all"></button>
             {/each}
           </div>
         </div>
       </div>
-      <div class="flex gap-2 pt-2"><button onclick={saveAnalyticsCategory} class="flex-1 py-3 bg-tertiary text-white text-[10px] font-black uppercase tracking-widest rounded-xl">Save</button><button onclick={() => { isAddingAnalyticsCategory = false; editingAnalyticsCategory = null; }} class="px-5 py-3 bg-surface-elevated text-content-muted text-[10px] font-black uppercase tracking-widest rounded-xl">Cancel</button></div>
+      <div class="flex gap-2 pt-2"><button onclick={saveAnalyticsCategory} class="flex-1 py-3 bg-tertiary text-white text-sm font-bold rounded-control">Save</button><button onclick={() => { isAddingAnalyticsCategory = false; editingAnalyticsCategory = null; }} class="px-5 py-3 bg-surface-elevated text-content-muted text-sm font-bold rounded-control">Cancel</button></div>
     </div>
   {:else}
     <div class="space-y-2">
       {#each analyticsCategories as cat, index}
-        <div class="flex items-center justify-between p-3.5 bg-surface-elevated/30 border border-border-strong/50 rounded-2xl group transition-all hover:bg-surface-elevated/50">
-          <div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full {cat.color}"></div><div><p class="text-sm font-bold text-content">{cat.name}</p></div></div>
+        <div class="flex items-center justify-between p-3.5 bg-surface-elevated/30 border border-border-strong/50 rounded-card group transition-all hover:bg-surface-elevated/50">
+          <div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full {cat.color}"></div><div><p class="text-body font-bold text-content">{cat.name}</p></div></div>
           <div class="flex items-center gap-0.5">
             <button onclick={() => moveAnalyticsCategoryUp(index)} disabled={index === 0} class="p-1.5 text-content-subtle hover:text-content disabled:opacity-30 disabled:hover:text-content-subtle transition-colors" aria-label="Move Up"><Icon icon="ic:baseline-keyboard-arrow-up" class="text-lg" /></button>
             <button onclick={() => moveAnalyticsCategoryDown(index)} disabled={index === analyticsCategories.length - 1} class="p-1.5 text-content-subtle hover:text-content disabled:opacity-30 disabled:hover:text-content-subtle transition-colors" aria-label="Move Down"><Icon icon="ic:baseline-keyboard-arrow-down" class="text-lg" /></button>
@@ -169,30 +169,30 @@
           </div>
         </div>
       {/each}
-      <button onclick={startAddAnalyticsCategory} class="w-full py-3.5 border-2 border-dashed border-border hover:border-border-strong rounded-2xl flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" /><span class="text-[10px] font-black uppercase tracking-widest">Add Category</span></button>
+      <button onclick={startAddAnalyticsCategory} class="w-full py-3.5 border-2 border-dashed border-border hover:border-border-strong rounded-card flex items-center justify-center gap-2 text-content-subtle hover:text-content-muted transition-all"><Icon icon="ic:baseline-plus" /><span class="text-label">Add Category</span></button>
     </div>
   {/if}
 
   {#if missingCategories.length > 0}
-    <div class="mt-6 p-4 bg-warning/10 border border-warning/30 rounded-2xl space-y-3 animate-in fade-in">
+    <div class="mt-6 p-4 bg-warning/10 border border-warning/30 rounded-card space-y-3 animate-in fade-in">
       <div class="flex items-center gap-2 text-warning">
         <Icon icon="ic:baseline-warning" class="text-lg" />
-        <span class="text-[10px] font-bold uppercase tracking-widest">Missing Categories Found</span>
+        <span class="text-label">Missing Categories Found</span>
       </div>
-      <p class="text-[9px] text-content-muted leading-relaxed">The following categories are referenced by existing exercises or modalities but don't exist. Add them back to track them in Analytics.</p>
+      <p class="text-caption text-content-muted leading-relaxed">The following categories are referenced by existing exercises or modalities but don't exist. Add them back to track them in Analytics.</p>
       <div class="space-y-2">
         {#each missingCategories as mCat}
-          <div class="flex items-center justify-between p-2.5 bg-surface/50 rounded-xl border border-warning/20">
-            <span class="text-[10px] font-bold text-content">{mCat}</span>
+          <div class="flex items-center justify-between p-2.5 bg-surface/50 rounded-control border border-warning/20">
+            <span class="text-label text-content">{mCat}</span>
             <button
               onclick={() => {
                 analyticsCategories = [...analyticsCategories, {
                   id: generateId(),
                   name: mCat,
-                  color: 'bg-zinc-500'
+                  color: 'bg-status-neutral'
                 }];
               }}
-              class="px-3 py-1.5 bg-warning hover:bg-warning-hover text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-colors"
+              class="px-3 py-1.5 bg-warning hover:bg-warning-hover text-white text-label rounded-control transition-colors"
             >
               Restore
             </button>

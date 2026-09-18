@@ -8,7 +8,7 @@
   import OutdoorAscentImport from '../health/OutdoorAscentImport.svelte';
 </script>
 
-<div class="space-y-6">
+<div class="space-y-4">
   <BodyweightLog />
   <OutdoorAscentImport />
 </div>

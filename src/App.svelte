@@ -16,6 +16,30 @@
   });
 
   $effect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-text-scale', trainingState.textScale);
+    }
+  });
+
+  // Resolves the "system" motion preference against the OS-level
+  // prefers-reduced-motion query, per UI_PLAN.md §3.4 - an explicit
+  // full/reduced choice always wins; "system" (the default) tracks the
+  // media query live rather than being read once at load.
+  $effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    const motion = trainingState.motion;
+    if (motion !== 'system') {
+      document.documentElement.setAttribute('data-motion', motion);
+      return;
+    }
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => document.documentElement.setAttribute('data-motion', query.matches ? 'reduced' : 'full');
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
+  });
+
+  $effect(() => {
     if (!trainingState.isLoading) {
       trainingState.maybePromptForNotifications();
     }
@@ -27,7 +51,7 @@
     {#if trainingState.isLoading}
       <div class="flex flex-col items-center justify-center h-full space-y-4">
         <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-content-subtle text-xs font-bold uppercase tracking-widest">Loading Training Data...</p>
+        <p class="text-content-subtle text-caption">Loading Training Data...</p>
       </div>
     {:else if trainingState.view === 'plan'}
       {#await import('./components/plan/TrainingPlan.svelte') then { default: TrainingPlan }}
