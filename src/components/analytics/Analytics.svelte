@@ -22,23 +22,31 @@
   import OutdoorAscentsPanel from './OutdoorAscentsPanel.svelte';
   import Icon from "@iconify/svelte";
 
-  // Stage 5 (UI_PLAN.md §6/§4.6): sticky shared header + section-jump chips,
+  // Stage 5 (UI_PLAN.md §6/§4.6): shared header + section-jump chips,
   // ACWR merged into Rolling Load (this file), and three new panels
   // (Fatigue, Outdoor Ascents, Bodyweight Trend). AdherencePanel/
   // RecoveryWarningsPanel/Benchmark Progress are otherwise unchanged -
   // Stage 0 already retrofitted their tokens/radii, so "restyle only"
   // needed no further edits there.
+  //
+  // Deviation from §4.6's literal "sticky header" (user-directed fixup,
+  // 2026-09-18, after the sticky version's z-index/narrow-screen problems):
+  // the header now scrolls away with the page, matching every other
+  // screen's (e.g. TrainingPlan.svelte) plain top-of-page header instead of
+  // staying pinned. The week-window control/chips are still consolidated
+  // into one shared header - only the "stays fixed on scroll" behaviour was
+  // dropped.
 
   // --- State ---
   const categories = $derived(trainingState.analyticsCategories);
   let selectedBenchmarkType = $state<string>('');
   let viewOffset = $state<number>(0);
 
-  // --- Section-jump chips (§4.6: "one sticky header owning the week-window
-  // control... add section-jump chips"). ACWR is merged into the Load panel
-  // below, so its chip scrolls to the same anchor as Load - §4.6 still lists
-  // it as a separate chip alongside Load/Mix/Fatigue/Adherence/Benchmarks,
-  // so it's kept as a distinct (if same-target) entry rather than dropped. -->
+  // --- Section-jump chips (§4.6: "...add section-jump chips"). ACWR is
+  // merged into the Load panel below, so its chip scrolls to the same
+  // anchor as Load - §4.6 still lists it as a separate chip alongside
+  // Load/Mix/Fatigue/Adherence/Benchmarks, so it's kept as a distinct (if
+  // same-target) entry rather than dropped.
   const SECTIONS: { id: string; label: string }[] = [
     { id: 'section-load', label: 'Load' },
     { id: 'section-mix', label: 'Mix' },
@@ -399,7 +407,7 @@
 </script>
 
 <div class="w-full max-w-lg space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
-  <div class="sticky top-0 z-20 pb-3 bg-surface/95 backdrop-blur-sm space-y-3">
+  <div class="flex flex-col gap-3">
     <div class="flex items-center justify-between px-1">
       <h2 class="text-title text-content">Analytics</h2>
       <button
@@ -411,29 +419,31 @@
       </button>
     </div>
 
-    <div class="flex items-center justify-between gap-2 px-1">
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar">
-        {#each SECTIONS as s}
-          <button
-            onclick={() => scrollToSection(s.id)}
-            class="shrink-0 px-3 py-1.5 bg-surface-elevated/50 hover:bg-surface-elevated text-label text-content-muted hover:text-content rounded-control border border-border-strong/50 transition-colors"
-          >
-            {s.label}
-          </button>
-        {/each}
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button onclick={() => navigate('today')} class="px-2 py-1 bg-surface-elevated/50 hover:bg-surface-elevated text-label text-content-muted hover:text-content rounded-control transition-all active:scale-95 border border-border-strong/50">Today</button>
-        <div class="flex bg-surface/50 rounded-control border border-border p-1">
-          <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
-          <button onclick={() => navigate('next')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
-        </div>
+    <!-- Chips get their own full-width row so they always have room to
+         scroll horizontally, rather than being squeezed by the nav
+         controls on a narrow phone (see PROGRESS.md, Stage 5 fixup). -->
+    <div class="flex gap-1.5 overflow-x-auto no-scrollbar px-1">
+      {#each SECTIONS as s}
+        <button
+          onclick={() => scrollToSection(s.id)}
+          class="shrink-0 px-3 py-1.5 bg-surface-elevated/50 hover:bg-surface-elevated text-label text-content-muted hover:text-content rounded-control border border-border-strong/50 transition-colors"
+        >
+          {s.label}
+        </button>
+      {/each}
+    </div>
+
+    <div class="flex items-center justify-end gap-2 px-1">
+      <button onclick={() => navigate('today')} class="px-2 py-1 bg-surface-elevated/50 hover:bg-surface-elevated text-label text-content-muted hover:text-content rounded-control transition-all active:scale-95 border border-border-strong/50">Today</button>
+      <div class="flex bg-surface/50 rounded-control border border-border p-1">
+        <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
+        <button onclick={() => navigate('next')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
       </div>
     </div>
   </div>
 
   <div class="space-y-5">
-    <div id="section-load" class="scroll-mt-28 bg-surface/50 border border-border rounded-card p-5 space-y-4 shadow-card overflow-hidden relative">
+    <div id="section-load" class="scroll-mt-4 bg-surface/50 border border-border rounded-card p-5 space-y-4 shadow-card overflow-hidden relative">
       <div class="px-1 relative z-10">
         <h3 class="text-section uppercase text-content-muted">Rolling Load</h3>
         <p class="text-caption text-content-subtle mt-0.5">Weekly targets vs actual output, with acute:chronic load ratio overlay</p>
@@ -587,7 +597,7 @@
       {/if}
     </div>
 
-    <div id="section-mix" class="scroll-mt-28 bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card relative z-30">
+    <div id="section-mix" class="scroll-mt-4 bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card relative z-30">
       <div class="flex flex-col gap-4 px-1 relative z-50">
         <div>
           <h3 class="text-section uppercase text-content-muted">Training Mix</h3>
@@ -694,11 +704,11 @@
       </div>
     </div>
 
-    <div id="section-fatigue" class="scroll-mt-28">
+    <div id="section-fatigue" class="scroll-mt-4">
       <FatiguePanel samples={fatigueSamples} {weekLabels} coverage={fatigueCoverage} />
     </div>
 
-    <div id="section-adherence" class="scroll-mt-28">
+    <div id="section-adherence" class="scroll-mt-4">
       <AdherencePanel results={weeklyAdherenceResults} {weekLabels} />
     </div>
 
@@ -760,7 +770,7 @@
     </div>
 
     {#if benchmarkProgress.types.length > 0}
-      <div id="section-benchmarks" class="scroll-mt-28 bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card">
+      <div id="section-benchmarks" class="scroll-mt-4 bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm shadow-card">
         <div class="flex items-center justify-between px-1">
           <div>
             <h3 class="text-section uppercase text-content-muted">Benchmark Progress</h3>
