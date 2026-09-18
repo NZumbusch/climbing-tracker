@@ -46,6 +46,25 @@ export function incrementWeekId(weekId: string): string {
 }
 
 /**
+ * Returns the week id immediately preceding `weekId` - `incrementWeekId`'s
+ * mirror image, same 52-weeks-per-year approximation and same low-risk
+ * caveat (only used for windowing/grouping, never `getWeekId` itself).
+ * Added for Stage 10's AI context builder (`src/lib/ai/context.ts`), which
+ * needs to expand a target week range backward as well as forward.
+ */
+export function decrementWeekId(weekId: string): string {
+  const match = weekId.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return weekId;
+  let year = parseInt(match[1], 10);
+  let week = parseInt(match[2], 10) - 1;
+  if (week < 1) {
+    week = 52;
+    year--;
+  }
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
  * Returns every week id from `startWeekId` to `endWeekId` inclusive.
  * Relies on "YYYY-Www" sorting correctly as a plain string (confirmed
  * elsewhere in this codebase, e.g. `trainingBlocks.ts`). Returns an empty

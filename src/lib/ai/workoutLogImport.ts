@@ -1,7 +1,13 @@
 import type { AnalyticsCategory, ExerciseSlot, ExerciseTypeDef } from "../types";
 import { generateId } from "../utils";
-import type { AIWorkoutLogOutput } from "./schema";
-import { buildExerciseSlot, findExerciseTypeByName, normalizeName, type NameMapping } from "./planImport";
+import type { AIExercise, AIWorkoutLogOutput } from "./schema";
+import {
+  buildExerciseSlot,
+  findExerciseTypeByName,
+  normalizeName,
+  resolveNewExerciseTypeCategory,
+  type NameMapping,
+} from "./planImport";
 
 /**
  * The "paste free-text training notes, get structured exercises" flow
@@ -69,7 +75,8 @@ export function buildWorkoutLogCommit(
   const newExerciseTypes: ExerciseTypeDef[] = [];
   const typeIdByName = new Map<string, string>();
 
-  const resolveTypeId = (name: string): string => {
+  const resolveTypeId = (exercise: AIExercise): string => {
+    const name = exercise.exerciseTypeName;
     const key = normalizeName(name);
     const cached = typeIdByName.get(key);
     if (cached) return cached;
@@ -83,11 +90,13 @@ export function buildWorkoutLogCommit(
       typeIdByName.set(key, choice.id);
       return choice.id;
     }
-    const fallbackCategory = ctx.analyticsCategories.find((c) => !c.archived) ?? ctx.analyticsCategories[0];
+    // See `resolveNewExerciseTypeCategory`'s doc comment (planImport.ts) -
+    // same category-name resolution (and the same pre-existing id-vs-name
+    // bug fix) as the plan importer, shared rather than duplicated.
     const created: ExerciseTypeDef = {
       id: generateId(),
       name,
-      category: fallbackCategory?.id ?? "",
+      category: resolveNewExerciseTypeCategory(exercise.categoryName, ctx.analyticsCategories),
       parameters: [],
     };
     newExerciseTypes.push(created);
@@ -98,7 +107,7 @@ export function buildWorkoutLogCommit(
   const slots: ExerciseSlot[] = [];
   for (const w of log.workouts) {
     for (const e of w.exercises) {
-      resolveTypeId(e.exerciseTypeName);
+      resolveTypeId(e);
     }
   }
   const exerciseTypeById = new Map<string, ExerciseTypeDef>([
@@ -107,7 +116,7 @@ export function buildWorkoutLogCommit(
   ]);
   for (const w of log.workouts) {
     for (const e of w.exercises) {
-      slots.push(buildExerciseSlot(e, resolveTypeId(e.exerciseTypeName), exerciseTypeById, bucket));
+      slots.push(buildExerciseSlot(e, resolveTypeId(e), exerciseTypeById, bucket));
     }
   }
 

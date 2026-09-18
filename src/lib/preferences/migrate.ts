@@ -70,6 +70,33 @@ export interface Preferences {
    * section silently disappear or duplicate.
    */
   homeSections: HomeSectionPreference[];
+  /**
+   * What gets included in an AI prompt's condensed training profile
+   * (UI_PLAN.md §5.8, Stage 10) - independent of whether the AI *has*
+   * enough context, since sending health-adjacent personal data to an
+   * external AI service the user pastes this into is its own privacy
+   * decision. A category the user hasn't opted into is simply omitted from
+   * the generated prompt (`src/lib/ai/context.ts`), never sent-but-redacted.
+   */
+  aiSharing: AISharingPreferences;
+}
+
+/**
+ * One toggle per data category `src/lib/ai/context.ts` can add to a prompt.
+ * Training Blocks/Competitions are plan-structure data already adjacent to
+ * what's shared today (phases, benchmarks) - default **on**. Readiness &
+ * Daily Metrics/Pain Logs are health data in a stricter sense - default
+ * **off**, opt-in, so a user who never opens the new settings section gets
+ * the same AI-sharing footprint as before this stage. Outdoor Ascents is
+ * borderline (performance data, not health data) - default **on**. Exact
+ * defaults per UI_PLAN.md §5.8's "Open question forced by this stage".
+ */
+export interface AISharingPreferences {
+  trainingBlocks: boolean;
+  competitions: boolean;
+  readinessMetrics: boolean;
+  painLogs: boolean;
+  outdoorAscents: boolean;
 }
 
 /** Every togglable/reorderable Home section below the always-shown header (UI_PLAN.md §4.2), in the plan's own fixed default order. */
@@ -119,6 +146,13 @@ export function defaultPreferences(): Preferences {
     timerBeepEnabled: true,
     timerKeepAwakeEnabled: false,
     homeSections: HOME_SECTION_IDS.map((id) => ({ id, visible: true })),
+    aiSharing: {
+      trainingBlocks: true,
+      competitions: true,
+      readinessMetrics: false,
+      painLogs: false,
+      outdoorAscents: true,
+    },
   };
 }
 
@@ -163,6 +197,26 @@ function validateHomeSections(raw: unknown): HomeSectionPreference[] {
     if (!seen.has(id)) result.push({ id, visible: true });
   }
   return result;
+}
+
+/**
+ * Repairs an unknown value into a valid `AISharingPreferences`: each of the
+ * five fields defaults independently (this module's own established
+ * discipline - see `defaultPreferences`'s own field-by-field fallback),
+ * rather than one malformed field discarding every other toggle the user
+ * already set.
+ */
+function validateAISharing(raw: unknown): AISharingPreferences {
+  const defaults = defaultPreferences().aiSharing;
+  if (typeof raw !== 'object' || raw === null) return defaults;
+  const c = raw as Record<string, unknown>;
+  return {
+    trainingBlocks: typeof c.trainingBlocks === 'boolean' ? c.trainingBlocks : defaults.trainingBlocks,
+    competitions: typeof c.competitions === 'boolean' ? c.competitions : defaults.competitions,
+    readinessMetrics: typeof c.readinessMetrics === 'boolean' ? c.readinessMetrics : defaults.readinessMetrics,
+    painLogs: typeof c.painLogs === 'boolean' ? c.painLogs : defaults.painLogs,
+    outdoorAscents: typeof c.outdoorAscents === 'boolean' ? c.outdoorAscents : defaults.outdoorAscents,
+  };
 }
 
 /** The legacy standalone values to fold in when no preferences blob exists yet. */
@@ -229,5 +283,6 @@ export function migratePreferences(raw: unknown, legacy?: LegacyPreferenceValues
       ? candidate.timerKeepAwakeEnabled
       : defaults.timerKeepAwakeEnabled,
     homeSections: candidate.homeSections === undefined ? defaults.homeSections : validateHomeSections(candidate.homeSections),
+    aiSharing: candidate.aiSharing === undefined ? defaults.aiSharing : validateAISharing(candidate.aiSharing),
   };
 }

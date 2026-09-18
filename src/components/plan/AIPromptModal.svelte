@@ -1,12 +1,64 @@
 <script lang="ts">
+  /**
+   * Stage 10 (UI_PLAN.md §5.8): the condensed "training profile" embedded in
+   * every mode below now comes from `buildAIContextProfile`
+   * (`src/lib/ai/context.ts`) instead of being hand-assembled here field by
+   * field - see that module's own doc comment for what changed and why
+   * (training blocks/competitions/readiness/pain logs/outdoor ascents now
+   * reach the AI, each gated by `trainingState.aiSharing`, Settings' new
+   * "Data & Exports" > "AI Sharing" section). This component still owns the
+   * surrounding prompt text (goal, mode framing, output instructions) - it
+   * just renders whichever profile fields are present into the same
+   * "- Section Name:\n<JSON>" shape the pre-Stage-10 prompt already used.
+   */
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId, getWeekIdRange } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
-  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
   import { AI_PLAN_OUTPUT_INSTRUCTIONS } from '../../lib/ai/schema';
+  import { buildAIContextProfile, type AIContextProfile, type AIPromptMode } from '../../lib/ai/context';
   import Icon from '@iconify/svelte';
 
   let { onClose } = $props<{ onClose: () => void }>();
+
+  /** Renders every present field of `profile` as a "- Label:\n<JSON>" section, joined with blank lines - the same human-scannable shape the pre-Stage-10 hand-built prompt used, but data-driven. */
+  function renderProfileSections(profile: AIContextProfile, mode: AIPromptMode): string {
+    const sections: string[] = [];
+    if (profile.exerciseModalities) {
+      sections.push(`- Custom Exercise Modalities:\n${JSON.stringify(profile.exerciseModalities, null, 2)}`);
+    }
+    if (profile.analyticsCategories) {
+      sections.push(`- Analytics Categories (pick one for a new exercise's "categoryName" if you invent one - see the rules below):\n${JSON.stringify(profile.analyticsCategories, null, 2)}`);
+    }
+    if (profile.phases) {
+      sections.push(`- Available Phases: ${profile.phases.join(', ')}.`);
+    }
+    sections.push(
+      mode === 'analyze'
+        ? `- Completed Workouts (Target Timeframe):\n${JSON.stringify(profile.recentWorkouts, null, 2)}`
+        : `- Recent Workouts (Last ${profile.recentWorkouts.length}):\n${JSON.stringify(profile.recentWorkouts, null, 2)}`,
+    );
+    sections.push(
+      mode === 'analyze'
+        ? `- Benchmarks Recorded (Target Timeframe):\n${JSON.stringify(profile.benchmarks, null, 2)}`
+        : `- My Benchmarks:\n${JSON.stringify(profile.benchmarks, null, 2)}`,
+    );
+    if (profile.trainingBlocks) {
+      sections.push(`- Training Blocks (covering or near the timeframe):\n${JSON.stringify(profile.trainingBlocks, null, 2)}`);
+    }
+    if (profile.competitions) {
+      sections.push(`- Upcoming Competitions/Events:\n${JSON.stringify(profile.competitions, null, 2)}`);
+    }
+    if (profile.readiness) {
+      sections.push(`- Readiness Snapshot:\n${JSON.stringify(profile.readiness, null, 2)}`);
+    }
+    if (profile.painLogs) {
+      sections.push(`- Recent Pain/Discomfort Logs:\n${JSON.stringify(profile.painLogs, null, 2)}`);
+    }
+    if (profile.outdoorAscents) {
+      sections.push(`- Recent Outdoor Ascents:\n${JSON.stringify(profile.outdoorAscents, null, 2)}`);
+    }
+    return sections.join('\n\n');
+  }
 
   let startWeek = $state(trainingState.currentWeekId);
   let endWeek = $state(trainingState.currentWeekId);
@@ -31,22 +83,32 @@
         return;
       }
       const targetWeekIds = getWeekIdRange(startWeek, endWeek);
+      const profile = buildAIContextProfile(
+        mode,
+        {
+          exerciseTypes: trainingState.exerciseTypes,
+          analyticsCategories: trainingState.analyticsCategories,
+          phaseDefs: trainingState.phaseDefs,
+          workouts: trainingState.workouts,
+          benchmarks: trainingState.benchmarks,
+          trainingBlocks: trainingState.trainingBlocks,
+          competitionEvents: trainingState.competitionEvents,
+          dailyMetrics: trainingState.dailyMetrics,
+          painLogs: trainingState.painLogs,
+          outdoorAscents: trainingState.outdoorAscents,
+        },
+        trainingState.aiSharing,
+        new Date(),
+        targetWeekIds,
+      );
+      const profileText = renderProfileSections(profile, mode);
 
       let prompt = '';
 
       if (mode === 'context') {
         prompt = `Here is my condensed training profile (no specific question attached - I'll ask you directly after pasting this):
 
-- Custom Exercise Modalities:
-${JSON.stringify(trainingState.exerciseTypes.map(e => ({ name: e.name, params: e.parameters })), null, 2)}
-
-- Recent Workouts (Last 20):
-${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => slotTypeName(e, trainingState.exerciseTypes)) })), null, 2)}
-
-- Available Phases: ${trainingState.phaseDefs.filter(p => !p.archived).map(p => p.name).join(', ')}.
-
-- My Benchmarks:
-${JSON.stringify(trainingState.benchmarks || [], null, 2)}`;
+${profileText}`;
       } else if (mode === 'generate') {
         prompt = `You are an elite climbing coach. Design a highly detailed training plan based on my historical data.
 I want an optimal week-by-week plan mapping phases to weeks, and giving detailed workouts with specific exercises from my exercise dictionary.
@@ -58,22 +120,10 @@ My Goal & Notes for this cycle:
 ${goal || 'No specific goals provided. Optimize for general climbing performance.'}
 
 Here is my condensed training profile:
-- Custom Exercise Modalities:
-${JSON.stringify(trainingState.exerciseTypes.map(e => ({ name: e.name, params: e.parameters })), null, 2)}
-
-- Recent Workouts (Last 20):
-${JSON.stringify((trainingState.workouts || []).slice(-20).map(w => ({ date: w.date, status: w.status, exercises: w.exercises.map(e => slotTypeName(e, trainingState.exerciseTypes)) })), null, 2)}
-
-- Available Phases: ${trainingState.phaseDefs.filter(p => !p.archived).map(p => p.name).join(', ')}.
-
-- My Benchmarks:
-${JSON.stringify(trainingState.benchmarks || [], null, 2)}
+${profileText}
 
 ${AI_PLAN_OUTPUT_INSTRUCTIONS}`;
       } else {
-        const targetWorkouts = trainingState.workouts.filter(w => w.weekId && targetWeekIds.includes(w.weekId) && w.status === 'completed');
-        const targetBenchmarks = trainingState.benchmarks.filter(b => b.weekId && targetWeekIds.includes(b.weekId));
-
         prompt = `You are an elite climbing coach. Please analyze my training data and performance from the specified timeframe and give me detailed feedback.
 
 Target Timeframe Analysed:
@@ -83,11 +133,7 @@ My Goal & Notes for this cycle:
 ${goal || 'No specific goals provided. Just tell me what I did well and what I should change.'}
 
 Here is the data for the weeks in question:
-- Completed Workouts:
-${JSON.stringify(targetWorkouts.map(w => ({ date: w.date, type: w.notes, load: w.plannedLoad, exercises: w.exercises.map(e => ({ type: slotTypeName(e, trainingState.exerciseTypes), duration: slotValues(e).duration, sets: slotValues(e).sets, reps: slotValues(e).reps })) })), null, 2)}
-
-- Benchmarks Recorded:
-${JSON.stringify(targetBenchmarks, null, 2)}
+${profileText}
 
 Based on this data, please evaluate:
 1. Did I train the right things for my goals?
@@ -130,6 +176,11 @@ Based on this data, please evaluate:
           <button onclick={() => mode = 'analyze'} class="flex-1 py-2 text-label rounded-control transition-all {mode === 'analyze' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Analyze Past</button>
           <button onclick={() => mode = 'context'} class="flex-1 py-2 text-label rounded-control transition-all {mode === 'context' ? 'bg-primary text-white shadow-md' : 'text-content-muted hover:text-content'}">Context Only</button>
         </div>
+
+        <p class="text-caption text-content-subtle px-1 flex items-center gap-1.5">
+          <Icon icon="ic:baseline-info" class="text-sm shrink-0" />
+          Manage what's included (training blocks, readiness, pain logs, ...) in Settings → Data & Exports → AI Sharing.
+        </p>
 
         {#if mode === 'context'}
           <p class="text-body text-content-subtle px-1">

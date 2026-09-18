@@ -43,6 +43,38 @@ export function findPhaseByName(name: string, phaseDefs: PhaseDef[]): PhaseDef |
   return phaseDefs.find((p) => normalizeName(p.name) === target);
 }
 
+export function findCategoryByName(name: string, categories: AnalyticsCategory[]): AnalyticsCategory | undefined {
+  const target = normalizeName(name);
+  return categories.find((c) => normalizeName(c.name) === target);
+}
+
+/**
+ * Resolves what to write into a freshly-created `ExerciseTypeDef.category`
+ * for an AI import (Stage 10, UI_PLAN.md §5.8). `ExerciseTypeDef.category`
+ * stores the category's **name**, not its id - confirmed by every other
+ * writer (`ExerciseTypeSettings.svelte`'s `<option value={cat.name}>`,
+ * `Analytics.svelte`'s `typeToCategory` map keyed straight off `t.category`
+ * for chart bucketing). Before this stage both this function's call sites
+ * wrote `fallbackCategory?.id` instead - a pre-existing bug (a freshly
+ * AI-created exercise type displayed a raw id like "cat-1" as its category)
+ * that happened to go unnoticed because nothing exercised the "AI invents a
+ * new exercise type" path with real category display. Fixed here, in the
+ * same edit that gives the AI a way to *choose* the category via
+ * `categoryName` - flagged in `PROGRESS.md` since it's an incidental fix
+ * bundled with the new feature, not itself the feature.
+ */
+export function resolveNewExerciseTypeCategory(
+  categoryName: string | undefined,
+  categories: AnalyticsCategory[],
+): string {
+  if (categoryName) {
+    const matched = findCategoryByName(categoryName, categories);
+    if (matched) return matched.name;
+  }
+  const fallback = categories.find((c) => !c.archived) ?? categories[0];
+  return fallback?.name ?? "";
+}
+
 function uniqueNames(names: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -173,8 +205,12 @@ export function buildPlanCommit(
 
   // Resolve every exercise-type name to a concrete id up front, creating a
   // fresh ExerciseTypeDef (with a fresh id) for every "create" mapping.
+  // Takes the whole `AIExercise` (not just the name) so a "create" can read
+  // its optional `categoryName` - only the first occurrence of a given name
+  // within this import is consulted, since resolution is cached by name.
   const exerciseTypeIdByName = new Map<string, string>();
-  const resolveExerciseTypeId = (name: string): string => {
+  const resolveExerciseTypeId = (exercise: AIExercise): string => {
+    const name = exercise.exerciseTypeName;
     const key = normalizeName(name);
     const cached = exerciseTypeIdByName.get(key);
     if (cached) return cached;
@@ -189,13 +225,14 @@ export function buildPlanCommit(
       return choice.id;
     }
     // "create" (or no mapping recorded, e.g. a duplicate of an
-    // already-created name within this same import) - make a new one, using
-    // a generic default category so it always resolves.
-    const fallbackCategory = ctx.analyticsCategories.find((c) => !c.archived) ?? ctx.analyticsCategories[0];
+    // already-created name within this same import) - resolve its category
+    // from the AI-supplied `categoryName` where possible (see
+    // `resolveNewExerciseTypeCategory`'s doc comment), falling back to a
+    // generic default so it always resolves.
     const created: ExerciseTypeDef = {
       id: generateId(),
       name,
-      category: fallbackCategory?.id ?? "",
+      category: resolveNewExerciseTypeCategory(exercise.categoryName, ctx.analyticsCategories),
       parameters: [],
     };
     newExerciseTypes.push(created);
@@ -229,7 +266,7 @@ export function buildPlanCommit(
   for (const week of plan.weeks) {
     for (const workout of week.workouts) {
       for (const exercise of workout.exercises) {
-        resolveExerciseTypeId(exercise.exerciseTypeName);
+        resolveExerciseTypeId(exercise);
       }
     }
   }
@@ -269,7 +306,7 @@ export function buildPlanCommit(
   for (const { week } of weeksWithPhaseId) {
     for (const w of week.workouts) {
       const exercises = w.exercises.map((e) =>
-        buildExerciseSlot(e, resolveExerciseTypeId(e.exerciseTypeName), exerciseTypeById),
+        buildExerciseSlot(e, resolveExerciseTypeId(e), exerciseTypeById),
       );
       workouts.push({
         id: generateId(),

@@ -176,6 +176,25 @@ describe("validateAIPlanOutput", () => {
     expect(validateAIPlanOutput(bad).valid).toBe(false);
   });
 
+  it("accepts an optional categoryName on an exercise", () => {
+    const withCategory = JSON.parse(JSON.stringify(VALID_PLAN));
+    withCategory.weeks[0].workouts[0].exercises[0].categoryName = "Fingers";
+    const result = validateAIPlanOutput(withCategory);
+    expect(result.valid).toBe(true);
+    expect(result.data?.weeks[0].workouts[0].exercises[0].categoryName).toBe("Fingers");
+  });
+
+  it("leaves categoryName undefined when omitted", () => {
+    const result = validateAIPlanOutput(VALID_PLAN);
+    expect(result.data?.weeks[0].workouts[0].exercises[0].categoryName).toBeUndefined();
+  });
+
+  it("rejects a non-string categoryName", () => {
+    const bad = JSON.parse(JSON.stringify(VALID_PLAN));
+    bad.weeks[0].workouts[0].exercises[0].categoryName = 42;
+    expect(validateAIPlanOutput(bad).valid).toBe(false);
+  });
+
   it("collects every issue in the document, not just the first", () => {
     const bad = {
       weeks: [

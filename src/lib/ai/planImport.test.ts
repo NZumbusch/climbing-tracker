@@ -6,7 +6,9 @@ import {
   buildPlanCommit,
   findExerciseTypeByName,
   findPhaseByName,
+  findCategoryByName,
   normalizeName,
+  resolveNewExerciseTypeCategory,
 } from "./planImport";
 
 const exerciseTypes: ExerciseTypeDef[] = [
@@ -19,7 +21,10 @@ const phaseDefs: PhaseDef[] = [
   { id: "phase-deload", name: "Deload" },
 ];
 
-const analyticsCategories: AnalyticsCategory[] = [{ id: "cat-fingers", name: "Fingers", color: "red" }];
+const analyticsCategories: AnalyticsCategory[] = [
+  { id: "cat-fingers", name: "Fingers", color: "red" },
+  { id: "cat-power", name: "Power", color: "purple" },
+];
 
 function makePlan(overrides: Partial<AIPlanOutput> = {}): AIPlanOutput {
   return {
@@ -49,6 +54,33 @@ describe("findExerciseTypeByName / findPhaseByName", () => {
   it("returns undefined for no match, does not fuzzy-match", () => {
     expect(findExerciseTypeByName("Hangboarding", exerciseTypes)).toBeUndefined();
     expect(findPhaseByName("Capacit", phaseDefs)).toBeUndefined();
+  });
+});
+
+describe("findCategoryByName / resolveNewExerciseTypeCategory", () => {
+  it("matches case-insensitively", () => {
+    expect(findCategoryByName("fingers", analyticsCategories)?.id).toBe("cat-fingers");
+    expect(findCategoryByName("  Power  ", analyticsCategories)?.id).toBe("cat-power");
+  });
+
+  it("resolves a matching categoryName to the category's NAME, not its id", () => {
+    expect(resolveNewExerciseTypeCategory("Power", analyticsCategories)).toBe("Power");
+  });
+
+  it("falls back to the first non-archived category's name when categoryName doesn't match anything", () => {
+    expect(resolveNewExerciseTypeCategory("Not A Real Category", analyticsCategories)).toBe("Fingers");
+  });
+
+  it("falls back to the first non-archived category's name when categoryName is omitted", () => {
+    expect(resolveNewExerciseTypeCategory(undefined, analyticsCategories)).toBe("Fingers");
+  });
+
+  it("skips archived categories when falling back", () => {
+    const withArchived: AnalyticsCategory[] = [
+      { id: "cat-old", name: "Old", color: "gray", archived: true },
+      { id: "cat-power", name: "Power", color: "purple" },
+    ];
+    expect(resolveNewExerciseTypeCategory(undefined, withArchived)).toBe("Power");
   });
 });
 
@@ -121,9 +153,28 @@ describe("buildPlanCommit", () => {
     );
     expect(result.newExerciseTypes).toHaveLength(1);
     expect(result.newExerciseTypes[0].name).toBe("Campus Board");
+    expect(result.newExerciseTypes[0].category).toBe("Fingers");
     const newId = result.newExerciseTypes[0].id;
     expect(result.workouts[0].exercises[0].typeId).toBe(newId);
     expect(result.workouts[1].exercises[0].typeId).toBe(newId);
+  });
+
+  it("resolves a new exercise type's category from the AI-supplied categoryName, by name not id", () => {
+    const plan = makePlan({
+      weeks: [
+        {
+          weekId: "2026-W25",
+          phaseName: "Capacity",
+          workouts: [{ exercises: [{ exerciseTypeName: "Campus Board", categoryName: "Power", values: {} }] }],
+        },
+      ],
+    });
+    const result = buildPlanCommit(
+      plan,
+      { exerciseTypes: { [normalizeName("Campus Board")]: { action: "create" } }, phases: {} },
+      { exerciseTypes, phaseDefs, analyticsCategories },
+    );
+    expect(result.newExerciseTypes[0].category).toBe("Power");
   });
 
   it("maps an unresolved name to an existing type/phase id when the mapping says to", () => {

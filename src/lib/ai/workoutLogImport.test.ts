@@ -7,7 +7,10 @@ import { normalizeName } from "./planImport";
 const exerciseTypes: ExerciseTypeDef[] = [
   { id: "et-hangboard", name: "Hangboard", category: "cat-fingers", parameters: ["duration", "sets"] },
 ];
-const analyticsCategories: AnalyticsCategory[] = [{ id: "cat-fingers", name: "Fingers", color: "red" }];
+const analyticsCategories: AnalyticsCategory[] = [
+  { id: "cat-fingers", name: "Fingers", color: "red" },
+  { id: "cat-power", name: "Power", color: "purple" },
+];
 
 function makeLog(overrides: Partial<AIWorkoutLogOutput> = {}): AIWorkoutLogOutput {
   return {
@@ -77,8 +80,22 @@ describe("buildWorkoutLogCommit", () => {
       "logged",
     );
     expect(result.newExerciseTypes).toHaveLength(1);
+    expect(result.newExerciseTypes[0].category).toBe("Fingers");
     expect(result.slots[0].typeId).toBe(result.newExerciseTypes[0].id);
     expect(result.slots[1].typeId).toBe(result.newExerciseTypes[0].id);
+  });
+
+  it("resolves a new exercise type's category from the AI-supplied categoryName, by name not id", () => {
+    const log = makeLog({
+      workouts: [{ exercises: [{ exerciseTypeName: "Campus Board", categoryName: "Power", values: {} }] }],
+    });
+    const result = buildWorkoutLogCommit(
+      log,
+      { exerciseTypes: { [normalizeName("Campus Board")]: { action: "create" } } },
+      { exerciseTypes, analyticsCategories },
+      "logged",
+    );
+    expect(result.newExerciseTypes[0].category).toBe("Power");
   });
 
   it("maps an unresolved name to an existing type id when asked", () => {

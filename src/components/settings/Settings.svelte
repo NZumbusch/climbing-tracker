@@ -8,6 +8,7 @@
   import PhaseSettings from './PhaseSettings.svelte';
   import BenchmarkTypeSettings from './BenchmarkTypeSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
+  import AISharingSettings from './AISharingSettings.svelte';
   import PreferencesSettings from './PreferencesSettings.svelte';
   import HealthSettings from './HealthSettings.svelte';
   import Icon from "@iconify/svelte";
@@ -105,7 +106,7 @@
       <button onclick={() => currentTab = 'integration'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-card transition-all group backdrop-blur-sm shadow-card">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-success/10 rounded-card text-success group-hover:bg-success group-hover:text-white transition-colors"><Icon icon="ic:baseline-sync" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-body font-bold text-content">Data & Exports</p><p class="text-caption text-content-subtle mt-1">Manage backups and external integrations</p></div>
+          <div class="text-left"><p class="text-body font-bold text-content">Data & Exports</p><p class="text-caption text-content-subtle mt-1">Backups, calendar/PDF export & AI sharing</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>
@@ -142,7 +143,10 @@
   {:else if currentTab === 'design'}
     <PreferencesSettings />
   {:else if currentTab === 'integration'}
-    <BackupSettings {onExport} {onImport} />
+    <div class="space-y-4">
+      <BackupSettings {onExport} {onImport} />
+      <AISharingSettings />
+    </div>
   {:else if currentTab === 'health'}
     <HealthSettings />
   {:else if currentTab === 'about'}

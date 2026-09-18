@@ -1,4 +1,4 @@
-import { migratePreferences, defaultPreferences, HOME_SECTION_IDS, type TextScale, type MotionPreference, type Preferences, type WeatherLocation, type FatigueChartStyle, type HomeSectionPreference } from '../preferences/migrate';
+import { migratePreferences, defaultPreferences, HOME_SECTION_IDS, type TextScale, type MotionPreference, type Preferences, type WeatherLocation, type FatigueChartStyle, type HomeSectionPreference, type AISharingPreferences } from '../preferences/migrate';
 
 const PREFERENCES_KEY = 'boulder_tracker_preferences';
 const LEGACY_THEME_KEY = 'boulder_tracker_theme';
@@ -22,6 +22,7 @@ export class PreferencesStore {
   timerBeepEnabled = $state(true);
   timerKeepAwakeEnabled = $state(false);
   homeSections = $state<HomeSectionPreference[]>(HOME_SECTION_IDS.map((id) => ({ id, visible: true })));
+  aiSharing = $state<AISharingPreferences>(defaultPreferences().aiSharing);
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -51,6 +52,7 @@ export class PreferencesStore {
     this.timerBeepEnabled = prefs.timerBeepEnabled;
     this.timerKeepAwakeEnabled = prefs.timerKeepAwakeEnabled;
     this.homeSections = prefs.homeSections;
+    this.aiSharing = prefs.aiSharing;
 
     // Persist immediately so the fold (or a version migration) only ever
     // has to happen once, and so a fresh install's defaults are recorded
@@ -122,6 +124,11 @@ export class PreferencesStore {
     this.persist();
   }
 
+  setAiSharing(category: keyof AISharingPreferences, enabled: boolean) {
+    this.aiSharing = { ...this.aiSharing, [category]: enabled };
+    this.persist();
+  }
+
   /**
    * Re-reads the legacy theme/notification keys at persist time (rather
    * than trusting a value captured at construction) so this blob's copies
@@ -145,6 +152,7 @@ export class PreferencesStore {
       timerBeepEnabled: this.timerBeepEnabled,
       timerKeepAwakeEnabled: this.timerKeepAwakeEnabled,
       homeSections: this.homeSections,
+      aiSharing: this.aiSharing,
       theme: (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'contrast')
         ? legacyTheme
         : defaultPreferences().theme,

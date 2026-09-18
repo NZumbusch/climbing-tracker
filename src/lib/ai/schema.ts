@@ -71,6 +71,18 @@ export interface ValidationResult<T> {
 
 export interface AIExercise {
   exerciseTypeName: string;
+  /**
+   * Optional Analytics Category name (Stage 10, UI_PLAN.md §5.8) - only
+   * meaningful when `exerciseTypeName` doesn't match an existing catalog
+   * entry and a new one gets created from this import. Resolved
+   * case-insensitively against `AnalyticsCategory.name` by `planImport.ts`/
+   * `workoutLogImport.ts`'s shared `resolveNewExerciseTypeCategory`; an
+   * unresolvable or omitted value falls back to today's existing
+   * first-non-archived-category default. This is a field on the AI JSON
+   * contract only, not on `TrainingData` - see UI_PLAN.md §7's explicit
+   * carve-out.
+   */
+  categoryName?: string;
   values: ExerciseValues;
 }
 
@@ -164,8 +176,9 @@ function validateExercise(raw: unknown, path: string, issues: ValidationIssue[])
     issues.push({ path: `${path}.exerciseTypeName`, message: "Required non-empty string." });
     return null;
   }
+  const categoryName = validateOptionalString(raw.categoryName, `${path}.categoryName`, issues);
   const values = validateExerciseValues(raw.values, `${path}.values`, issues);
-  return { exerciseTypeName: name.trim(), values };
+  return { exerciseTypeName: name.trim(), categoryName, values };
 }
 
 function validateExercises(raw: unknown, path: string, issues: ValidationIssue[]): AIExercise[] {
@@ -361,6 +374,7 @@ Rules:
 - "weekId" must be one of the exact week ids from the Target Timeframe above (format "YYYY-Www").
 - "phaseName" should be one of the Available Phases listed above where possible.
 - "exerciseTypeName" should be one of the Custom Exercise Modalities listed above where possible; invent a new, sensibly-named one only if nothing fits.
+- "categoryName" - only include this if "exerciseTypeName" is a new, invented one (not one of the Custom Exercise Modalities listed above): set it to the closest match from the Analytics Categories listed above. Omit it entirely when reusing an existing exercise type.
 - "dayOfWeek" (if given) must be exactly one of: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
 - "values" may include any of: ${AI_EXERCISE_VALUE_FIELD_NAMES.join(", ")}. Every numeric field must be a JSON number, not a quoted string.
 - Every week in the Target Timeframe must appear exactly once, even if it's a rest/deload week with an empty "workouts" array.`;

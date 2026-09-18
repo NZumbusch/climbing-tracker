@@ -12,7 +12,7 @@ import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
 import { PreferencesStore } from './stores/preferencesStore.svelte';
 import { WeatherStore } from './stores/weatherStore.svelte';
-import type { WeatherLocation, FatigueChartStyle, HomeSectionPreference } from './preferences/migrate';
+import type { WeatherLocation, FatigueChartStyle, HomeSectionPreference, AISharingPreferences } from './preferences/migrate';
 import { geocodeCity } from './weather/api';
 import type { TextScale, MotionPreference } from './preferences/migrate';
 import { syncFatigueReminders } from './notifications/fatigueReminder';
@@ -157,6 +157,13 @@ class TrainingState {
   }
   setHomeSectionOrder(order: HomeSectionPreference['id'][]) {
     this.preferencesStore.setHomeSectionOrder(order);
+  }
+
+  // --- AI sharing (UI_PLAN.md §5.8, Stage 10) ---
+
+  get aiSharing() { return this.preferencesStore.aiSharing; }
+  setAiSharing(category: keyof AISharingPreferences, enabled: boolean) {
+    this.preferencesStore.setAiSharing(category, enabled);
   }
 
   /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getWeekDates, getWeekDateRange, toUtcDayIndex } from "./dateUtils";
+import { getWeekDates, getWeekDateRange, toUtcDayIndex, incrementWeekId, decrementWeekId } from "./dateUtils";
 
 describe("getWeekDates", () => {
   it("returns the UTC Monday-start/Sunday-end for a mid-year week", () => {
@@ -59,5 +59,20 @@ describe("toUtcDayIndex", () => {
   it("is unaffected by DST transitions (a plain UTC day-count, not local time)", () => {
     // US DST started 2026-03-08; a naive local-time day-diff would misfire here.
     expect(toUtcDayIndex("2026-03-09")).toBe(toUtcDayIndex("2026-03-08") + 1);
+  });
+});
+
+describe("decrementWeekId", () => {
+  it("is incrementWeekId's exact inverse for a mid-year week", () => {
+    expect(decrementWeekId("2026-W26")).toBe("2026-W25");
+    expect(incrementWeekId(decrementWeekId("2026-W26"))).toBe("2026-W26");
+  });
+
+  it("rolls under into the previous year at week 01", () => {
+    expect(decrementWeekId("2026-W01")).toBe("2025-W52");
+  });
+
+  it("returns a malformed id unchanged", () => {
+    expect(decrementWeekId("garbage")).toBe("garbage");
   });
 });

@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { migratePreferences, defaultPreferences, CURRENT_PREFERENCES_VERSION, HOME_SECTION_IDS } from './migrate';
 
 const DEFAULT_HOME_SECTIONS = HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
+const DEFAULT_AI_SHARING = {
+  trainingBlocks: true,
+  competitions: true,
+  readinessMetrics: false,
+  painLogs: false,
+  outdoorAscents: true,
+};
 
 describe('defaultPreferences', () => {
   it('returns the current version and sane defaults', () => {
@@ -20,6 +27,7 @@ describe('defaultPreferences', () => {
       timerBeepEnabled: true,
       timerKeepAwakeEnabled: false,
       homeSections: DEFAULT_HOME_SECTIONS,
+      aiSharing: DEFAULT_AI_SHARING,
     });
   });
 });
@@ -68,6 +76,7 @@ describe('migratePreferences', () => {
       timerBeepEnabled: false,
       timerKeepAwakeEnabled: true,
       homeSections: [...DEFAULT_HOME_SECTIONS.slice(1), DEFAULT_HOME_SECTIONS[0]],
+      aiSharing: { trainingBlocks: false, competitions: true, readinessMetrics: true, painLogs: true, outdoorAscents: false },
     };
     expect(migratePreferences(valid)).toEqual(valid);
   });
@@ -115,6 +124,7 @@ describe('migratePreferences', () => {
     expect(result.timerBeepEnabled).toBe(true);
     expect(result.timerKeepAwakeEnabled).toBe(false);
     expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+    expect(result.aiSharing).toEqual(DEFAULT_AI_SHARING);
   });
 
   it('backward compat: a real Stage-0-era blob with none of this stage\'s fields at all gets them all defaulted, without resetting textScale/motion (no version bump was needed for this addition)', () => {
@@ -138,6 +148,7 @@ describe('migratePreferences', () => {
     expect(result.timerBeepEnabled).toBe(true);
     expect(result.timerKeepAwakeEnabled).toBe(false);
     expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+    expect(result.aiSharing).toEqual(DEFAULT_AI_SHARING);
   });
 
   it('rejects a malformed dailyMetricsReminderTime and falls back to the default', () => {
@@ -291,6 +302,38 @@ describe('homeSections (UI_PLAN.md §4.7)', () => {
     for (const bad of ['not an array', 42, null, [{ noId: true }], [1, 2, 3]]) {
       const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeSections: bad });
       expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+    }
+  });
+});
+
+describe('aiSharing (UI_PLAN.md §5.8, Stage 10)', () => {
+  it('defaults to Training Blocks/Competitions/Outdoor Ascents on, Readiness & Daily Metrics/Pain Logs off', () => {
+    expect(migratePreferences({ version: CURRENT_PREFERENCES_VERSION }).aiSharing).toEqual(DEFAULT_AI_SHARING);
+  });
+
+  it('round-trips a fully-set current-version value', () => {
+    const custom = { trainingBlocks: false, competitions: false, readinessMetrics: true, painLogs: true, outdoorAscents: false };
+    expect(migratePreferences({ version: CURRENT_PREFERENCES_VERSION, aiSharing: custom }).aiSharing).toEqual(custom);
+  });
+
+  it('defaults each field independently rather than discarding the whole object over one bad field', () => {
+    const result = migratePreferences({
+      version: CURRENT_PREFERENCES_VERSION,
+      aiSharing: { trainingBlocks: false, competitions: 'yes', readinessMetrics: true },
+    });
+    expect(result.aiSharing).toEqual({
+      trainingBlocks: false, // valid, preserved
+      competitions: true, // invalid type, defaulted
+      readinessMetrics: true, // valid, preserved
+      painLogs: false, // missing, defaulted
+      outdoorAscents: true, // missing, defaulted
+    });
+  });
+
+  it('falls back to the full default object for garbage input, never throwing', () => {
+    for (const bad of ['not an object', 42, null, []]) {
+      const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, aiSharing: bad });
+      expect(result.aiSharing).toEqual(DEFAULT_AI_SHARING);
     }
   });
 });
