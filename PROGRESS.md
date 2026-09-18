@@ -2257,5 +2257,41 @@ Implemented `UI_PLAN.md §4.7` in full, completing Stage 8. Before starting, thi
 
 **Stage 8 complete: all four parts (id-ownership refactor, daily-metrics reminder, weather, settings screen) are now landed.**
 
+## 2026-09-18 — Post-Stage-8: Home card visual redesign (user-directed, stash as inspiration)
+
+After Stage 8, the user reported the new radar chart (part 4) was oversized - arms/systemic labels clipped off the card - and separately asked for Home's cards generally to look more visually interesting/structured, naming the stash's `Dashboard.svelte` as inspiration. Read the stash file in full (not from memory) before touching anything, then surveyed the user on the two real design decisions rather than guessing (per this session's standing "flag ambiguities, ask" convention, and matching `[[feedback-offer-both-as-setting]]`'s pattern of presenting concrete options with previews):
+
+1. **Layout direction** - "enhanced single column" (redesign each card's internals, stays compatible with Stage 8's section reorder) vs. "bento grid for compact stats" (stash-style 2-column tile grid, but breaks the flat-list reorder model just built). **User picked enhanced single column.**
+2. **Visual intensity** - subtle (flat backgrounds everywhere) vs. bold (gradient + glow on the Readiness hero specifically). **User picked bold.**
+
+**Radar chart sizing fix (`FatigueRadarChart.svelte`):** `RADIUS` 34->24 and the label offset tightened (was `RADIUS + 13` outer label radius with only 3 units of margin inside a 100-unit viewBox - labels for longer words like "Systemic" were getting clipped at the edge; now `RADIUS + 11` with the smaller radius leaves 15 units of margin). Also capped the rendered size (`max-w-[190px]`, centered) rather than stretching to the full card width - a 4-axis decorative chart filling an entire ~400px-wide card was disproportionate.
+
+**Home card redesign (`Home.svelte`), translating the stash's structural ideas through this app's *existing* design-system rules, not copying its literal implementation** - the stash used things this app has already fixed as defects (decorative blur blobs, literal `emerald-500`/`amber-500`/`rose-500` colours, a `rounded-3xl`/`rounded-2xl`/`rounded-xl` mix, the invalid `rgba(var(--color-primary),...)` pattern) - none of that was reintroduced:
+
+- **New shared `{#snippet sectionHeader(icon, label, subtitle?)}`** - title+subtitle on the left, an icon in a `bg-primary-hover/10` badge chip on the right, matching the header pattern Analytics' panels (`AdherencePanel`, `FatiguePanel`, etc.) already established - Home just hadn't picked it up yet. Used by every non-hero section for a consistent, already-precedented look rather than 8 separate one-off treatments.
+- **Readiness hero, genuinely bolder:** a status-tinted gradient background (`bg-gradient-to-br from-status-{status}/15 via-surface to-surface`) and a matching soft glow shadow via `color-mix()` (the same fix pattern `AcwrPanel.svelte` already established for glow shadows, not the stash's invalid `rgba(var(...))`), a bigger ring (24->28 diameter) with a small status-icon badge (fire/info/warning) overlaid at its edge, and an icon on the confidence line. **Judgment call:** the gradient/badge class strings are static lookup-table entries (`STATUS_HERO_BG`/`STATUS_ICON` keyed by `ReadinessStatus`), never built via template-string concatenation - Tailwind's JIT can only see complete class names present verbatim in source, not ones assembled at runtime.
+- **Fatigue:** the thin gradient bar became a 10-segment block meter (stash-inspired, retokenized - `bg-primary`/`bg-surface-elevated` instead of literal colours).
+- **This Week:** gained an actual progress bar (previously text-only) plus a bigger `text-metric` number for actual-vs-planned load.
+- **Training Block:** gained a week-position dot row (filled dots for weeks completed within the block) alongside the existing "Week N of M" text.
+- **Next Competition:** the day count is now a large `text-display` number (previously buried in a caption line) - it's the single most glanceable fact in that card, now sized to match.
+- **Today:** the "Start" text link became a small filled pill button with an icon and a soft primary glow shadow, mirroring the stash's CTA polish (`shadow-[0_4px_14px_-4px_color-mix(...)]` rather than the stash's invalid rgba shadow).
+- **Recent Activity:** each row gained a small success-tinted check-icon badge (every entry here is by definition a completed session, so this is informational, not decorative).
+- **Metrics:** each metric row now sits in its own subtle bordered chip instead of a bare flex row, for the same "each item has a container" language as elsewhere.
+
+**Deliberately left flat/unchanged in structure:** Weather, Trip Forecast (already had a strong icon+number layout from Stage 8 part 3) - just picked up the new shared header. Per the user's own scoping answer, only Readiness got the bold gradient/glow treatment; every other card stayed on flat `bg-surface/50` backgrounds.
+
+**Verification performed:** `npm run test` -> 295/295 pass (no logic touched, all presentational). `npm run check` -> 0 errors, 0 warnings, 431 files. `npx vite build` -> succeeds; spot-checked compiled CSS for the new gradient/status utility classes (`from-status-good/15`, `border-status-good/30`) actually compiling, same verification precedent as Stage 0. **No manual browser verification** - this is the most purely visual, taste-driven change of the whole session; the survey answers came from ASCII previews and a written description, not a rendered screenshot, so this genuinely needs the user's own eyes before it's considered "done," more than any prior stage's standing verification-gap note already says.
+
+**Commit:** one commit (`FatigueRadarChart.svelte`, `Home.svelte`) - the radar sizing fix and the card redesign are the same conversational task, landing together.
+
+## 2026-09-18 — Two small polish fixes (user-reported, post-redesign)
+
+- **Home header dot-separator spacing** (`Home.svelte`): the phase name / "Week N of M" title used a literal `" · "` text character with a leading space inside a nested `<span>`, which rendered visibly asymmetric (tighter on the phase-name side) - likely the "·" glyph's own side-bearings, not a markup bug exactly, but not reliably fixable by tweaking literal spaces either. Replaced with the exact separator-dot pattern already used elsewhere in this codebase (`History.svelte`, `WorkoutForm.svelte`: a small `bg-surface-elevated-hover rounded-full` dot, not a text character), inside a `flex items-center gap-2` row - `gap` guarantees symmetric spacing regardless of font metrics, which a literal space character never can.
+- **Plan screen's selected-week ring** (`WeekCalendar.svelte`): was `ring-2 ring-white ring-offset-2` - a literal colour, not a design-system token (predates this session; carried through Stage 6's full revert back to the pre-Stage-6 file, which itself predates the whole UI overhaul). A stark white ring against the dark theme read as "weird," per the user. Changed to `ring-1 ring-primary ring-offset-1` - the app's own single accent colour instead of a literal one, and thinner per the user's explicit ask.
+
+**Verification:** `npm run test` -> 295/295 pass, `npm run check` -> 0 errors/warnings, `npx vite build` -> succeeds. No manual verification (same standing gap).
+
+**Commit:** one commit (`Home.svelte`, `WeekCalendar.svelte`) - two small, unrelated-but-simultaneously-reported fixes, kept together rather than split into two trivial commits, consistent with this session's "don't over-split" convention for small fixes raised in the same message.
+
 
 

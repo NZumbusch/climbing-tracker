@@ -40,7 +40,7 @@
         onclick={() => onSelectWeek(week.id)}
         class="aspect-square rounded-control transition-all duration-300 relative group hover:z-20
           {week.color || FALLBACK_COLOR}
-          {selectedWeekId === week.id ? 'ring-2 ring-white ring-offset-2 ring-offset-surface scale-110 z-10 shadow-lg' : 'hover:scale-110'}
+          {selectedWeekId === week.id ? 'ring-1 ring-primary ring-offset-1 ring-offset-surface scale-110 z-10 shadow-lg' : 'hover:scale-110'}
           {week.isCurrent ? 'border-2 border-primary' : ''}"
       >
         {#if showYear}<div class="absolute -top-1.5 -left-1.5 z-20 px-1 py-px rounded-control bg-surface-elevated text-content border border-border-strong shadow-sm text-caption font-bold whitespace-nowrap">{week.year}</div>{/if}

@@ -36,7 +36,8 @@
   const complete = $derived(AXES.every((a) => values[a.key] !== undefined));
 
   const CENTER = 50;
-  const RADIUS = 34;
+  const RADIUS = 24;
+  const LABEL_RADIUS = RADIUS + 11;
   const GRID_RINGS = [0.25, 0.5, 0.75, 1];
 
   function valuePoint(angleDeg: number, value: number): { x: number; y: number } {
@@ -67,25 +68,27 @@
 </script>
 
 {#if complete}
-  <svg viewBox="0 0 100 100" class="w-full aspect-square">
-    {#each GRID_RINGS as ring}
-      <polygon points={ringPolygon(ring)} fill="none" class="stroke-border" stroke-width="0.5" />
-    {/each}
-    {#each AXES as a}
-      {@const p = valuePoint(a.angle, 10)}
-      <line x1={CENTER} y1={CENTER} x2={p.x} y2={p.y} class="stroke-border" stroke-width="0.5" />
-    {/each}
-    <polygon
-      points={dataPolygon}
-      class="fill-primary/25 stroke-primary"
-      stroke-width="1.5"
-      stroke-linejoin="round"
-    />
-    {#each AXES as a}
-      {@const p = radiusPoint(a.angle, RADIUS + 13)}
-      <text x={p.x} y={p.y} text-anchor="middle" dominant-baseline="middle" class="text-content-subtle" fill="currentColor" style="font-size: 6px;">{a.label}</text>
-    {/each}
-  </svg>
+  <div class="w-full flex justify-center">
+    <svg viewBox="0 0 100 100" class="w-full max-w-[190px] aspect-square">
+      {#each GRID_RINGS as ring}
+        <polygon points={ringPolygon(ring)} fill="none" class="stroke-border" stroke-width="0.5" />
+      {/each}
+      {#each AXES as a}
+        {@const p = valuePoint(a.angle, 10)}
+        <line x1={CENTER} y1={CENTER} x2={p.x} y2={p.y} class="stroke-border" stroke-width="0.5" />
+      {/each}
+      <polygon
+        points={dataPolygon}
+        class="fill-primary/25 stroke-primary"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+      />
+      {#each AXES as a}
+        {@const p = radiusPoint(a.angle, LABEL_RADIUS)}
+        <text x={p.x} y={p.y} text-anchor="middle" dominant-baseline="middle" class="text-content-subtle" fill="currentColor" style="font-size: 7px;">{a.label}</text>
+      {/each}
+    </svg>
+  </div>
 {:else}
   <p class="text-caption text-content-subtle italic text-center py-6">Not enough data for a radar view yet - showing bars instead once every axis has a value.</p>
 {/if}
