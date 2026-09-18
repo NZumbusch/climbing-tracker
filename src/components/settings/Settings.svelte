@@ -74,7 +74,7 @@
         <button onclick={() => currentTab = 'overview'} class="p-2 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-content-muted hover:text-content transition-colors"><Icon icon="ic:baseline-arrow-back" class="text-xl" /></button>
         <h2 class="text-title text-content">
           {#if currentTab === 'customization'}Customization
-          {:else if currentTab === 'design'}Appearance & Design
+          {:else if currentTab === 'design'}Appearance & Behaviour
           {:else if currentTab === 'integration'}Data & Exports
           {:else if currentTab === 'health'}Health & Outdoor Log
           {:else if currentTab === 'about'}About & Impressum{/if}
@@ -98,7 +98,7 @@
       <button onclick={() => currentTab = 'design'} class="w-full flex items-center justify-between p-5 bg-surface/50 hover:bg-surface-elevated border border-border rounded-card transition-all group backdrop-blur-sm shadow-card">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-tertiary-hover/10 rounded-card text-tertiary group-hover:bg-tertiary-hover group-hover:text-white transition-colors"><Icon icon="ic:baseline-color-lens" class="text-2xl" /></div>
-          <div class="text-left"><p class="text-body font-bold text-content">Appearance & Design</p><p class="text-caption text-content-subtle mt-1">Interface aesthetics and accessibility</p></div>
+          <div class="text-left"><p class="text-body font-bold text-content">Appearance & Behaviour</p><p class="text-caption text-content-subtle mt-1">Theme, layout, timer, weather & notifications</p></div>
         </div>
         <Icon icon="ic:baseline-chevron-right" class="text-content-subtle text-2xl" />
       </button>

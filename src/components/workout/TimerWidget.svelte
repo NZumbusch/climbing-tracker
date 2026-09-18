@@ -12,9 +12,14 @@
    *   timeBetweenSets are actually defined, so switching to timer mode
    *   starts from the exercise's own rest/hang timing instead of always a
    *   fixed 60s (§5.7 - "context-aware").
+   * - Vibrate/beep/keep-awake are now gated behind the Stage 8 preference
+   *   toggles (§5.7's own deferred item, landing here) - see the three
+   *   behaviours' own comments below for how each is implemented and why.
    */
+  import { onDestroy } from "svelte";
   import Icon from "@iconify/svelte";
   import { slotValues } from "../../lib/exerciseSlot";
+  import { trainingState } from "../../lib/state.svelte";
   import type { ExerciseSlot } from "../../lib/types";
 
   let { currentSlot = null }: { currentSlot?: ExerciseSlot | null } = $props();
@@ -25,6 +30,54 @@
   let interval: ReturnType<typeof setInterval> | null = null;
 
   let targetTime = $state(60); // for countdown
+
+  // --- Audible beep (§5.7: "needs a first-interaction unlock for browser
+  // audio policy") - synthesized via Web Audio rather than an audio file
+  // asset, so there's nothing to bundle/load. The AudioContext is created
+  // lazily on the first `toggle()` call, which is always a direct user
+  // gesture (tapping play) - that's the unlock browsers require, done
+  // naturally rather than needing a dedicated "enable sound" tap.
+  let audioContext: AudioContext | null = null;
+  function playBeep() {
+    if (!trainingState.timerBeepEnabled) return;
+    try {
+      audioContext ??= new AudioContext();
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.4);
+      osc.connect(gain).connect(audioContext.destination);
+      osc.start();
+      osc.stop(audioContext.currentTime + 0.4);
+    } catch {
+      // Web Audio unavailable/blocked - degrade silently, same discipline as vibrate/keep-awake below.
+    }
+  }
+
+  // --- Keep screen awake (§5.7) - the standard Web Wake Lock API, not a
+  // native Capacitor plugin: Capacitor renders in a system WebView, and
+  // modern Android/iOS WebViews already support `navigator.wakeLock`
+  // (Android via Chromium, iOS 16.4+), so this needs no new native
+  // dependency to add/verify in a headless environment. Degrades silently
+  // (§5.7's explicit instruction) when unsupported - the Settings toggle
+  // itself is hidden in that case (`PreferencesSettings.svelte`), matching
+  // the pattern already used for native-only notification settings.
+  let wakeLock: WakeLockSentinel | null = null;
+  async function acquireWakeLock() {
+    if (!trainingState.timerKeepAwakeEnabled) return;
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch {
+      wakeLock = null;
+    }
+  }
+  function releaseWakeLock() {
+    wakeLock?.release().catch(() => {});
+    wakeLock = null;
+  }
+  onDestroy(releaseWakeLock);
 
   const presets = $derived.by(() => {
     if (!currentSlot) return [];
@@ -46,8 +99,10 @@
     if (isRunning) {
       if (interval) clearInterval(interval);
       isRunning = false;
+      releaseWakeLock();
     } else {
       isRunning = true;
+      acquireWakeLock();
       interval = setInterval(() => {
         if (mode === 'stopwatch') {
           time++;
@@ -58,10 +113,11 @@
             // Timer finished!
             if (interval) clearInterval(interval);
             isRunning = false;
-            // Play a sound or vibrate (using browser API if available)
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            releaseWakeLock();
+            if (trainingState.timerVibrateEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
               navigator.vibrate([200, 100, 200]);
             }
+            playBeep();
           }
         }
       }, 1000);
@@ -71,6 +127,7 @@
   function reset() {
     if (interval) clearInterval(interval);
     isRunning = false;
+    releaseWakeLock();
     time = mode === 'timer' ? targetTime : 0;
   }
 

@@ -12,7 +12,7 @@ import { UiStore } from './stores/uiStore.svelte';
 import { BackupStore } from './stores/backupStore.svelte';
 import { PreferencesStore } from './stores/preferencesStore.svelte';
 import { WeatherStore } from './stores/weatherStore.svelte';
-import type { WeatherLocation } from './preferences/migrate';
+import type { WeatherLocation, FatigueChartStyle, HomeSectionPreference } from './preferences/migrate';
 import { geocodeCity } from './weather/api';
 import type { TextScale, MotionPreference } from './preferences/migrate';
 import { syncFatigueReminders } from './notifications/fatigueReminder';
@@ -137,6 +137,26 @@ class TrainingState {
   /** City name -> candidate locations, for the Settings location picker (UI_PLAN.md §10 open question 3 - raw lat/lon entry bypasses this entirely). */
   async geocodeCity(query: string) {
     return geocodeCity(query);
+  }
+
+  // --- Fatigue chart style, timer toggles, Home section layout (UI_PLAN.md §4.7) ---
+
+  get fatigueChartStyle() { return this.preferencesStore.fatigueChartStyle; }
+  setFatigueChartStyle(style: FatigueChartStyle) { this.preferencesStore.setFatigueChartStyle(style); }
+
+  get timerVibrateEnabled() { return this.preferencesStore.timerVibrateEnabled; }
+  get timerBeepEnabled() { return this.preferencesStore.timerBeepEnabled; }
+  get timerKeepAwakeEnabled() { return this.preferencesStore.timerKeepAwakeEnabled; }
+  setTimerVibrateEnabled(enabled: boolean) { this.preferencesStore.setTimerVibrateEnabled(enabled); }
+  setTimerBeepEnabled(enabled: boolean) { this.preferencesStore.setTimerBeepEnabled(enabled); }
+  setTimerKeepAwakeEnabled(enabled: boolean) { this.preferencesStore.setTimerKeepAwakeEnabled(enabled); }
+
+  get homeSections() { return this.preferencesStore.homeSections; }
+  setHomeSectionVisible(id: HomeSectionPreference['id'], visible: boolean) {
+    this.preferencesStore.setHomeSectionVisible(id, visible);
+  }
+  setHomeSectionOrder(order: HomeSectionPreference['id'][]) {
+    this.preferencesStore.setHomeSectionOrder(order);
   }
 
   /**

@@ -8,6 +8,7 @@
   import { calculateRollingAcwr } from '../../lib/analytics/loadAnalytics';
   import { calculateWeeklyAdherence } from '../../lib/analytics/loadAnalytics';
   import { describeWeatherCode } from '../../lib/weather/codes';
+  import FatigueRadarChart from '../common/FatigueRadarChart.svelte';
   import type { DailyMetricEntry, DayOfWeek } from '../../lib/types';
   import Icon from "@iconify/svelte";
 
@@ -157,232 +158,264 @@
     </button>
   </div>
 
-  <!-- Readiness hero -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card flex items-center gap-5">
-    <div class="relative w-24 h-24 shrink-0">
-      <svg viewBox="0 0 100 100" class="w-24 h-24 -rotate-90">
-        <circle cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="var(--theme-border)" stroke-width="8" />
-        {#if readiness.score !== undefined}
-          <circle
-            cx="50" cy="50" r={RING_RADIUS} fill="none" stroke-width="8" stroke-linecap="round"
-            class={STATUS_COLOR[readiness.status]}
-            stroke="currentColor"
-            stroke-dasharray={RING_CIRCUMFERENCE}
-            stroke-dashoffset={ringOffset}
-          />
-        {/if}
-      </svg>
-      <div class="absolute inset-0 flex items-center justify-center">
-        <span class="text-display text-content tabular-nums">{readiness.score !== undefined ? Math.round(readiness.score) : '—'}</span>
-      </div>
-    </div>
-    <div class="min-w-0 space-y-1">
-      <span class="text-section uppercase {STATUS_COLOR[readiness.status]}">{readiness.status}</span>
-      <p class="text-body text-content">{readiness.advice}</p>
-      <p class="text-caption text-content-subtle">{readiness.confidence}</p>
-    </div>
-  </div>
+  <!-- UI_PLAN.md §4.7 "Home sections show/hide + reorder": every section
+       below is a snippet, rendered in `trainingState.homeSections`'
+       user-configurable order, skipping any marked hidden. The header
+       above is not part of this list - it's always shown, always first. -->
 
-  <!-- Today -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-today" class="text-lg" />
-      <span class="text-section uppercase">Today</span>
-    </div>
-    {#each todaysWorkouts as workout}
-      <div class="flex items-center justify-between p-3 bg-surface-elevated/50 rounded-control border border-border-strong/50">
-        <div class="min-w-0 flex-1">
-          <p class="text-body font-bold text-content truncate">{workout.notes}</p>
-          <p class="text-caption text-content-subtle">{workout.exercises.length} exercises</p>
-        </div>
-        <button onclick={() => trainingState.navigate('add', workout)} class="text-label text-primary hover:scale-105 transition-transform shrink-0 ml-3">Start</button>
-      </div>
-    {:else}
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-caption text-content-subtle italic">Nothing planned for today.</p>
-        <button onclick={() => trainingState.navigate('add')} class="text-label text-primary shrink-0">Log a spontaneous session</button>
-      </div>
-    {/each}
-  </div>
-
-  <!-- Daily metrics quick-entry -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-favorite" class="text-lg" />
-      <span class="text-section uppercase">Metrics</span>
-    </div>
-    {#each QUICK_METRICS as def}
-      {@const entry = todaysMetric(def.id)}
-      {@const spark = entriesFor(def.id).slice(-7)}
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <p class="text-label text-content-subtle">{def.name}</p>
-          {#if editingMetricId === def.id}
-            <form onsubmit={(e) => { e.preventDefault(); saveMetric(def.id); }} class="flex items-center gap-2 mt-1">
-              <input type="number" step="0.1" bind:value={draftValue} class="w-20 bg-surface-elevated text-content p-1.5 rounded-control border border-border-strong outline-none text-sm" />
-              <button type="submit" class="p-1.5 bg-primary hover:bg-primary-hover text-white rounded-control"><Icon icon="ic:baseline-check" class="text-sm" /></button>
-              <button type="button" onclick={() => editingMetricId = null} class="p-1.5 text-content-subtle hover:text-content"><Icon icon="ic:baseline-close" class="text-sm" /></button>
-            </form>
-          {:else}
-            <button onclick={() => startEdit(def.id)} class="text-body text-content tabular-nums hover:text-primary transition-colors">
-              {entry ? `${entry.value} ${def.unit}` : 'Log'}
-            </button>
+  {#snippet readinessSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card flex items-center gap-5">
+      <div class="relative w-24 h-24 shrink-0">
+        <svg viewBox="0 0 100 100" class="w-24 h-24 -rotate-90">
+          <circle cx="50" cy="50" r={RING_RADIUS} fill="none" stroke="var(--theme-border)" stroke-width="8" />
+          {#if readiness.score !== undefined}
+            <circle
+              cx="50" cy="50" r={RING_RADIUS} fill="none" stroke-width="8" stroke-linecap="round"
+              class={STATUS_COLOR[readiness.status]}
+              stroke="currentColor"
+              stroke-dasharray={RING_CIRCUMFERENCE}
+              stroke-dashoffset={ringOffset}
+            />
           {/if}
-        </div>
-        {#if spark.length > 1}
-          <div class="h-8 flex items-end gap-0.5 shrink-0">
-            {#each spark as s}
-              <div class="w-1.5 rounded-t-control bg-primary/50" style="height: {sparkHeightPercent(s.value, spark.map((v) => v.value))}%"></div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    {/each}
-  </div>
-
-  <!-- Fatigue -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-bolt" class="text-lg" />
-      <span class="text-section uppercase">Fatigue</span>
-    </div>
-    {#each FATIGUE_BARS as bar}
-      {@const value = fatigueDecay[bar.key]}
-      <div class="space-y-1">
-        <div class="flex justify-between text-label text-content-subtle">
-          <span>{bar.label}</span>
-          <span class="tabular-nums">{value !== undefined ? value.toFixed(1) : '—'}</span>
-        </div>
-        <div class="h-2 bg-surface-elevated rounded-control overflow-hidden">
-          <div class="h-full bg-primary rounded-control transition-all duration-500" style="width: {value !== undefined ? (value / 10) * 100 : 0}%"></div>
+        </svg>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="text-display text-content tabular-nums">{readiness.score !== undefined ? Math.round(readiness.score) : '—'}</span>
         </div>
       </div>
-    {/each}
-    {#if fatigueDecay.coverage.total > 0}
-      <p class="text-caption text-content-subtle">Arms: {fatigueDecay.coverage.arms} of {fatigueDecay.coverage.total} sessions</p>
-    {/if}
-  </div>
-
-  <!-- This Week -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-trending-up" class="text-lg" />
-      <span class="text-section uppercase">This Week</span>
-    </div>
-    {#if weeklyAdherence.plannedLoad > 0 || weeklyAdherence.actualLoad > 0}
-      <p class="text-body text-content">{Math.round(weeklyAdherence.actualLoad)} <span class="text-content-subtle">of</span> {Math.round(weeklyAdherence.plannedLoad)} <span class="text-content-subtle">planned load</span></p>
-      <p class="text-caption text-content-subtle">{Math.round(weeklyAdherence.completionRate * 100)}% of prescribed exercises logged</p>
-    {:else}
-      <p class="text-caption text-content-subtle italic">No load logged yet this week.</p>
-    {/if}
-  </div>
-
-  <!-- Training Block -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-view-week" class="text-lg" />
-      <span class="text-section uppercase">Training Block</span>
-    </div>
-    {#if dominantBlock}
-      <p class="text-body text-content">{dominantBlock.name}{currentPhaseName ? ` · ${currentPhaseName}` : ''}</p>
-      {#if blockWeekPosition}
-        <p class="text-caption text-content-subtle">Week {blockWeekPosition.week} of {blockWeekPosition.of}</p>
-      {/if}
-    {:else}
-      <p class="text-caption text-content-subtle italic">No training block covers this week.</p>
-    {/if}
-  </div>
-
-  <!-- Next Competition -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-flag" class="text-lg" />
-      <span class="text-section uppercase">Next Competition</span>
-    </div>
-    {#if nextCompetition && daysUntilCompetition !== undefined}
-      <p class="text-body text-content">{nextCompetition.name}</p>
-      <p class="text-caption text-content-subtle">{daysUntilCompetition === 0 ? 'Today' : `${daysUntilCompetition} day${daysUntilCompetition === 1 ? '' : 's'} away`} · {formatDate(nextCompetition.date)}</p>
-    {:else}
-      <p class="text-caption text-content-subtle italic">No upcoming A-priority event.</p>
-    {/if}
-  </div>
-
-  <!-- Recent Activity -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-history" class="text-lg" />
-      <span class="text-section uppercase">Recent Activity</span>
-    </div>
-    {#each recentActivity as workout}
-      <button onclick={() => trainingState.navigate('history')} class="w-full flex items-center justify-between p-2.5 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-left hover:border-border-strong transition-colors">
-        <div class="min-w-0">
-          <p class="text-label text-content truncate">{workout.notes}</p>
-          <p class="text-caption text-content-subtle">{formatDate(workout.date)}</p>
-        </div>
-        <Icon icon="ic:baseline-chevron-right" class="text-content-subtle shrink-0" />
-      </button>
-    {:else}
-      <p class="text-caption text-content-subtle italic">No completed sessions yet.</p>
-    {/each}
-  </div>
-
-  <!-- Weather (UI_PLAN.md §5.5) -->
-  <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1.5">
-    <div class="flex items-center gap-2 text-content-muted">
-      <Icon icon="ic:baseline-cloud" class="text-lg" />
-      <span class="text-section uppercase">Weather</span>
-    </div>
-    {#if !trainingState.homeLocation}
-      <p class="text-caption text-content-subtle italic">Set a home location in Settings to see conditions here.</p>
-    {:else if trainingState.homeWeather.unavailable}
-      <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
-    {:else if trainingState.homeWeather.snapshot}
-      {@const w = trainingState.homeWeather.snapshot}
-      {@const code = describeWeatherCode(w.currentWeatherCode)}
-      <div class="flex items-center gap-3">
-        <Icon icon={code.icon} class="text-3xl text-primary" />
-        <div class="min-w-0">
-          <p class="text-metric text-content tabular-nums">{Math.round(w.currentTempC)}°C</p>
-          <p class="text-caption text-content-subtle truncate">{code.label} · {trainingState.homeLocation.name}</p>
-        </div>
+      <div class="min-w-0 space-y-1">
+        <span class="text-section uppercase {STATUS_COLOR[readiness.status]}">{readiness.status}</span>
+        <p class="text-body text-content">{readiness.advice}</p>
+        <p class="text-caption text-content-subtle">{readiness.confidence}</p>
       </div>
-      {#if trainingState.homeWeather.stale && trainingState.homeWeather.fetchedAt}
-        <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.homeWeather.fetchedAt)}</p>
-      {/if}
-    {:else}
-      <p class="text-caption text-content-subtle italic">Loading conditions…</p>
-    {/if}
-  </div>
+    </div>
+  {/snippet}
 
-  <!-- Trip forecast (UI_PLAN.md §5.5 - optional second location, user addition) -->
-  {#if trainingState.tripLocation}
+  {#snippet todaySection()}
     <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
       <div class="flex items-center gap-2 text-content-muted">
-        <Icon icon="ic:baseline-luggage" class="text-lg" />
-        <span class="text-section uppercase">Trip Forecast</span>
+        <Icon icon="ic:baseline-today" class="text-lg" />
+        <span class="text-section uppercase">Today</span>
       </div>
-      {#if trainingState.tripWeather.unavailable}
-        <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
-      {:else if trainingState.tripWeather.snapshot}
-        {@const t = trainingState.tripWeather.snapshot}
-        <p class="text-caption text-content-subtle">{trainingState.tripLocation.name}</p>
-        <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-          {#each t.daily as day}
-            {@const code = describeWeatherCode(day.weatherCode)}
-            <div class="flex flex-col items-center gap-1 shrink-0 w-12">
-              <span class="text-caption text-content-subtle">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
-              <Icon icon={code.icon} class="text-lg text-primary" />
-              <span class="text-caption text-content tabular-nums">{Math.round(day.tempMaxC)}°</span>
-              <span class="text-caption text-content-subtle tabular-nums">{Math.round(day.tempMinC)}°</span>
-            </div>
-          {/each}
+      {#each todaysWorkouts as workout}
+        <div class="flex items-center justify-between p-3 bg-surface-elevated/50 rounded-control border border-border-strong/50">
+          <div class="min-w-0 flex-1">
+            <p class="text-body font-bold text-content truncate">{workout.notes}</p>
+            <p class="text-caption text-content-subtle">{workout.exercises.length} exercises</p>
+          </div>
+          <button onclick={() => trainingState.navigate('add', workout)} class="text-label text-primary hover:scale-105 transition-transform shrink-0 ml-3">Start</button>
         </div>
-        {#if trainingState.tripWeather.stale && trainingState.tripWeather.fetchedAt}
-          <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.tripWeather.fetchedAt)}</p>
-        {/if}
       {:else}
-        <p class="text-caption text-content-subtle italic">Loading forecast…</p>
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-caption text-content-subtle italic">Nothing planned for today.</p>
+          <button onclick={() => trainingState.navigate('add')} class="text-label text-primary shrink-0">Log a spontaneous session</button>
+        </div>
+      {/each}
+    </div>
+  {/snippet}
+
+  {#snippet metricsSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-favorite" class="text-lg" />
+        <span class="text-section uppercase">Metrics</span>
+      </div>
+      {#each QUICK_METRICS as def}
+        {@const entry = todaysMetric(def.id)}
+        {@const spark = entriesFor(def.id).slice(-7)}
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-label text-content-subtle">{def.name}</p>
+            {#if editingMetricId === def.id}
+              <form onsubmit={(e) => { e.preventDefault(); saveMetric(def.id); }} class="flex items-center gap-2 mt-1">
+                <input type="number" step="0.1" bind:value={draftValue} class="w-20 bg-surface-elevated text-content p-1.5 rounded-control border border-border-strong outline-none text-sm" />
+                <button type="submit" class="p-1.5 bg-primary hover:bg-primary-hover text-white rounded-control"><Icon icon="ic:baseline-check" class="text-sm" /></button>
+                <button type="button" onclick={() => editingMetricId = null} class="p-1.5 text-content-subtle hover:text-content"><Icon icon="ic:baseline-close" class="text-sm" /></button>
+              </form>
+            {:else}
+              <button onclick={() => startEdit(def.id)} class="text-body text-content tabular-nums hover:text-primary transition-colors">
+                {entry ? `${entry.value} ${def.unit}` : 'Log'}
+              </button>
+            {/if}
+          </div>
+          {#if spark.length > 1}
+            <div class="h-8 flex items-end gap-0.5 shrink-0">
+              {#each spark as s}
+                <div class="w-1.5 rounded-t-control bg-primary/50" style="height: {sparkHeightPercent(s.value, spark.map((v) => v.value))}%"></div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/snippet}
+
+  {#snippet fatigueSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-bolt" class="text-lg" />
+        <span class="text-section uppercase">Fatigue</span>
+      </div>
+      {#if trainingState.fatigueChartStyle === 'radar'}
+        <FatigueRadarChart fingers={fatigueDecay.fingers} arms={fatigueDecay.arms} core={fatigueDecay.core} systemic={fatigueDecay.systemic} />
+      {:else}
+        {#each FATIGUE_BARS as bar}
+          {@const value = fatigueDecay[bar.key]}
+          <div class="space-y-1">
+            <div class="flex justify-between text-label text-content-subtle">
+              <span>{bar.label}</span>
+              <span class="tabular-nums">{value !== undefined ? value.toFixed(1) : '—'}</span>
+            </div>
+            <div class="h-2 bg-surface-elevated rounded-control overflow-hidden">
+              <div class="h-full bg-primary rounded-control transition-all duration-500" style="width: {value !== undefined ? (value / 10) * 100 : 0}%"></div>
+            </div>
+          </div>
+        {/each}
+      {/if}
+      {#if fatigueDecay.coverage.total > 0}
+        <p class="text-caption text-content-subtle">Arms: {fatigueDecay.coverage.arms} of {fatigueDecay.coverage.total} sessions</p>
       {/if}
     </div>
-  {/if}
+  {/snippet}
+
+  {#snippet thisWeekSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-trending-up" class="text-lg" />
+        <span class="text-section uppercase">This Week</span>
+      </div>
+      {#if weeklyAdherence.plannedLoad > 0 || weeklyAdherence.actualLoad > 0}
+        <p class="text-body text-content">{Math.round(weeklyAdherence.actualLoad)} <span class="text-content-subtle">of</span> {Math.round(weeklyAdherence.plannedLoad)} <span class="text-content-subtle">planned load</span></p>
+        <p class="text-caption text-content-subtle">{Math.round(weeklyAdherence.completionRate * 100)}% of prescribed exercises logged</p>
+      {:else}
+        <p class="text-caption text-content-subtle italic">No load logged yet this week.</p>
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet trainingBlockSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-view-week" class="text-lg" />
+        <span class="text-section uppercase">Training Block</span>
+      </div>
+      {#if dominantBlock}
+        <p class="text-body text-content">{dominantBlock.name}{currentPhaseName ? ` · ${currentPhaseName}` : ''}</p>
+        {#if blockWeekPosition}
+          <p class="text-caption text-content-subtle">Week {blockWeekPosition.week} of {blockWeekPosition.of}</p>
+        {/if}
+      {:else}
+        <p class="text-caption text-content-subtle italic">No training block covers this week.</p>
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet competitionSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-flag" class="text-lg" />
+        <span class="text-section uppercase">Next Competition</span>
+      </div>
+      {#if nextCompetition && daysUntilCompetition !== undefined}
+        <p class="text-body text-content">{nextCompetition.name}</p>
+        <p class="text-caption text-content-subtle">{daysUntilCompetition === 0 ? 'Today' : `${daysUntilCompetition} day${daysUntilCompetition === 1 ? '' : 's'} away`} · {formatDate(nextCompetition.date)}</p>
+      {:else}
+        <p class="text-caption text-content-subtle italic">No upcoming A-priority event.</p>
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet recentActivitySection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-history" class="text-lg" />
+        <span class="text-section uppercase">Recent Activity</span>
+      </div>
+      {#each recentActivity as workout}
+        <button onclick={() => trainingState.navigate('history')} class="w-full flex items-center justify-between p-2.5 bg-surface-elevated/50 rounded-control border border-border-strong/50 text-left hover:border-border-strong transition-colors">
+          <div class="min-w-0">
+            <p class="text-label text-content truncate">{workout.notes}</p>
+            <p class="text-caption text-content-subtle">{formatDate(workout.date)}</p>
+          </div>
+          <Icon icon="ic:baseline-chevron-right" class="text-content-subtle shrink-0" />
+        </button>
+      {:else}
+        <p class="text-caption text-content-subtle italic">No completed sessions yet.</p>
+      {/each}
+    </div>
+  {/snippet}
+
+  {#snippet weatherSection()}
+    <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-1.5">
+      <div class="flex items-center gap-2 text-content-muted">
+        <Icon icon="ic:baseline-cloud" class="text-lg" />
+        <span class="text-section uppercase">Weather</span>
+      </div>
+      {#if !trainingState.homeLocation}
+        <p class="text-caption text-content-subtle italic">Set a home location in Settings to see conditions here.</p>
+      {:else if trainingState.homeWeather.unavailable}
+        <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
+      {:else if trainingState.homeWeather.snapshot}
+        {@const w = trainingState.homeWeather.snapshot}
+        {@const code = describeWeatherCode(w.currentWeatherCode)}
+        <div class="flex items-center gap-3">
+          <Icon icon={code.icon} class="text-3xl text-primary" />
+          <div class="min-w-0">
+            <p class="text-metric text-content tabular-nums">{Math.round(w.currentTempC)}°C</p>
+            <p class="text-caption text-content-subtle truncate">{code.label} · {trainingState.homeLocation.name}</p>
+          </div>
+        </div>
+        {#if trainingState.homeWeather.stale && trainingState.homeWeather.fetchedAt}
+          <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.homeWeather.fetchedAt)}</p>
+        {/if}
+      {:else}
+        <p class="text-caption text-content-subtle italic">Loading conditions…</p>
+      {/if}
+    </div>
+
+    {#if trainingState.tripLocation}
+      <div class="bg-surface/50 border border-border rounded-card p-5 shadow-card space-y-3">
+        <div class="flex items-center gap-2 text-content-muted">
+          <Icon icon="ic:baseline-luggage" class="text-lg" />
+          <span class="text-section uppercase">Trip Forecast</span>
+        </div>
+        {#if trainingState.tripWeather.unavailable}
+          <p class="text-caption text-content-subtle italic">Weather is currently unavailable.</p>
+        {:else if trainingState.tripWeather.snapshot}
+          {@const t = trainingState.tripWeather.snapshot}
+          <p class="text-caption text-content-subtle">{trainingState.tripLocation.name}</p>
+          <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            {#each t.daily as day}
+              {@const code = describeWeatherCode(day.weatherCode)}
+              <div class="flex flex-col items-center gap-1 shrink-0 w-12">
+                <span class="text-caption text-content-subtle">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short' })}</span>
+                <Icon icon={code.icon} class="text-lg text-primary" />
+                <span class="text-caption text-content tabular-nums">{Math.round(day.tempMaxC)}°</span>
+                <span class="text-caption text-content-subtle tabular-nums">{Math.round(day.tempMinC)}°</span>
+              </div>
+            {/each}
+          </div>
+          {#if trainingState.tripWeather.stale && trainingState.tripWeather.fetchedAt}
+            <p class="text-caption text-warning">Stale - last updated {formatRelativeAge(trainingState.tripWeather.fetchedAt)}</p>
+          {/if}
+        {:else}
+          <p class="text-caption text-content-subtle italic">Loading forecast…</p>
+        {/if}
+      </div>
+    {/if}
+  {/snippet}
+
+  {#each trainingState.homeSections as section (section.id)}
+    {#if section.visible}
+      {#if section.id === 'readiness'}{@render readinessSection()}
+      {:else if section.id === 'today'}{@render todaySection()}
+      {:else if section.id === 'metrics'}{@render metricsSection()}
+      {:else if section.id === 'fatigue'}{@render fatigueSection()}
+      {:else if section.id === 'thisWeek'}{@render thisWeekSection()}
+      {:else if section.id === 'trainingBlock'}{@render trainingBlockSection()}
+      {:else if section.id === 'competition'}{@render competitionSection()}
+      {:else if section.id === 'recentActivity'}{@render recentActivitySection()}
+      {:else if section.id === 'weather'}{@render weatherSection()}
+      {/if}
+    {/if}
+  {/each}
 </div>

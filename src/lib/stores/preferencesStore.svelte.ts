@@ -1,4 +1,4 @@
-import { migratePreferences, defaultPreferences, type TextScale, type MotionPreference, type Preferences, type WeatherLocation } from '../preferences/migrate';
+import { migratePreferences, defaultPreferences, HOME_SECTION_IDS, type TextScale, type MotionPreference, type Preferences, type WeatherLocation, type FatigueChartStyle, type HomeSectionPreference } from '../preferences/migrate';
 
 const PREFERENCES_KEY = 'boulder_tracker_preferences';
 const LEGACY_THEME_KEY = 'boulder_tracker_theme';
@@ -17,6 +17,11 @@ export class PreferencesStore {
   dailyMetricsReminderTime = $state('20:00');
   homeLocation = $state<WeatherLocation | null>(null);
   tripLocation = $state<WeatherLocation | null>(null);
+  fatigueChartStyle = $state<FatigueChartStyle>('bars');
+  timerVibrateEnabled = $state(true);
+  timerBeepEnabled = $state(true);
+  timerKeepAwakeEnabled = $state(false);
+  homeSections = $state<HomeSectionPreference[]>(HOME_SECTION_IDS.map((id) => ({ id, visible: true })));
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -41,6 +46,11 @@ export class PreferencesStore {
     this.dailyMetricsReminderTime = prefs.dailyMetricsReminderTime;
     this.homeLocation = prefs.homeLocation;
     this.tripLocation = prefs.tripLocation;
+    this.fatigueChartStyle = prefs.fatigueChartStyle;
+    this.timerVibrateEnabled = prefs.timerVibrateEnabled;
+    this.timerBeepEnabled = prefs.timerBeepEnabled;
+    this.timerKeepAwakeEnabled = prefs.timerKeepAwakeEnabled;
+    this.homeSections = prefs.homeSections;
 
     // Persist immediately so the fold (or a version migration) only ever
     // has to happen once, and so a fresh install's defaults are recorded
@@ -80,6 +90,38 @@ export class PreferencesStore {
     this.persist();
   }
 
+  setFatigueChartStyle(style: FatigueChartStyle) {
+    this.fatigueChartStyle = style;
+    this.persist();
+  }
+
+  setTimerVibrateEnabled(enabled: boolean) {
+    this.timerVibrateEnabled = enabled;
+    this.persist();
+  }
+
+  setTimerBeepEnabled(enabled: boolean) {
+    this.timerBeepEnabled = enabled;
+    this.persist();
+  }
+
+  setTimerKeepAwakeEnabled(enabled: boolean) {
+    this.timerKeepAwakeEnabled = enabled;
+    this.persist();
+  }
+
+  setHomeSectionVisible(id: HomeSectionPreference['id'], visible: boolean) {
+    this.homeSections = this.homeSections.map((s) => (s.id === id ? { ...s, visible } : s));
+    this.persist();
+  }
+
+  /** Reorders `homeSections` to exactly `order` (every known id, in the given sequence) - the write path for drag-reorder in Settings. */
+  setHomeSectionOrder(order: HomeSectionPreference['id'][]) {
+    const byId = new Map(this.homeSections.map((s) => [s.id, s]));
+    this.homeSections = order.map((id) => byId.get(id)!).filter(Boolean);
+    this.persist();
+  }
+
   /**
    * Re-reads the legacy theme/notification keys at persist time (rather
    * than trusting a value captured at construction) so this blob's copies
@@ -98,6 +140,11 @@ export class PreferencesStore {
       dailyMetricsReminderTime: this.dailyMetricsReminderTime,
       homeLocation: this.homeLocation,
       tripLocation: this.tripLocation,
+      fatigueChartStyle: this.fatigueChartStyle,
+      timerVibrateEnabled: this.timerVibrateEnabled,
+      timerBeepEnabled: this.timerBeepEnabled,
+      timerKeepAwakeEnabled: this.timerKeepAwakeEnabled,
+      homeSections: this.homeSections,
       theme: (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'contrast')
         ? legacyTheme
         : defaultPreferences().theme,

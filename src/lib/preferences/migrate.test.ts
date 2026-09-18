@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { migratePreferences, defaultPreferences, CURRENT_PREFERENCES_VERSION } from './migrate';
+import { migratePreferences, defaultPreferences, CURRENT_PREFERENCES_VERSION, HOME_SECTION_IDS } from './migrate';
+
+const DEFAULT_HOME_SECTIONS = HOME_SECTION_IDS.map((id) => ({ id, visible: true }));
 
 describe('defaultPreferences', () => {
   it('returns the current version and sane defaults', () => {
@@ -13,6 +15,11 @@ describe('defaultPreferences', () => {
       dailyMetricsReminderTime: '20:00',
       homeLocation: null,
       tripLocation: null,
+      fatigueChartStyle: 'bars',
+      timerVibrateEnabled: true,
+      timerBeepEnabled: true,
+      timerKeepAwakeEnabled: false,
+      homeSections: DEFAULT_HOME_SECTIONS,
     });
   });
 });
@@ -56,6 +63,11 @@ describe('migratePreferences', () => {
       dailyMetricsReminderTime: '07:30',
       homeLocation: { name: 'Munich, DE', latitude: 48.1374, longitude: 11.5755 },
       tripLocation: null,
+      fatigueChartStyle: 'radar' as const,
+      timerVibrateEnabled: false,
+      timerBeepEnabled: false,
+      timerKeepAwakeEnabled: true,
+      homeSections: [...DEFAULT_HOME_SECTIONS.slice(1), DEFAULT_HOME_SECTIONS[0]],
     };
     expect(migratePreferences(valid)).toEqual(valid);
   });
@@ -98,16 +110,21 @@ describe('migratePreferences', () => {
     expect(result.notificationsEnabled).toBe(false);
     expect(result.dailyMetricsReminderEnabled).toBe(true);
     expect(result.dailyMetricsReminderTime).toBe('20:00');
+    expect(result.fatigueChartStyle).toBe('bars');
+    expect(result.timerVibrateEnabled).toBe(true);
+    expect(result.timerBeepEnabled).toBe(true);
+    expect(result.timerKeepAwakeEnabled).toBe(false);
+    expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
   });
 
-  it('backward compat: a real Stage-0-era blob with no daily-metrics fields at all gets them defaulted, without resetting textScale/motion (no version bump was needed for this addition)', () => {
+  it('backward compat: a real Stage-0-era blob with none of this stage\'s fields at all gets them all defaulted, without resetting textScale/motion (no version bump was needed for this addition)', () => {
     const stage0Blob = {
       version: CURRENT_PREFERENCES_VERSION,
       textScale: 'lg',
       motion: 'reduced',
       theme: 'light',
       notificationsEnabled: true,
-      // no dailyMetricsReminderEnabled / dailyMetricsReminderTime keys at all
+      // no dailyMetricsReminderEnabled / dailyMetricsReminderTime / weather / fatigueChartStyle / timer* / homeSections keys at all
     };
     const result = migratePreferences(stage0Blob);
     expect(result.textScale).toBe('lg');
@@ -116,6 +133,11 @@ describe('migratePreferences', () => {
     expect(result.notificationsEnabled).toBe(true);
     expect(result.dailyMetricsReminderEnabled).toBe(true);
     expect(result.dailyMetricsReminderTime).toBe('20:00');
+    expect(result.fatigueChartStyle).toBe('bars');
+    expect(result.timerVibrateEnabled).toBe(true);
+    expect(result.timerBeepEnabled).toBe(true);
+    expect(result.timerKeepAwakeEnabled).toBe(false);
+    expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
   });
 
   it('rejects a malformed dailyMetricsReminderTime and falls back to the default', () => {
@@ -195,5 +217,80 @@ describe('homeLocation / tripLocation (UI_PLAN.md §5.5)', () => {
     const location = { name: 'North Pole', latitude: 90, longitude: -180 };
     const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeLocation: location });
     expect(result.homeLocation).toEqual(location);
+  });
+});
+
+describe('fatigueChartStyle', () => {
+  it('accepts both valid styles', () => {
+    expect(migratePreferences({ version: CURRENT_PREFERENCES_VERSION, fatigueChartStyle: 'bars' }).fatigueChartStyle).toBe('bars');
+    expect(migratePreferences({ version: CURRENT_PREFERENCES_VERSION, fatigueChartStyle: 'radar' }).fatigueChartStyle).toBe('radar');
+  });
+
+  it('falls back to the default ("bars") for anything else', () => {
+    expect(migratePreferences({ version: CURRENT_PREFERENCES_VERSION, fatigueChartStyle: 'pie' }).fatigueChartStyle).toBe('bars');
+  });
+});
+
+describe('timer toggles', () => {
+  it('each defaults independently and is preserved when explicitly set', () => {
+    const result = migratePreferences({
+      version: CURRENT_PREFERENCES_VERSION,
+      timerVibrateEnabled: false,
+      timerKeepAwakeEnabled: true,
+      // timerBeepEnabled omitted - should default
+    });
+    expect(result.timerVibrateEnabled).toBe(false);
+    expect(result.timerKeepAwakeEnabled).toBe(true);
+    expect(result.timerBeepEnabled).toBe(true);
+  });
+});
+
+describe('homeSections (UI_PLAN.md §4.7)', () => {
+  it('defaults to every known section, visible, in the fixed plan order', () => {
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION });
+    expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+  });
+
+  it('preserves a valid, fully-custom order and per-section visibility', () => {
+    const custom = [
+      { id: 'weather' as const, visible: false },
+      ...DEFAULT_HOME_SECTIONS.filter((s) => s.id !== 'weather'),
+    ];
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeSections: custom });
+    expect(result.homeSections).toEqual(custom);
+  });
+
+  it('drops an unrecognised section id rather than keeping it', () => {
+    const result = migratePreferences({
+      version: CURRENT_PREFERENCES_VERSION,
+      homeSections: [{ id: 'somethingThatNoLongerExists', visible: true }, ...DEFAULT_HOME_SECTIONS],
+    });
+    expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+  });
+
+  it('drops a duplicate id, keeping only the first occurrence', () => {
+    const result = migratePreferences({
+      version: CURRENT_PREFERENCES_VERSION,
+      homeSections: [{ id: 'weather', visible: false }, { id: 'weather', visible: true }],
+    });
+    expect(result.homeSections.filter((s) => s.id === 'weather')).toEqual([{ id: 'weather', visible: false }]);
+  });
+
+  it('appends a section missing from a partial list, visible by default, rather than letting it disappear', () => {
+    const partial = [{ id: 'today' as const, visible: true }, { id: 'fatigue' as const, visible: false }];
+    const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeSections: partial });
+    expect(result.homeSections[0]).toEqual({ id: 'today', visible: true });
+    expect(result.homeSections[1]).toEqual({ id: 'fatigue', visible: false });
+    expect(result.homeSections).toHaveLength(HOME_SECTION_IDS.length);
+    for (const id of HOME_SECTION_IDS) {
+      expect(result.homeSections.some((s) => s.id === id)).toBe(true);
+    }
+  });
+
+  it('falls back to the full default list for garbage input, never throwing', () => {
+    for (const bad of ['not an array', 42, null, [{ noId: true }], [1, 2, 3]]) {
+      const result = migratePreferences({ version: CURRENT_PREFERENCES_VERSION, homeSections: bad });
+      expect(result.homeSections).toEqual(DEFAULT_HOME_SECTIONS);
+    }
   });
 });
