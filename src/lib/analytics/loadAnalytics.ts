@@ -30,6 +30,17 @@ export const RAMP_RATE_SPIKE_THRESHOLD = 0.1;
 // tunable default, not a fixed constant from this codebase.
 export const ACWR_HIGH_RISK_RATIO = 1.5;
 
+// The lower/upper bounds of the commonly cited ACWR "sweet spot" (Gabbett
+// 2016 and follow-on literature) - below it is undertraining relative to
+// chronic baseline (not flagged as risk by this app), between the two is
+// the target zone, and ACWR_CAUTION_RATIO..ACWR_HIGH_RISK_RATIO is the
+// caution band UI_PLAN.md §3.3's decision table names explicitly ("ACWR
+// 1.3-1.5"). Used by the merged Rolling Load/ACWR panel (UI_PLAN.md §4.6,
+// Stage 5) to render the three status bands - tunable defaults, same
+// precedent as RAMP_RATE_SPIKE_THRESHOLD/ACWR_HIGH_RISK_RATIO above.
+export const ACWR_SWEET_SPOT_MIN = 0.8;
+export const ACWR_CAUTION_RATIO = 1.3;
+
 // 6+ consecutive days of training with no rest day is a simple, commonly
 // used heuristic for overtraining/recovery risk. Tunable default.
 export const CONSECUTIVE_TRAINING_DAY_THRESHOLD = 6;
