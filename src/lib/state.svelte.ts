@@ -13,6 +13,8 @@ import { BackupStore } from './stores/backupStore.svelte';
 import { PreferencesStore } from './stores/preferencesStore.svelte';
 import type { TextScale, MotionPreference } from './preferences/migrate';
 import { syncFatigueReminders } from './notifications/fatigueReminder';
+import { syncDailyMetricsReminder } from './notifications/dailyMetricsReminder';
+import { cancelRemindersOfType } from './notifications/shared';
 
 /**
  * Global reactive state for the application, composed from the domain
@@ -76,6 +78,31 @@ class TrainingState {
   setTextScale(scale: TextScale) { this.preferencesStore.setTextScale(scale); }
   setMotion(motion: MotionPreference) { this.preferencesStore.setMotion(motion); }
 
+  get dailyMetricsReminderEnabled() { return this.preferencesStore.dailyMetricsReminderEnabled; }
+  get dailyMetricsReminderTime() { return this.preferencesStore.dailyMetricsReminderTime; }
+  /**
+   * Toggling this sub-preference doesn't wait for the next `refresh()` to
+   * take effect - disabling cancels any pending daily-metrics reminder
+   * immediately (`cancelRemindersOfType`, never touching the fatigue
+   * type's own pending notifications), enabling schedules one right away
+   * if today's metrics are still missing.
+   */
+  async setDailyMetricsReminderEnabled(enabled: boolean) {
+    this.preferencesStore.setDailyMetricsReminderEnabled(enabled);
+    if (enabled) {
+      await syncDailyMetricsReminder(this.dailyMetrics, this.dailyMetricsReminderTime);
+    } else {
+      await cancelRemindersOfType('dailyMetrics');
+    }
+  }
+  /** No-ops if the reminder itself is currently disabled - nothing to reschedule. */
+  async setDailyMetricsReminderTime(time: string) {
+    this.preferencesStore.setDailyMetricsReminderTime(time);
+    if (this.dailyMetricsReminderEnabled) {
+      await syncDailyMetricsReminder(this.dailyMetrics, time);
+    }
+  }
+
   /**
    * Refreshes all data from storage.
    */
@@ -99,6 +126,13 @@ class TrainingState {
           await syncFatigueReminders(this.workoutStore.workouts);
         } catch (err) {
           console.error('Failed to sync fatigue-reminder notifications:', err);
+        }
+        if (this.preferencesStore.dailyMetricsReminderEnabled) {
+          try {
+            await syncDailyMetricsReminder(this.metricsStore.dailyMetrics, this.preferencesStore.dailyMetricsReminderTime);
+          } catch (err) {
+            console.error('Failed to sync daily-metrics reminder notification:', err);
+          }
         }
       }
     } finally {

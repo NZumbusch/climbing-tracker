@@ -24,17 +24,8 @@ vi.mock("@capacitor/local-notifications", () => ({
   },
 }));
 
-const {
-  workoutReminderId,
-  dailyMetricsReminderId,
-  reminderTypeOf,
-  computeFatigueReminderTime,
-  checkNotificationPermission,
-  requestNotificationPermission,
-  cancelRemindersOfType,
-  cancelAllReminders,
-  syncFatigueReminders,
-} = await import("./fatigueReminder");
+const { workoutReminderId, computeFatigueReminderTime, syncFatigueReminders } = await import("./fatigueReminder");
+const { reminderId } = await import("./shared");
 
 function makeWorkout(overrides: Partial<Workout>): Workout {
   return {
@@ -74,31 +65,6 @@ describe("workoutReminderId", () => {
   });
 });
 
-describe("id ownership (UI_PLAN.md §5.6)", () => {
-  it("reminderTypeOf recovers 'fatigue' from any workoutReminderId", () => {
-    for (const id of ["a", "some-workout-id", "another-one-123"]) {
-      expect(reminderTypeOf(workoutReminderId(id))).toBe("fatigue");
-    }
-  });
-
-  it("reminderTypeOf recovers 'dailyMetrics' from dailyMetricsReminderId", () => {
-    expect(reminderTypeOf(dailyMetricsReminderId())).toBe("dailyMetrics");
-  });
-
-  it("dailyMetricsReminderId is a fixed, stable value (one recurring reminder, not per-workout)", () => {
-    expect(dailyMetricsReminderId()).toBe(dailyMetricsReminderId());
-  });
-
-  it("fatigue and dailyMetrics ids never collide, by construction", () => {
-    const fatigueIds = new Set(["a", "b", "c", "some-workout"].map(workoutReminderId));
-    expect(fatigueIds.has(dailyMetricsReminderId())).toBe(false);
-  });
-
-  it("reminderTypeOf returns undefined for an id outside any known type's range", () => {
-    expect(reminderTypeOf(2147483646)).toBeUndefined();
-  });
-});
-
 describe("computeFatigueReminderTime", () => {
   it("returns null when the workout has no weekId", () => {
     const workout = makeWorkout({ weekId: "" });
@@ -127,71 +93,6 @@ describe("computeFatigueReminderTime", () => {
     // No exercises -> ics.ts's calculateWorkoutDuration default of 60 min + 20 min buffer = 13:20
     expect(result!.getHours()).toBe(13);
     expect(result!.getMinutes()).toBe(20);
-  });
-});
-
-describe("checkNotificationPermission / requestNotificationPermission", () => {
-  it("report 'denied' on non-native platforms without touching the plugin", async () => {
-    isNativePlatform.mockReturnValue(false);
-    await expect(checkNotificationPermission()).resolves.toBe("denied");
-    await expect(requestNotificationPermission()).resolves.toBe("denied");
-    expect(checkPermissions).not.toHaveBeenCalled();
-    expect(requestPermissions).not.toHaveBeenCalled();
-  });
-
-  it("delegate to the plugin on native platforms", async () => {
-    checkPermissions.mockResolvedValue({ display: "granted" });
-    requestPermissions.mockResolvedValue({ display: "denied" });
-    await expect(checkNotificationPermission()).resolves.toBe("granted");
-    await expect(requestNotificationPermission()).resolves.toBe("denied");
-  });
-});
-
-describe("cancelRemindersOfType", () => {
-  it("no-ops on non-native platforms", async () => {
-    isNativePlatform.mockReturnValue(false);
-    await cancelRemindersOfType("fatigue");
-    expect(getPending).not.toHaveBeenCalled();
-  });
-
-  it("no-ops when nothing of that type is pending", async () => {
-    getPending.mockResolvedValue({ notifications: [] });
-    await cancelRemindersOfType("fatigue");
-    expect(cancel).not.toHaveBeenCalled();
-  });
-
-  it("cancels only pending notifications owned by the given type, leaving other types alone", async () => {
-    const fatigueId = workoutReminderId("some-workout");
-    const dailyId = dailyMetricsReminderId();
-    getPending.mockResolvedValue({ notifications: [{ id: fatigueId }, { id: dailyId }] });
-
-    await cancelRemindersOfType("fatigue");
-
-    expect(cancel).toHaveBeenCalledWith({ notifications: [{ id: fatigueId }] });
-  });
-});
-
-describe("cancelAllReminders", () => {
-  it("no-ops on non-native platforms", async () => {
-    isNativePlatform.mockReturnValue(false);
-    await cancelAllReminders();
-    expect(getPending).not.toHaveBeenCalled();
-  });
-
-  it("no-ops when nothing is pending", async () => {
-    getPending.mockResolvedValue({ notifications: [] });
-    await cancelAllReminders();
-    expect(cancel).not.toHaveBeenCalled();
-  });
-
-  it("cancels every pending notification regardless of type", async () => {
-    const fatigueId = workoutReminderId("some-workout");
-    const dailyId = dailyMetricsReminderId();
-    getPending.mockResolvedValue({ notifications: [{ id: fatigueId }, { id: dailyId }] });
-
-    await cancelAllReminders();
-
-    expect(cancel).toHaveBeenCalledWith({ notifications: [{ id: fatigueId }, { id: dailyId }] });
   });
 });
 
@@ -256,7 +157,7 @@ describe("syncFatigueReminders", () => {
   });
 
   it("never cancels a pending notification belonging to another reminder type (the regression this refactor exists to prevent)", async () => {
-    const dailyMetricsPendingId = dailyMetricsReminderId();
+    const dailyMetricsPendingId = reminderId("dailyMetrics", "daily-metrics-reminder");
     getPending.mockResolvedValue({ notifications: [{ id: dailyMetricsPendingId }] });
 
     const farFuture = new Date();

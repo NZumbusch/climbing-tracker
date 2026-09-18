@@ -9,6 +9,8 @@ describe('defaultPreferences', () => {
       motion: 'system',
       theme: 'dark',
       notificationsEnabled: false,
+      dailyMetricsReminderEnabled: true,
+      dailyMetricsReminderTime: '20:00',
     });
   });
 });
@@ -48,6 +50,8 @@ describe('migratePreferences', () => {
       motion: 'reduced' as const,
       theme: 'contrast' as const,
       notificationsEnabled: true,
+      dailyMetricsReminderEnabled: false,
+      dailyMetricsReminderTime: '07:30',
     };
     expect(migratePreferences(valid)).toEqual(valid);
   });
@@ -59,6 +63,8 @@ describe('migratePreferences', () => {
       motion: 'full',
       theme: 'dark',
       notificationsEnabled: false,
+      dailyMetricsReminderEnabled: true,
+      dailyMetricsReminderTime: '20:00',
       someFutureField: 'nonsense',
     });
     expect(result).not.toHaveProperty('someFutureField');
@@ -71,6 +77,8 @@ describe('migratePreferences', () => {
       motion: 'full',
       theme: 'light',
       notificationsEnabled: true,
+      dailyMetricsReminderEnabled: true,
+      dailyMetricsReminderTime: '20:00',
     });
     expect(result.textScale).toBe('md'); // fell back to default
     expect(result.motion).toBe('full'); // valid fields preserved
@@ -84,6 +92,46 @@ describe('migratePreferences', () => {
     expect(result.motion).toBe('system');
     expect(result.theme).toBe('dark');
     expect(result.notificationsEnabled).toBe(false);
+    expect(result.dailyMetricsReminderEnabled).toBe(true);
+    expect(result.dailyMetricsReminderTime).toBe('20:00');
+  });
+
+  it('backward compat: a real Stage-0-era blob with no daily-metrics fields at all gets them defaulted, without resetting textScale/motion (no version bump was needed for this addition)', () => {
+    const stage0Blob = {
+      version: CURRENT_PREFERENCES_VERSION,
+      textScale: 'lg',
+      motion: 'reduced',
+      theme: 'light',
+      notificationsEnabled: true,
+      // no dailyMetricsReminderEnabled / dailyMetricsReminderTime keys at all
+    };
+    const result = migratePreferences(stage0Blob);
+    expect(result.textScale).toBe('lg');
+    expect(result.motion).toBe('reduced');
+    expect(result.theme).toBe('light');
+    expect(result.notificationsEnabled).toBe(true);
+    expect(result.dailyMetricsReminderEnabled).toBe(true);
+    expect(result.dailyMetricsReminderTime).toBe('20:00');
+  });
+
+  it('rejects a malformed dailyMetricsReminderTime and falls back to the default', () => {
+    for (const bad of ['8pm', '25:00', '20:60', '2000', '', 42]) {
+      const result = migratePreferences({
+        version: CURRENT_PREFERENCES_VERSION,
+        dailyMetricsReminderTime: bad,
+      });
+      expect(result.dailyMetricsReminderTime).toBe('20:00');
+    }
+  });
+
+  it('accepts valid HH:mm times, including midnight and single-digit-looking edges', () => {
+    for (const good of ['00:00', '09:05', '23:59']) {
+      const result = migratePreferences({
+        version: CURRENT_PREFERENCES_VERSION,
+        dailyMetricsReminderTime: good,
+      });
+      expect(result.dailyMetricsReminderTime).toBe(good);
+    }
   });
 
   it('treats an unrecognised version (including a future one) as corrupt and returns defaults', () => {

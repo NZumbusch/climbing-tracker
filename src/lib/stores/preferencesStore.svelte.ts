@@ -13,6 +13,8 @@ const LEGACY_NOTIFICATIONS_KEY = 'boulder_tracker_notifications_enabled';
 export class PreferencesStore {
   textScale = $state<TextScale>('md');
   motion = $state<MotionPreference>('system');
+  dailyMetricsReminderEnabled = $state(true);
+  dailyMetricsReminderTime = $state('20:00');
 
   constructor() {
     if (typeof localStorage === 'undefined') return;
@@ -33,6 +35,8 @@ export class PreferencesStore {
 
     this.textScale = prefs.textScale;
     this.motion = prefs.motion;
+    this.dailyMetricsReminderEnabled = prefs.dailyMetricsReminderEnabled;
+    this.dailyMetricsReminderTime = prefs.dailyMetricsReminderTime;
 
     // Persist immediately so the fold (or a version migration) only ever
     // has to happen once, and so a fresh install's defaults are recorded
@@ -52,6 +56,16 @@ export class PreferencesStore {
     this.persist();
   }
 
+  setDailyMetricsReminderEnabled(enabled: boolean) {
+    this.dailyMetricsReminderEnabled = enabled;
+    this.persist();
+  }
+
+  setDailyMetricsReminderTime(time: string) {
+    this.dailyMetricsReminderTime = time;
+    this.persist();
+  }
+
   /**
    * Re-reads the legacy theme/notification keys at persist time (rather
    * than trusting a value captured at construction) so this blob's copies
@@ -66,6 +80,8 @@ export class PreferencesStore {
       ...defaultPreferences(),
       textScale: this.textScale,
       motion: this.motion,
+      dailyMetricsReminderEnabled: this.dailyMetricsReminderEnabled,
+      dailyMetricsReminderTime: this.dailyMetricsReminderTime,
       theme: (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'contrast')
         ? legacyTheme
         : defaultPreferences().theme,

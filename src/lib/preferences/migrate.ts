@@ -31,7 +31,19 @@ export interface Preferences {
   theme: ThemePreference;
   /** Forward-compat only - see module doc comment. Not live-managed here yet. */
   notificationsEnabled: boolean;
+  /**
+   * Whether the daily-metrics reminder (UI_PLAN.md §5.8, Stage 8) should
+   * schedule at all once notifications are otherwise enabled. Defaults to
+   * `true` - it's inert until `notificationsEnabled` is also true and
+   * permission is granted, so there's no separate opt-in step needed on
+   * top of turning notifications on in the first place.
+   */
+  dailyMetricsReminderEnabled: boolean;
+  /** "HH:mm", 24-hour, local time. Default 20:00 per UI_PLAN.md §10 open question 4. */
+  dailyMetricsReminderTime: string;
 }
+
+export const DEFAULT_DAILY_METRICS_REMINDER_TIME = '20:00';
 
 /** Values a fresh install (or an unreadable/corrupt blob) starts from. */
 export function defaultPreferences(): Preferences {
@@ -41,6 +53,8 @@ export function defaultPreferences(): Preferences {
     motion: 'system',
     theme: 'dark',
     notificationsEnabled: false,
+    dailyMetricsReminderEnabled: true,
+    dailyMetricsReminderTime: DEFAULT_DAILY_METRICS_REMINDER_TIME,
   };
 }
 
@@ -87,6 +101,13 @@ export function migratePreferences(raw: unknown, legacy?: LegacyPreferenceValues
     theme: THEMES.includes(candidate.theme as ThemePreference)
       ? (candidate.theme as ThemePreference)
       : defaults.theme,
+    dailyMetricsReminderEnabled: typeof candidate.dailyMetricsReminderEnabled === 'boolean'
+      ? candidate.dailyMetricsReminderEnabled
+      : defaults.dailyMetricsReminderEnabled,
+    dailyMetricsReminderTime: typeof candidate.dailyMetricsReminderTime === 'string'
+      && /^([01]\d|2[0-3]):[0-5]\d$/.test(candidate.dailyMetricsReminderTime)
+      ? candidate.dailyMetricsReminderTime
+      : defaults.dailyMetricsReminderTime,
     notificationsEnabled: typeof candidate.notificationsEnabled === 'boolean'
       ? candidate.notificationsEnabled
       : defaults.notificationsEnabled,
