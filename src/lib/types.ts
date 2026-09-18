@@ -1,18 +1,7 @@
 /**
- * Represents the macrocycle phases of a climbing training plan.
- */
-export type PhaseType =
-  | "Work Capacity"
-  | "Max Strength"
-  | "Power"
-  | "Power Endurance"
-  | "Performance / Taper"
-  | "Deload";
-
-/**
  * Valid navigation views within the application.
  */
-export type ViewType = "plan" | "add" | "history" | "settings" | "analytics";
+export type ViewType = "home" | "plan" | "add" | "history" | "settings" | "analytics";
 
 /**
  * High-level categorization of exercises for analytics and UI color-coding.
@@ -23,6 +12,7 @@ export interface AnalyticsCategory {
   id: string;
   name: string;
   color: string;
+  archived?: boolean;
 }
 
 /**
@@ -32,6 +22,10 @@ export type ParameterBlock =
   | "duration"
   | "boulderingGrades"
   | "routeGrades"
+  // "grades" is the 3.8->3.9 migration's merged target for the two above
+  // (see storage.ts) - added here so PARAMETER_LABELS and migrated data
+  // type-check. The old names stay too; existing UI still keys off them.
+  | "grades"
   | "cadence"
   | "climbingStyle"
   | "boardType"
@@ -68,18 +62,19 @@ export interface ExerciseTypeDef {
   possibleParameters?: ParameterBlock[];
   /** Expected stress scale (1-10) for a standard session of this type */
   defaultPlannedLoad?: number;
+  /** Never hard-delete a type once referenced by history - archive it instead. */
+  archived?: boolean;
 }
 
 /**
- * Represents a single instance of an exercise within a workout.
+ * The tracked-parameter values for a single exercise instance - everything
+ * about it except which exercise type it is and whether it's the plan or
+ * the log (see `ExerciseSlot`). The whole set moves together: a field never
+ * got individually split into "planned" vs "actual" here, so none of them
+ * are split differently than any other by this interface.
  */
-export interface Exercise {
-  id: string;
-  type: string;
-  category?: string; // Overrides the default AnalyticsCategory of the type
+export interface ExerciseValues {
   notes?: string;
-  /** Explicitly tracks which parameters are active for this specific instance */
-  activeParameters?: ParameterBlock[];
   duration?: number;
   /** The specific planned load (1-10) assigned for this instance */
   plannedLoad?: number;
@@ -93,12 +88,9 @@ export interface Exercise {
   boardAngle?: number; // 20-70
 
   // Lead Climbing
-  minRouteGrade?: string;
-  maxRouteGrade?: string;
   leadStyle?: ("Onsight" | "Flash" | "Redpoint" | "Projecting")[];
 
   // Non-Free / General
-  variant?: string; // 4x4, EMOM, etc.
   sets?: number;
   reps?: number;
   movesPerRoute?: number;
@@ -131,6 +123,30 @@ export interface Exercise {
   mobilityType?: ("Hamstrings" | "Shoulders" | "Hips" | "Spine" | "Ankles" | "Wrists")[];
 }
 
+/**
+ * A single exercise "row" within a workout or template. References its
+ * exercise type and (optional) category override by id, never by name -
+ * renaming a type/category never requires touching any historical data.
+ *
+ * Separates the goal from the log: `prescribed` is set at plan time and
+ * stays stable; `logged` is what actually happened, edited during/after
+ * the session. Editing a workout after the fact no longer silently
+ * overwrites the plan it should be compared against.
+ */
+export interface ExerciseSlot {
+  id: string;
+  /** -> ExerciseTypeDef.id */
+  typeId: string;
+  /** -> AnalyticsCategory.id. Overrides the type's default category. */
+  categoryId?: string;
+  /** Explicitly tracks which parameters are active for this specific instance */
+  activeParameters?: ParameterBlock[];
+  /** The goal, set at plan time, stable */
+  prescribed?: ExerciseValues;
+  /** What happened, edited during/after the session */
+  logged?: ExerciseValues;
+}
+
 export type DayOfWeek =
   | "Monday"
   | "Tuesday"
@@ -158,10 +174,13 @@ export interface Workout {
   loadFactor: number;
   /** Pre-calculated planned stress score based on scheduled exercises */
   plannedLoad?: number;
-  exercises: Exercise[];
+  exercises: ExerciseSlot[];
+  /** -> TrainingBlock.id. Set at creation time from whichever block covers this workout's weekId (if any), so block-level analytics are a direct filter instead of a per-query date-range recompute. */
+  blockId?: string;
 
   // Fatigue Metrics (Perceived Exertion after completion)
   fingers?: number; // 1-10
+  arms?: number; // 1-10
   core?: number; // 1-10
   systemic?: number; // 1-10
 }
@@ -190,26 +209,97 @@ export function calculateLoadFactor(
 
 /**
  * Calculates the planned load for an exercise based on its duration and planned intensity.
+ *
+ * Takes the exercise itself (not two positional numbers) because every real
+ * call site already called it that way (`calculatePlannedLoad(exercise)`) -
+ * the previous two-arg signature didn't match, so `duration` silently
+ * received the whole exercise object and `Number(duration)` produced NaN.
  */
-export function calculatePlannedLoad(
-  duration: number | undefined,
-  plannedIntensity: number | undefined,
-): number {
+export function calculatePlannedLoad(exercise: {
+  duration?: number;
+  plannedLoad?: number;
+}): number {
   // Ensure we have numbers. "0" || 5 in JS is "0", which is a common bug source.
-  const d = duration !== undefined ? Number(duration) : 60;
-  const i = plannedIntensity !== undefined ? Number(plannedIntensity) : 5;
+  const d = exercise.duration !== undefined ? Number(exercise.duration) : 60;
+  const i = exercise.plannedLoad !== undefined ? Number(exercise.plannedLoad) : 5;
   const intensityScale = Math.pow(i, 1.2);
   return Math.round(d * intensityScale);
 }
 
 /**
- * Links a specific week to a macrocycle phase in the training plan.
+ * Defines a macrocycle training phase (e.g. Capacity, Deload). Data, not
+ * code (Phase 3 principle 4) - replaces the old closed `PhaseType` union so
+ * phases can be added/renamed/archived without shipping code.
  */
-export interface PeriodizationWeek {
+export interface PhaseDef {
+  id: string;
+  name: string;
+  color?: string;
+  /** For consistent display ordering */
+  order?: number;
+  /** Never hard-delete a phase once referenced by history - archive it instead. */
+  archived?: boolean;
+}
+
+/**
+ * A concurrent training emphasis spanning one or more weeks (Phase 4).
+ * Replaces the old one-phase-per-week `PeriodizationWeek` - multiple blocks
+ * can overlap the same week (e.g. a strength block and a skill-maintenance
+ * block running side by side), with `priority` deciding which one dominates
+ * template selection/display for a week covered by more than one.
+ */
+export interface TrainingBlock {
+  id: string;
+  name: string;
+  /** -> PhaseDef.id, the primary focus of this block */
+  phaseId: string;
+  /** ISO-8601 week id, inclusive */
+  startWeekId: string;
+  /** ISO-8601 week id, inclusive */
+  endWeekId: string;
+  /** Higher wins when multiple blocks cover the same week. Default 0. */
+  priority?: number;
+  color?: string;
+}
+
+/**
+ * A competition or event to peak for (Phase 4).
+ */
+export interface CompetitionEvent {
+  id: string;
+  name: string;
+  /** ISO date string */
+  date: string;
+  priority: "A" | "B" | "C";
+}
+
+/**
+ * Tracks whether a week's auto-generated workouts were manually edited by
+ * the user, kept as a **separate, per-week table decoupled from
+ * `TrainingBlock`** (Phase 4 - PLAN.md's recommended default for the
+ * "what does 'customized' mean once blocks can overlap" question): "has
+ * this week been manually edited" stays a per-week concern independent of
+ * "what training emphasis covers this week," which is now a per-block
+ * concern. Manual edits always take precedence and are never silently
+ * overwritten by template/block regeneration.
+ */
+export interface WeekOverride {
   weekId: string;
-  phase: PhaseType;
-  /** Indicates if the user manually modified this week's plan from the default template */
-  customized?: boolean;
+  customized: boolean;
+}
+
+/**
+ * A default/prescribed workout belonging to a phase's template library.
+ * Dedicated shape rather than `Partial<Workout>` - a template never had a
+ * meaningful `status`/`date`/`loadFactor`/fatigue, so those workout-only
+ * fields can no longer leak in by accident.
+ */
+export interface WorkoutTemplate {
+  id: string;
+  name?: string;
+  dayOfWeek?: DayOfWeek;
+  /** `logged` is always undefined on a template's slots - templates are pure plans. */
+  exercises: ExerciseSlot[];
 }
 
 /**
@@ -219,6 +309,7 @@ export interface BenchmarkTypeDef {
   id: string;
   name: string;
   unit: string;
+  archived?: boolean;
 }
 
 /**
@@ -238,15 +329,83 @@ export interface Benchmark {
 }
 
 /**
+ * Defines a type of daily metric that can be tracked (e.g. sleep score,
+ * HRV, bodyweight). "What can be tracked" is data, not code - replaces the
+ * old fixed-shape `DailyReadiness`.
+ */
+export interface MetricDef {
+  id: string;
+  name: string;
+  unit: string;
+  archived?: boolean;
+}
+
+/**
+ * A single recorded value for a `MetricDef` on a given day.
+ */
+export interface DailyMetricEntry {
+  id: string;
+  /** -> MetricDef.id */
+  metricId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  value: number;
+  note?: string;
+}
+
+/**
+ * A logged instance of pain/discomfort. Deliberately a dedicated entity
+ * rather than folded into the generic `MetricDef`/`DailyMetricEntry`
+ * system - pain tracking has its own shape (body part, severity, week
+ * linkage) that doesn't fit a single numeric value per day.
+ */
+export interface PainLog {
+  id: string;
+  date: string;
+  weekId: string;
+  bodyPart: string;
+  /** 1-10 */
+  severity: number;
+  notes?: string;
+}
+
+/**
+ * A single outdoor ascent, optionally imported from an 8a.nu CSV export
+ * (`src/lib/importers/outdoorAscentCsvImport.ts`) or entered by hand.
+ * Deliberately a lightweight log for correlating outdoor performance
+ * against training blocks/load - **not** a pyramid-builder or gym-grade
+ * tool (see PLAN.md Phase 6's locked-in scope note).
+ */
+export interface OutdoorAscent {
+  id: string;
+  /** ISO date string */
+  date: string;
+  name?: string;
+  grade: string;
+  /** Readable ascent style, e.g. "Flash"/"Redpoint"/"Onsight" - resolved from the source's style code where possible. */
+  style?: string;
+  /** Crag/area name */
+  crag?: string;
+  notes?: string;
+}
+
+/**
  * The complete schema for all local user data.
  * Used for exporting and importing full database backups.
  */
 export interface TrainingData {
   workouts: Workout[];
-  periodization: PeriodizationWeek[];
+  trainingBlocks: TrainingBlock[];
+  weekOverrides: WeekOverride[];
+  competitionEvents: CompetitionEvent[];
   exerciseTypes: ExerciseTypeDef[];
-  templates: Record<PhaseType, Partial<Workout>[]>;
+  templates: Record<string, WorkoutTemplate[]>;
+  phaseDefs: PhaseDef[];
   benchmarks: Benchmark[];
   benchmarkTypes: BenchmarkTypeDef[];
   analyticsCategories: AnalyticsCategory[];
+  metricDefs: MetricDef[];
+  dailyMetrics: DailyMetricEntry[];
+  painLogs: PainLog[];
+  outdoorAscents: OutdoorAscent[];
 }

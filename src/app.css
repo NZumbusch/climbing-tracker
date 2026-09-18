@@ -5,14 +5,14 @@
   --color-surface: var(--theme-surface);
   --color-surface-elevated: var(--theme-surface-elevated);
   --color-surface-elevated-hover: var(--theme-surface-elevated-hover);
-  
+
   --color-border: var(--theme-border);
   --color-border-strong: var(--theme-border-strong);
-  
+
   --color-content: var(--theme-content);
   --color-content-muted: var(--theme-content-muted);
   --color-content-subtle: var(--theme-content-subtle);
-  
+
   --color-primary: var(--theme-primary);
   --color-primary-hover: var(--theme-primary-hover);
   --color-success: var(--theme-success);
@@ -22,6 +22,41 @@
   --color-warning-hover: var(--theme-warning-hover);
   --color-tertiary: var(--theme-tertiary);
   --color-tertiary-hover: var(--theme-tertiary-hover);
+
+  /* Status colour tokens - meaning only (readiness/ACWR/fatigue state).
+     Never used for decoration. See UI_PLAN.md §3.3. */
+  --color-status-good: var(--theme-status-good);
+  --color-status-caution: var(--theme-status-caution);
+  --color-status-risk: var(--theme-status-risk);
+  --color-status-neutral: var(--theme-status-neutral);
+
+  /* Two radii only - see UI_PLAN.md §3.2. rounded-full (circles/pills) is
+     a separate shape concern, not part of this corner-radius scale. */
+  --radius-card: 16px;
+  --radius-control: 10px;
+
+  /* One shared card elevation, replacing the shadow-lg/xl/2xl mix on card
+     containers (UI_PLAN.md §3.2). Not used for buttons/interactive glow. */
+  --shadow-card: 0 4px 24px -2px rgb(0 0 0 / 0.35);
+
+  /* Type ramp - see UI_PLAN.md §3.1. Sizes are indirected through
+     --typescale-* so `data-text-scale` can override them (below);
+     weight/tracking don't scale, so they're set directly here. */
+  --text-display: var(--typescale-display);
+  --text-display--font-weight: 800;
+  --text-metric: var(--typescale-metric);
+  --text-metric--font-weight: 700;
+  --text-title: var(--typescale-title);
+  --text-title--font-weight: 700;
+  --text-section: var(--typescale-section);
+  --text-section--font-weight: 700;
+  --text-section--letter-spacing: 0.05em;
+  --text-body: var(--typescale-body);
+  --text-body--font-weight: 400;
+  --text-label: var(--typescale-label);
+  --text-label--font-weight: 600;
+  --text-caption: var(--typescale-caption);
+  --text-caption--font-weight: 500;
 }
 
 :root {
@@ -30,26 +65,31 @@
   --theme-surface: #121214;
   --theme-surface-elevated: #27272a; /* zinc-800 */
   --theme-surface-elevated-hover: #3f3f46; /* zinc-700 */
-  
+
   --theme-border: #27272a; /* zinc-800 */
   --theme-border-strong: #3f3f46; /* zinc-700 */
-  
+
   --theme-content: #f4f4f5; /* zinc-100 */
   --theme-content-muted: #a1a1aa; /* zinc-400 */
   --theme-content-subtle: #71717a; /* zinc-500 */
-  
+
   --theme-primary: #2563eb; /* blue-600 */
   --theme-primary-hover: #3b82f6; /* blue-500 */
-  
+
   --theme-success: #059669; /* emerald-600 */
   --theme-success-hover: #10b981; /* emerald-500 */
-  
+
   --theme-danger: #ef4444; /* red-500 */
   --theme-warning: #f97316; /* orange-500 */
   --theme-warning-hover: #fb923c; /* orange-400 */
-  
+
   --theme-tertiary: #9333ea; /* purple-600 */
   --theme-tertiary-hover: #a855f7; /* purple-500 */
+
+  --theme-status-good: #10b981; /* emerald-500 */
+  --theme-status-caution: #f59e0b; /* amber-500 */
+  --theme-status-risk: #ef4444; /* red-500 */
+  --theme-status-neutral: #71717a; /* zinc-500 */
 }
 
 :root[data-theme="light"] {
@@ -57,26 +97,32 @@
   --theme-surface: #ffffff;
   --theme-surface-elevated: #e4e4e7; /* zinc-200 */
   --theme-surface-elevated-hover: #d4d4d8; /* zinc-300 */
-  
+
   --theme-border: #e4e4e7;
   --theme-border-strong: #a1a1aa;
-  
+
   --theme-content: #09090b; /* zinc-950 */
   --theme-content-muted: #52525b; /* zinc-600 */
   --theme-content-subtle: #71717a; /* zinc-500 */
-  
-  --theme-primary: #2563eb; 
-  --theme-primary-hover: #1d4ed8; 
-  
-  --theme-success: #10b981; 
-  --theme-success-hover: #059669; 
-  
-  --theme-danger: #ef4444; 
-  --theme-warning: #f97316; 
-  --theme-warning-hover: #ea580c; 
-  
-  --theme-tertiary: #9333ea; 
-  --theme-tertiary-hover: #7e22ce; 
+
+  --theme-primary: #2563eb;
+  --theme-primary-hover: #1d4ed8;
+
+  --theme-success: #10b981;
+  --theme-success-hover: #059669;
+
+  --theme-danger: #ef4444;
+  --theme-warning: #f97316;
+  --theme-warning-hover: #ea580c;
+
+  --theme-tertiary: #9333ea;
+  --theme-tertiary-hover: #7e22ce;
+
+  /* Darker than the dark theme's for contrast against a light surface. */
+  --theme-status-good: #059669; /* emerald-600 */
+  --theme-status-caution: #d97706; /* amber-600 */
+  --theme-status-risk: #dc2626; /* red-600 */
+  --theme-status-neutral: #52525b; /* zinc-600, matches this theme's content-muted */
 }
 
 :root[data-theme="contrast"] {
@@ -84,28 +130,94 @@
   --theme-surface: #000000;
   --theme-surface-elevated: #000000;
   --theme-surface-elevated-hover: #111111;
-  
+
   --theme-border: #ffffff;
   --theme-border-strong: #ffffff;
-  
+
   --theme-content: #ffffff;
   --theme-content-muted: #dddddd;
   --theme-content-subtle: #bbbbbb;
-  
-  --theme-primary: #3b82f6; 
-  --theme-primary-hover: #60a5fa; 
-  
-  --theme-success: #10b981; 
-  --theme-success-hover: #34d399; 
-  
-  --theme-danger: #ef4444; 
-  --theme-warning: #f97316; 
-  --theme-warning-hover: #fb923c; 
-  
-  --theme-tertiary: #a855f7; 
-  --theme-tertiary-hover: #c084fc; 
+
+  --theme-primary: #3b82f6;
+  --theme-primary-hover: #60a5fa;
+
+  --theme-success: #10b981;
+  --theme-success-hover: #34d399;
+
+  --theme-danger: #ef4444;
+  --theme-warning: #f97316;
+  --theme-warning-hover: #fb923c;
+
+  --theme-tertiary: #a855f7;
+  --theme-tertiary-hover: #c084fc;
+
+  /* Brighter than the dark theme's, matching how primary/success are also
+     bumped brighter here - a near-black background needs more saturation
+     for these to read clearly, not a muddy mid-tone. */
+  --theme-status-good: #22c55e; /* green-500 */
+  --theme-status-caution: #fbbf24; /* amber-400 */
+  --theme-status-risk: #f87171; /* red-400 */
+  --theme-status-neutral: #a1a1aa; /* zinc-400 */
 }
 
+/* Type ramp base sizes (UI_PLAN.md §3.1), scaled by data-text-scale below.
+   --typescale-caption never goes below 11px at any scale - the hard floor. */
+:root {
+  --typescale-display: 44px;
+  --typescale-metric: 26px;
+  --typescale-title: 18px;
+  --typescale-section: 12px;
+  --typescale-body: 14px;
+  --typescale-label: 12px;
+  --typescale-caption: 11px;
+}
+
+:root[data-text-scale="sm"] {
+  --typescale-display: 40px;
+  --typescale-metric: 24px;
+  --typescale-title: 17px;
+  --typescale-section: 11px;
+  --typescale-body: 13px;
+  --typescale-label: 11px;
+  --typescale-caption: 11px;
+}
+
+:root[data-text-scale="lg"] {
+  --typescale-display: 52px;
+  --typescale-metric: 28px;
+  --typescale-title: 19px;
+  --typescale-section: 13px;
+  --typescale-body: 15px;
+  --typescale-label: 13px;
+  --typescale-caption: 12px;
+}
+
+/* Motion (UI_PLAN.md §3.4). `data-motion` is always resolved to "full" or
+   "reduced" in script (App.svelte), including honouring
+   prefers-reduced-motion as the default when no explicit choice has been
+   made - the media query below is only a pre-hydration/no-JS fallback so
+   there's no flash of full motion for a user who has the OS setting on. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) *,
+  :root:not([data-motion]) *::before,
+  :root:not([data-motion]) *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {

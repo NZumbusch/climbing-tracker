@@ -2,22 +2,30 @@
   import { trainingState } from '../../lib/state.svelte';
   import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
   import { generateId } from '../../lib/utils';
-  import type { PhaseType, PeriodizationWeek, Workout, Benchmark } from '../../lib/types';
+  import { getBlocksForWeek, getDominantBlockForWeek } from '../../lib/planning/trainingBlocks';
+  import type { Workout, Benchmark, DayOfWeek } from '../../lib/types';
+  import { dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action';
   import Icon from "@iconify/svelte";
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIPromptModal from './AIPromptModal.svelte';
+  import AIImportModal from './AIImportModal.svelte';
+  import WeekCalendar from './WeekCalendar.svelte';
+  import BlockManager from './BlockManager.svelte';
+  import CompetitionCalendar from './CompetitionCalendar.svelte';
 
   // --- Theme ---
-  const phaseColors: Record<PhaseType, string> = {
-    'Work Capacity': 'bg-success-hover',
-    'Max Strength': 'bg-rose-500',
-    'Power': 'bg-amber-500',
-    'Power Endurance': 'bg-tertiary-hover',
-    'Performance / Taper': 'bg-sky-500',
-    'Deload': 'bg-zinc-500'
-  };
+  const FALLBACK_PHASE_COLOR = 'bg-status-neutral';
 
-  const phases: PhaseType[] = ['Work Capacity', 'Max Strength', 'Power', 'Power Endurance', 'Performance / Taper', 'Deload'];
+  /** Only non-archived phases are offered for new assignment; archived ones stay resolvable for display via phaseDefById. */
+  const selectablePhases = $derived(
+    [...trainingState.phaseDefs]
+      .filter((p) => !p.archived)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+  );
+
+  const phaseDefById = $derived(new Map(trainingState.phaseDefs.map((p) => [p.id, p])));
+  const phaseColor = (phaseId?: string) => (phaseId && phaseDefById.get(phaseId)?.color) || FALLBACK_PHASE_COLOR;
+  const phaseName = (phaseId?: string) => (phaseId && phaseDefById.get(phaseId)?.name) || undefined;
 
   // --- State ---
 
@@ -25,12 +33,21 @@
   let isAddingBenchmark = $state(false);
   let editingBenchmark = $state<Benchmark | null>(null);
   let showAIPrompt = $state(false);
+  let showAIImport = $state(false);
+  let showBlockManager = $state(false);
 
   // --- Logic: Calendar Generation ---
+  // Reverted to the pre-Stage-6 50-week grid + hover-tooltip design
+  // (user-directed, 2026-09-18 - see PROGRESS.md "Stage 6 fixup": the
+  // block-timeline band/16-week window/visible-week-number redesign this
+  // stage originally built per UI_PLAN.md §4.3 didn't read well in the
+  // real app and was reverted in favour of the original look, restyled
+  // only with this branch's tokens/radii - not a partial keep of any of
+  // that redesign).
 
   const weeks = $derived.by(() => {
     const currentWeekId = trainingState.currentWeekId;
-    const tempWeeks: { id: string; label: string; phase?: PhaseType; isCurrent: boolean; year: number }[] = [];
+    const tempWeeks: { id: string; label: string; phaseId?: string; isCurrent: boolean; year: number; hasOverlap: boolean }[] = [];
 
     const startOffset = -25 + (trainingState.weekOffset * 50);
     const endOffset = 24 + (trainingState.weekOffset * 50);
@@ -39,18 +56,45 @@
       const d = new Date();
       d.setDate(d.getDate() + (i * 7));
       const id = getWeekId(d);
-      const phaseEntry = trainingState.periodization.find((p: PeriodizationWeek) => p.weekId === id);
-      
+      const covering = getBlocksForWeek(trainingState.trainingBlocks, id);
+      const dominant = getDominantBlockForWeek(trainingState.trainingBlocks, id);
+
       tempWeeks.push({
         id,
         label: `Week ${id.split('-W')[1]}`,
-        phase: phaseEntry?.phase,
+        phaseId: dominant?.phaseId,
         isCurrent: id === currentWeekId,
-        year: d.getUTCFullYear()
+        year: d.getUTCFullYear(),
+        hasOverlap: covering.length > 1,
       });
     }
     return tempWeeks;
   });
+
+  const calendarWeeks = $derived(
+    weeks.map((w) => ({
+      id: w.id,
+      label: w.label,
+      year: w.year,
+      isCurrent: w.isCurrent,
+      // Deliberately not `phaseColor(w.phaseId)` here - that helper's
+      // `bg-status-neutral` fallback is right for badges/legend dots
+      // elsewhere in this file, but for the calendar grid it was drowning
+      // out `WeekCalendar`'s own softer "no phase" fallback
+      // (`bg-surface-elevated/50`, matching main's original look) with a
+      // flat mid-gray on every unassigned cell. Passing `undefined` here
+      // lets that component's own fallback apply instead (found/fixed
+      // 2026-09-18, see PROGRESS.md "Stage 6 fixup").
+      color: w.phaseId ? phaseDefById.get(w.phaseId)?.color : undefined,
+      tooltip: `${w.id}${phaseName(w.phaseId) ? ` - ${phaseName(w.phaseId)}` : ''}${w.hasOverlap ? ' (overlapping blocks)' : ''}`,
+      hasOverlap: w.hasOverlap,
+    })),
+  );
+
+  /** Every block covering the selected week, for the "Active Blocks" list - not just the dominant one. */
+  const selectedWeekBlocks = $derived(
+    trainingState.selectedWeekId ? getBlocksForWeek(trainingState.trainingBlocks, trainingState.selectedWeekId) : [],
+  );
 
   $effect(() => {
     if (!trainingState.selectedWeekId) trainingState.selectedWeekId = trainingState.currentWeekId;
@@ -78,26 +122,42 @@
 
   const weekBenchmarks = $derived(trainingState.benchmarks.filter((b: Benchmark) => b.weekId === trainingState.selectedWeekId));
 
-  const rollingLoad = $derived.by(() => {
-    const completed = trainingState.completedWorkouts;
-    const recent = completed.slice(-5);
-    if (recent.length === 0) return 0;
-    return recent.reduce((acc: number, w: Workout) => acc + (w.loadFactor || 0), 0) / recent.length;
-  });
-  
-  const weeklyWorkoutsCount = $derived.by(() => {
-    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return trainingState.completedWorkouts.filter((w: Workout) => {
-      if (!w.date) return false;
-      return new Date(w.date).getTime() > oneWeekAgo;
-    }).length;
+  // --- Sessions grouped under day headings (UI_PLAN.md §4.3) - Mon-Sun in
+  // that fixed order, then "Unassigned" last. Rest days (and an empty
+  // Unassigned group) render explicitly as "- rest -"/"No unassigned
+  // sessions" rather than an empty gap - every group always renders, even
+  // empty, since each one is also a live drag-and-drop zone (below) and
+  // needs a real drop target to reassign a session *to* an empty day.
+  const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  type DayKey = DayOfWeek | 'Unassigned';
+  const DAY_GROUP_KEYS: DayKey[] = [...DAYS, 'Unassigned'];
+
+  function groupByDay(list: Workout[]): Record<DayKey, Workout[]> {
+    const groups = Object.fromEntries(DAY_GROUP_KEYS.map((k) => [k, [] as Workout[]])) as Record<DayKey, Workout[]>;
+    for (const w of list) {
+      groups[w.dayOfWeek ?? 'Unassigned'].push(w);
+    }
+    return groups;
+  }
+
+  // Local, mutable mirror of `weekWorkouts` grouped by day - `svelte-dnd-
+  // action` needs a locally-reorderable array per zone to give live visual
+  // feedback while dragging (its `consider` events), which a plain
+  // `$derived` (read-only, recomputed only when its own dependencies
+  // change) can't provide. Resynced from the canonical, store-backed
+  // `weekWorkouts` on every change (including the one this drag itself
+  // causes, once persisted) - the actual write path is still exclusively
+  // `handleDayReassign` (see below), never a direct mutation of this array.
+  let dayGroups = $state<Record<DayKey, Workout[]>>(groupByDay([]));
+  $effect(() => {
+    dayGroups = groupByDay(weekWorkouts);
   });
 
   // --- Handlers ---
 
-  async function handleAssign(phase: PhaseType) {
+  async function handleAssign(phaseId: string) {
     if (!trainingState.selectedWeekId) return;
-    await trainingState.assignPhase(trainingState.selectedWeekId, phase);
+    await trainingState.assignPhase(trainingState.selectedWeekId, phaseId);
     showPhaseDropdown = false;
   }
 
@@ -112,6 +172,7 @@
   }
 
   function handleAddWorkout(weekId: string) {
+    const dominantBlock = getDominantBlockForWeek(trainingState.trainingBlocks, weekId);
     const newWorkout: Workout = {
       id: generateId(),
       status: 'planned',
@@ -119,9 +180,47 @@
       weekId,
       notes: 'New Session',
       loadFactor: 0,
-      exercises: []
+      exercises: [],
+      blockId: dominantBlock?.id,
     };
     trainingState.navigate('add', newWorkout);
+  }
+
+  /**
+   * The single write path for reassigning a session's day (UI_PLAN.md
+   * §4.3: "Both write the same field through one handler"). Snapshots
+   * before mutating rather than writing to the live store object in place
+   * (the stash's version did the latter and is explicitly called out as
+   * the thing not to repeat). Uses `saveWorkoutQuiet` rather than
+   * `saveWorkout` so this in-place edit doesn't trigger `refresh()`'s
+   * `isLoading` remount - see that method's own doc comment.
+   */
+  async function handleDayReassign(workout: Workout, newDay: DayOfWeek | undefined) {
+    if (workout.dayOfWeek === newDay) return;
+    const snapshot = $state.snapshot(workout);
+    await trainingState.saveWorkoutQuiet({ ...snapshot, dayOfWeek: newDay });
+  }
+
+  /**
+   * Drag-and-drop day reassignment (UI_PLAN.md §4.3), via a drag handle on
+   * each session row rather than the whole row - user-directed, so the
+   * rest of the row (and the page) keeps its normal scroll/tap behaviour;
+   * only the handle itself starts a drag. Each day group is its own
+   * `dragHandleZone`; dropping into a different zone than the one a
+   * session started in reassigns its day through the exact same
+   * `handleDayReassign` the explicit picker uses - per §4.3's "do not
+   * duplicate the save path", this finalize handler never writes
+   * `dayOfWeek` itself, it only decides *whether* to call the one function
+   * that does.
+   */
+  function handleDndConsider(dayKey: DayKey, e: CustomEvent<DndEvent<Workout>>) {
+    dayGroups[dayKey] = e.detail.items;
+  }
+
+  async function handleDndFinalize(dayKey: DayKey, e: CustomEvent<DndEvent<Workout>>) {
+    dayGroups[dayKey] = e.detail.items;
+    const moved = e.detail.items.find((w) => w.id === e.detail.info.id);
+    if (moved) await handleDayReassign(moved, dayKey === 'Unassigned' ? undefined : dayKey);
   }
 
   function handleAddBenchmark() {
@@ -135,107 +234,100 @@
   }
 </script>
 
-<div class="w-full max-w-lg space-y-6 animate-in fade-in duration-700 pb-12">
+<div class="w-full max-w-lg space-y-4 animate-in fade-in duration-700 pb-12">
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between px-1">
-      <h2 class="text-xl font-bold text-content tracking-tight">Training Plan</h2>
-      <div class="flex items-center gap-2">
-        <button 
-          onclick={() => showAIPrompt = true}
-          class="px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all active:scale-95"
-          aria-label="Generate AI Prompt"
+    <div class="flex flex-wrap items-center justify-between gap-y-2 px-1">
+      <h2 class="text-title text-content">Training Plan</h2>
+      <div class="flex items-center gap-1.5">
+        <button
+          onclick={() => showBlockManager = true}
+          class="p-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-control transition-all active:scale-95"
+          aria-label="Manage Training Blocks"
+          title="Manage Training Blocks"
         >
-          <Icon icon="ic:baseline-auto-awesome" class="text-sm" />
+          <Icon icon="ic:baseline-view-week" class="text-base" />
         </button>
-        <button 
+        <button
+          onclick={() => showAIPrompt = true}
+          class="p-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-control transition-all active:scale-95"
+          aria-label="Generate AI Prompt"
+          title="Generate AI Prompt"
+        >
+          <Icon icon="ic:baseline-auto-awesome" class="text-base" />
+        </button>
+        <button
+          onclick={() => showAIImport = true}
+          class="p-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-control transition-all active:scale-95"
+          aria-label="Import AI Plan"
+          title="Import AI Plan"
+        >
+          <Icon icon="ic:baseline-file-upload" class="text-base" />
+        </button>
+        <button
           onclick={() => navigate('today')}
-          class="px-3 py-1.5 bg-surface-elevated/50 hover:bg-surface-elevated text-[9px] font-black text-content-muted hover:text-content uppercase tracking-widest rounded-lg border border-border-strong/50 transition-all active:scale-95"
+          class="px-3 py-2.5 bg-surface-elevated/50 hover:bg-surface-elevated text-label text-content-muted hover:text-content rounded-control border border-border-strong/50 transition-all active:scale-95"
         >
           Today
         </button>
-        <div class="flex bg-surface/50 rounded-xl border border-border p-1">
-          <button onclick={() => navigate('prev')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors active:scale-90"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
-          <button onclick={() => navigate('next')} class="p-1.5 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-lg transition-colors active:scale-90"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
+        <div class="flex bg-surface/50 rounded-control border border-border p-1">
+          <button onclick={() => navigate('prev')} class="p-2 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors active:scale-90"><Icon icon="ic:baseline-chevron-left" class="text-lg" /></button>
+          <button onclick={() => navigate('next')} class="p-2 hover:bg-surface-elevated text-content-subtle hover:text-content rounded-control transition-colors active:scale-90"><Icon icon="ic:baseline-chevron-right" class="text-lg" /></button>
         </div>
       </div>
     </div>
-    
+
     <div class="flex flex-wrap gap-x-3 gap-y-1.5 px-1">
-      {#each phases as phase}
+      {#each selectablePhases as phase}
         <div class="flex items-center gap-1">
-          <div class="w-2.5 h-2.5 rounded-sm {phaseColors[phase]}"></div>
-          <span class="text-[9px] font-bold text-content-subtle uppercase tracking-widest">{phase}</span>
+          <div class="w-2.5 h-2.5 rounded-control {phase.color || FALLBACK_PHASE_COLOR}"></div>
+          <span class="text-label text-content-subtle">{phase.name}</span>
         </div>
       {/each}
     </div>
 
-    <div class="grid grid-cols-2 gap-3 px-1">
-      <button 
-        onclick={() => trainingState.navigate('analytics')}
-        class="bg-surface/50 border border-border p-4 rounded-2xl backdrop-blur-sm relative overflow-hidden group text-left transition-all hover:bg-surface-elevated/80 active:scale-95"
-      >
-        <span class="block text-[10px] font-bold uppercase tracking-widest text-content-subtle mb-1">Rolling Load</span>
-        <div class="flex items-baseline gap-1">
-          <span class="text-2xl font-black text-content tracking-tighter">{Math.round(rollingLoad)}</span>
-          <span class="text-[9px] font-bold text-primary">AVG</span>
-        </div>
-        <Icon icon="ic:baseline-chevron-right" class="absolute right-3 bottom-3 text-zinc-700 group-hover:text-primary transition-colors" />
-      </button>
-      
-      <div class="bg-surface/50 border border-border p-4 rounded-2xl backdrop-blur-sm relative overflow-hidden group">
-        <span class="block text-[10px] font-bold uppercase tracking-widest text-content-subtle mb-1">Weekly Sessions</span>
-        <div class="flex items-baseline gap-1">
-          <span class="text-2xl font-black text-content tracking-tighter">{weeklyWorkoutsCount}</span>
-          <span class="text-[9px] font-bold text-success">DONE</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-surface/50 border border-border p-5 rounded-3xl backdrop-blur-sm relative">
-      <div class="grid grid-cols-10 gap-2 min-w-[280px]">
-        {#each weeks as week, i}
-          {@const showYear = i === 0 || weeks[i].year !== weeks[i-1].year}
-          <button 
-            onclick={() => { trainingState.selectedWeekId = week.id; showPhaseDropdown = false; }}
-            class="aspect-square rounded-lg transition-all duration-300 relative group
-              {week.phase ? phaseColors[week.phase] : 'bg-surface-elevated/50 hover:bg-surface-elevated'}
-              {trainingState.selectedWeekId === week.id ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900 scale-110 z-10 shadow-lg' : 'hover:scale-110'}
-              {week.isCurrent ? 'border-2 border-primary' : ''}"
-          >
-            {#if showYear}<div class="absolute -top-4 left-0 text-[7px] font-black text-content-subtle uppercase tracking-widest whitespace-nowrap">{week.year}</div>{/if}
-            {#if week.isCurrent}<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-hover rounded-full border-2 border-[#121214] z-20"></div>{/if}
-            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface-elevated text-[8px] font-bold text-content rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 shadow-xl border border-border-strong">{week.id} {week.phase ? `- ${week.phase}` : ''}</div>
-          </button>
-        {/each}
-      </div>
-    </div>
+    <WeekCalendar
+      weeks={calendarWeeks}
+      selectedWeekId={trainingState.selectedWeekId}
+      onSelectWeek={(weekId) => { trainingState.selectedWeekId = weekId; showPhaseDropdown = false; }}
+    />
   </div>
 
   {#if trainingState.selectedWeekId && selectedWeekData}
-    <div class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm space-y-5 shadow-xl">
+    <div class="bg-surface/50 border border-border p-5 rounded-card backdrop-blur-sm space-y-4 shadow-card relative {showPhaseDropdown ? 'z-30' : ''}">
       <div class="flex justify-between items-start">
         <div class="flex-1 relative">
-          <span class="text-[9px] font-black uppercase tracking-[0.15em] text-primary mb-0.5 block">{selectedWeekData.isCurrent ? 'Current Week' : selectedWeekData.id} <span class="text-content-subtle opacity-70 ml-2 lowercase tracking-normal">({getWeekDateRange(selectedWeekData.id)})</span></span>
+          <span class="text-section uppercase text-primary mb-0.5 block">{selectedWeekData.isCurrent ? 'Current Week' : selectedWeekData.id} <span class="text-content-subtle opacity-70 ml-2 lowercase tracking-normal">({getWeekDateRange(selectedWeekData.id)})</span></span>
           <button onclick={() => showPhaseDropdown = !showPhaseDropdown} class="text-left group flex items-center gap-2">
-            <h3 class="text-xl font-bold text-content tracking-tight group-hover:text-primary-hover transition-colors">{selectedWeekData.phase ? selectedWeekData.phase : 'No Phase'}</h3>
+            <h3 class="text-title text-content group-hover:text-primary-hover transition-colors">{phaseName(selectedWeekData.phaseId) ?? 'No Phase'}</h3>
             <span class="text-content-subtle group-hover:text-primary-hover transition-colors"><Icon icon="ic:baseline-arrow-drop-down" class="text-xl" /></span>
           </button>
 
           {#if showPhaseDropdown}
-            <div class="absolute left-0 mt-2 w-44 bg-surface border border-border rounded-xl shadow-2xl z-20 overflow-hidden animate-in zoom-in-95 duration-200">
-              <div class="p-2 border-b border-border bg-surface/50"><span class="text-[8px] font-black text-content-subtle uppercase tracking-widest px-1">Select Phase</span></div>
-              {#each phases as phase}
-                <button onclick={() => handleAssign(phase)} class="w-full text-left px-3 py-2.5 text-[10px] font-bold text-content-muted hover:bg-surface-elevated hover:text-content transition-colors border-b border-border last:border-0 flex items-center gap-2">
-                  <div class="w-2 h-2 rounded-full {phaseColors[phase]}"></div>{phase}
+            <div class="absolute left-0 mt-2 w-44 bg-surface border border-border rounded-control shadow-card z-20 overflow-hidden animate-in zoom-in-95 duration-200">
+              <div class="p-2 border-b border-border bg-surface/50"><span class="text-section uppercase text-content-subtle px-1">Select Phase</span></div>
+              {#each selectablePhases as phase}
+                <button onclick={() => handleAssign(phase.id)} class="w-full text-left px-3 py-2.5 text-label text-content-muted hover:bg-surface-elevated hover:text-content transition-colors border-b border-border last:border-0 flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full {phase.color || FALLBACK_PHASE_COLOR}"></div>{phase.name}
                 </button>
+              {/each}
+            </div>
+          {/if}
+
+          {#if selectedWeekBlocks.length > 1}
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              {#each selectedWeekBlocks as block}
+                <span class="flex items-center gap-1.5 px-2 py-1 bg-surface-elevated/70 rounded-control border border-border-strong/50 text-label text-content-muted">
+                  <span class="w-1.5 h-1.5 rounded-full {block.color || phaseColor(block.phaseId)}"></span>
+                  {block.name}
+                </span>
               {/each}
             </div>
           {/if}
         </div>
 
-        <button 
+        <button
           onclick={() => trainingState.clearWeek(trainingState.selectedWeekId!)}
-          class="flex items-center gap-2 px-3 py-2 bg-surface-elevated/50 hover:bg-danger/10 text-white-subtle hover:text-danger rounded-xl border border-border-strong/50 hover:border-red-500/20 transition-all text-[9px] font-black uppercase tracking-widest active:scale-95"
+          class="flex items-center gap-2 px-3 py-2 bg-surface-elevated/50 hover:bg-danger/10 text-content-subtle hover:text-danger rounded-control border border-border-strong/50 hover:border-danger/20 transition-all text-label active:scale-95"
           title="Clear all data for this week"
         >
           <Icon icon="ic:baseline-delete-sweep" class="text-sm" />
@@ -245,58 +337,86 @@
 
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <h4 class="text-[10px] font-bold text-content-subtle uppercase tracking-widest">Scheduled Sessions</h4>
+          <h4 class="text-section uppercase text-content-subtle">Scheduled Sessions</h4>
           <div class="flex items-center gap-3">
-            <span class="text-[9px] text-content-subtle font-bold">{weekWorkouts.length} Total</span>
-            <button onclick={() => handleAddWorkout(trainingState.selectedWeekId!)} class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1 rounded-md transition-colors"><Icon icon="ic:baseline-plus" class="text-sm" /></button>
+            <span class="text-caption text-content-subtle">{weekWorkouts.length} Total</span>
+            <button onclick={() => handleAddWorkout(trainingState.selectedWeekId!)} class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1 rounded-control transition-colors"><Icon icon="ic:baseline-plus" class="text-sm" /></button>
           </div>
         </div>
 
-        {#each weekWorkouts as workout}
-          <div class="flex items-center justify-between p-3.5 bg-surface-elevated/50 rounded-xl border border-border-strong/50 hover:border-zinc-600 transition-colors group/item">
-            <div class="flex items-center gap-2.5 flex-1 min-w-0">
-              <div class="w-1.5 h-1.5 rounded-full {workout.status === 'completed' ? 'bg-green-500' : 'bg-primary-hover'}"></div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <div class="flex items-center gap-1.5">
-                    {#if workout.dayOfWeek}
-                      <span class="text-[8px] font-black text-primary-hover uppercase bg-primary-hover/10 px-1.5 py-0.5 rounded leading-none shrink-0">{workout.dayOfWeek.slice(0, 3)}</span>
-                    {/if}
-                    {#if workout.startTime}
-                      <span class="text-[8px] font-black text-content-muted uppercase bg-surface-elevated px-1.5 py-0.5 rounded border border-border leading-none shrink-0">{workout.startTime}</span>
+        {#if weekWorkouts.length === 0}
+          <div class="p-4 bg-surface-elevated/20 rounded-control border border-dashed border-border text-center"><p class="text-caption text-content-subtle italic">No workouts planned</p></div>
+        {:else}
+        {#each DAY_GROUP_KEYS as dayKey}
+          <div class="space-y-2">
+            <h5 class="text-label font-bold text-content-subtle">{dayKey}</h5>
+
+            <div
+              class="space-y-2 min-h-[1.5rem] rounded-control transition-colors"
+              use:dragHandleZone={{ items: dayGroups[dayKey], flipDurationMs: 200, delayTouchStart: true, dropTargetClasses: ['ring-2', 'ring-primary/40'] }}
+              onconsider={(e) => handleDndConsider(dayKey, e)}
+              onfinalize={(e) => handleDndFinalize(dayKey, e)}
+            >
+              {#each dayGroups[dayKey] as workout (workout.id)}
+                <div class="flex items-center justify-between p-3.5 bg-surface-elevated/50 rounded-control border border-border-strong/50 hover:border-border-strong transition-colors group/item">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <div use:dragHandle class="cursor-grab active:cursor-grabbing text-content-subtle hover:text-content shrink-0 touch-none p-1 -ml-1" aria-label="Drag to reassign day">
+                      <Icon icon="ic:baseline-drag-indicator" class="text-lg" />
+                    </div>
+                    <div class="w-1.5 h-1.5 rounded-full {workout.status === 'completed' ? 'bg-success' : 'bg-primary-hover'} shrink-0"></div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
+                          <select
+                            value={workout.dayOfWeek ?? ''}
+                            onchange={(e) => handleDayReassign(workout, (e.currentTarget.value || undefined) as DayOfWeek | undefined)}
+                            class="w-11 text-center text-caption font-bold text-primary-hover bg-primary-hover/10 px-0 py-0.5 rounded-control leading-none shrink-0 border-none outline-none appearance-none"
+                            aria-label="Reassign day"
+                          >
+                            <option value="">—</option>
+                            {#each DAYS as d}
+                              <option value={d}>{d.slice(0, 3)}</option>
+                            {/each}
+                          </select>
+                          {#if workout.startTime}
+                            <span class="text-caption font-bold text-content-muted bg-surface-elevated px-1.5 py-0.5 rounded-control border border-border leading-none shrink-0">{workout.startTime}</span>
+                          {/if}
+                        </div>
+                        <p class="text-body font-bold text-content leading-tight truncate">{workout.notes}</p>
+                      </div>
+                      <p class="text-caption text-content-subtle mt-0.5">{workout.exercises.length} Exercises</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 ml-4">
+                    <button onclick={() => trainingState.duplicateWorkout(workout)} class="p-1.5 text-content-subtle hover:text-content transition-colors" title="Duplicate"><Icon icon="ic:baseline-content-copy" class="text-sm" /></button>
+                    <button onclick={() => trainingState.navigate('add', workout)} class="p-1.5 text-content-subtle hover:text-content transition-colors"><Icon icon="ic:baseline-edit" class="text-sm" /></button>
+                    <button onclick={() => trainingState.deleteWorkout(workout.id)} class="p-1.5 text-content-subtle hover:text-danger transition-colors"><Icon icon="ic:baseline-delete" class="text-sm" /></button>
+                    {#if workout.status === 'completed'}
+                      <span class="text-label text-success">Done</span>
+                    {:else}
+                      <button onclick={() => trainingState.navigate('add', workout)} class="text-label text-primary hover:scale-105 transition-transform">Start</button>
                     {/if}
                   </div>
-                  <p class="text-xs font-bold text-content leading-tight truncate">{workout.notes}</p>
                 </div>
-                <p class="text-[9px] text-content-subtle mt-0.5 uppercase tracking-tighter">{workout.exercises.length} Exercises</p>
-              </div>
-            </div>
-            
-            <div class="flex items-center gap-2 ml-4">
-              <button onclick={() => trainingState.duplicateWorkout(workout)} class="p-1.5 text-content-subtle hover:text-content transition-colors" title="Duplicate"><Icon icon="ic:baseline-content-copy" class="text-sm" /></button>
-              <button onclick={() => trainingState.navigate('add', workout)} class="p-1.5 text-content-subtle hover:text-content transition-colors"><Icon icon="ic:baseline-edit" class="text-sm" /></button>
-              <button onclick={() => trainingState.deleteWorkout(workout.id)} class="p-1.5 text-content-subtle hover:text-danger transition-colors"><Icon icon="ic:baseline-delete" class="text-sm" /></button>
-              {#if workout.status === 'completed'}
-                <span class="text-[9px] font-black text-success uppercase tracking-widest">Done</span>
               {:else}
-                <button onclick={() => trainingState.navigate('add', workout)} class="text-[9px] font-black text-primary uppercase tracking-widest hover:scale-105 transition-transform">Start</button>
-              {/if}
+                <p class="text-caption text-content-subtle italic pl-1">{dayKey === 'Unassigned' ? 'No unassigned sessions' : '— rest —'}</p>
+              {/each}
             </div>
           </div>
-        {:else}
-          <div class="p-4 bg-surface-elevated/20 rounded-xl border border-dashed border-border text-center"><p class="text-[10px] text-content-subtle italic uppercase tracking-widest">No workouts planned</p></div>
         {/each}
+        {/if}
       </div>
 
       <div class="pt-4 space-y-3">
         <div class="flex items-center justify-between">
-          <h4 class="text-[10px] font-bold text-content-subtle uppercase tracking-widest">Benchmark Tests</h4>
-          <button onclick={handleAddBenchmark} class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1 rounded-md transition-colors"><Icon icon="ic:baseline-plus" class="text-sm" /></button>
+          <h4 class="text-section uppercase text-content-subtle">Benchmark Tests</h4>
+          <button onclick={handleAddBenchmark} class="bg-surface-elevated hover:bg-surface-elevated-hover text-content p-1 rounded-control transition-colors"><Icon icon="ic:baseline-plus" class="text-sm" /></button>
         </div>
 
         {#if isAddingBenchmark}
-          <BenchmarkForm 
-            weekId={trainingState.selectedWeekId!} 
+          <BenchmarkForm
+            weekId={trainingState.selectedWeekId!}
             initialData={editingBenchmark}
             onSave={() => { isAddingBenchmark = false; editingBenchmark = null; }}
             onCancel={() => { isAddingBenchmark = false; editingBenchmark = null; }}
@@ -305,10 +425,10 @@
 
         <div class="space-y-2">
           {#each weekBenchmarks as benchmark}
-            <div class="flex items-center justify-between p-3.5 bg-primary-hover/5 rounded-xl border border-primary/10 group/benchmark">
+            <div class="flex items-center justify-between p-3.5 bg-primary-hover/5 rounded-control border border-primary/10 group/benchmark">
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold text-content leading-tight truncate">{benchmark.type}</p>
-                <p class="text-[9px] text-primary-hover mt-0.5 uppercase font-black">{benchmark.value} {benchmark.unit}</p>
+                <p class="text-body font-bold text-content leading-tight truncate">{benchmark.type}</p>
+                <p class="text-label text-primary-hover mt-0.5">{benchmark.value} {benchmark.unit}</p>
               </div>
               <div class="flex items-center gap-2">
                 <button onclick={() => handleEditBenchmark(benchmark)} class="p-1.5 text-content-subtle hover:text-content transition-colors opacity-0 group-hover/benchmark:opacity-100"><Icon icon="ic:baseline-edit" class="text-sm" /></button>
@@ -317,16 +437,26 @@
             </div>
           {:else}
             {#if !isAddingBenchmark}
-              <div class="p-4 bg-surface-elevated/20 rounded-xl border border-dashed border-border text-center"><p class="text-[10px] text-content-subtle italic uppercase tracking-widest">No benchmarks logged</p></div>
+              <div class="p-4 bg-surface-elevated/20 rounded-control border border-dashed border-border text-center"><p class="text-caption text-content-subtle italic">No benchmarks logged</p></div>
             {/if}
           {/each}
         </div>
       </div>
     </div>
   {/if}
+
+  <CompetitionCalendar />
 </div>
 
 {#if showAIPrompt}
   <AIPromptModal onClose={() => showAIPrompt = false} />
+{/if}
+
+{#if showAIImport}
+  <AIImportModal mode="plan" onClose={() => showAIImport = false} />
+{/if}
+
+{#if showBlockManager}
+  <BlockManager onClose={() => showBlockManager = false} />
 {/if}
 

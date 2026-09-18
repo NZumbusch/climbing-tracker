@@ -3,6 +3,7 @@
   import { trainingState } from './lib/state.svelte';
   
   import FatigueModal from './components/common/FatigueModal.svelte';
+  import { slotValues } from './lib/exerciseSlot';
   import Icon from "@iconify/svelte";
 
   // --- Derived State ---
@@ -13,6 +14,36 @@
       document.documentElement.setAttribute('data-theme', trainingState.theme);
     }
   });
+
+  $effect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-text-scale', trainingState.textScale);
+    }
+  });
+
+  // Resolves the "system" motion preference against the OS-level
+  // prefers-reduced-motion query, per UI_PLAN.md §3.4 - an explicit
+  // full/reduced choice always wins; "system" (the default) tracks the
+  // media query live rather than being read once at load.
+  $effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    const motion = trainingState.motion;
+    if (motion !== 'system') {
+      document.documentElement.setAttribute('data-motion', motion);
+      return;
+    }
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => document.documentElement.setAttribute('data-motion', query.matches ? 'reduced' : 'full');
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
+  });
+
+  $effect(() => {
+    if (!trainingState.isLoading) {
+      trainingState.maybePromptForNotifications();
+    }
+  });
 </script>
 
 <main class="flex flex-col h-screen overflow-hidden bg-app-bg text-content font-sans">
@@ -20,8 +51,12 @@
     {#if trainingState.isLoading}
       <div class="flex flex-col items-center justify-center h-full space-y-4">
         <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-content-subtle text-xs font-bold uppercase tracking-widest">Loading Training Data...</p>
+        <p class="text-content-subtle text-caption">Loading Training Data...</p>
       </div>
+    {:else if trainingState.view === 'home'}
+      {#await import('./components/dashboard/Home.svelte') then { default: Home }}
+        <Home />
+      {/await}
     {:else if trainingState.view === 'plan'}
       {#await import('./components/plan/TrainingPlan.svelte') then { default: TrainingPlan }}
         <TrainingPlan />
@@ -51,37 +86,58 @@
     {/if}
   </div>
 
-  <nav 
+  <nav
     class="w-full h-[75px] border-t flex justify-evenly items-center shrink-0 select-none bg-surface border-border"
   >
-    <button 
-      onclick={() => trainingState.navigate('plan')}
-      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'plan' || trainingState.view === 'analytics' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+    <button
+      onclick={() => trainingState.navigate('home')}
+      class="flex flex-col items-center justify-center w-16 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'home' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+      aria-label="Home"
     >
-      <Icon icon="ic:baseline-calendar-month" class="text-[28px]" />
-      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'plan' || trainingState.view === 'analytics' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
+      <Icon icon="ic:baseline-home" class="text-[24px]" />
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'home' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
     </button>
 
-    <button 
+    <button
+      onclick={() => trainingState.navigate('plan')}
+      class="flex flex-col items-center justify-center w-16 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'plan' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+      aria-label="Plan"
+    >
+      <Icon icon="ic:baseline-calendar-month" class="text-[24px]" />
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'plan' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
+    </button>
+
+    <button
       onclick={() => trainingState.navigate('add')}
       class="flex items-center justify-center w-12 h-12 rounded-full cursor-pointer transition-all duration-300 active:scale-90 {trainingState.view === 'add' ? 'bg-success text-app-bg shadow-[0_0_20px_var(--color-success)]' : 'bg-surface-elevated text-content-muted'}"
+      aria-label="Log a workout"
     >
       <Icon icon="ic:baseline-plus" class="text-[34px]" />
     </button>
 
-    <button 
+    <button
       onclick={() => trainingState.navigate('history')}
-      class="flex flex-col items-center justify-center w-24 h-full cursor-pointer transition-all duration-300 {(trainingState.view === 'history' || trainingState.view === 'settings') ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+      class="flex flex-col items-center justify-center w-16 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'history' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+      aria-label="History"
     >
-      <Icon icon="ic:baseline-content-paste" class="text-[28px]" />
-      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {(trainingState.view === 'history' || trainingState.view === 'settings') ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
+      <Icon icon="ic:baseline-content-paste" class="text-[24px]" />
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'history' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
+    </button>
+
+    <button
+      onclick={() => trainingState.navigate('analytics')}
+      class="flex flex-col items-center justify-center w-16 h-full cursor-pointer transition-all duration-300 {trainingState.view === 'analytics' ? 'text-success scale-105' : 'text-content-subtle scale-100'}"
+      aria-label="Analytics"
+    >
+      <Icon icon="ic:baseline-show-chart" class="text-[24px]" />
+      <div class="w-1 h-1 mt-1 rounded-full transition-all duration-300 {trainingState.view === 'analytics' ? 'bg-success scale-100' : 'bg-transparent scale-0'}"></div>
     </button>
   </nav>
 
   {#if trainingState.activeWorkout && trainingState.showFatigue}
     <FatigueModal 
       initialData={trainingState.activeWorkout}
-      duration={trainingState.activeWorkout.exercises.reduce((acc, e) => acc + (e.duration || 0), 0)} 
+      duration={trainingState.activeWorkout.exercises.reduce((acc, e) => acc + (slotValues(e).duration || 0), 0)}
       onConfirm={(data) => trainingState.confirmFatigue(data)} 
     />
   {/if}

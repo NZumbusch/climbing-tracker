@@ -1,9 +1,21 @@
 <script lang="ts">
   import { trainingState } from '../../lib/state.svelte';
-  import { getWeekId, getWeekDateRange } from '../../lib/dateUtils';
+  import { getWeekId, getWeekDateRange, formatDate } from '../../lib/dateUtils';
   import { showAlert } from '../../lib/utils';
+  import { slotValues, slotTypeName } from '../../lib/exerciseSlot';
+  import { getDominantBlockForWeek } from '../../lib/planning/trainingBlocks';
+  import { calculateAcwrForWeeks, calculateWeeklyAdherence, correlatePainWithLoadSpikes } from '../../lib/analytics/loadAnalytics';
+  import type { ExerciseSlot } from '../../lib/types';
   import Icon from '@iconify/svelte';
   import html2pdf from 'html2pdf.js';
+
+  /** Resolves a slot's effective category name: its override if set, else its type's default. */
+  function resolveSlotCategory(e: ExerciseSlot): string {
+    const cat = e.categoryId
+      ? trainingState.analyticsCategories.find(c => c.id === e.categoryId)?.name
+      : trainingState.exerciseTypes.find(t => t.id === e.typeId)?.category;
+    return cat || 'Other';
+  }
 
   let { onClose } = $props<{ onClose: () => void }>();
 
@@ -23,8 +35,8 @@
     return opts;
   });
 
-  const selectedWorkouts = $derived.by(() => {
-    const targetWeekIds: string[] = [];
+  const targetWeekIds = $derived.by(() => {
+    const weekIds: string[] = [];
     const [startYearStr, startWeekStr] = startWeek.split('-W');
     let currentYear = parseInt(startYearStr);
     let currentWeek = parseInt(startWeekStr);
@@ -38,14 +50,17 @@
     }
 
     while (currentYear < targetEndYear || (currentYear === targetEndYear && currentWeek <= targetEndWeek)) {
-      targetWeekIds.push(`${currentYear}-W${currentWeek.toString().padStart(2, '0')}`);
+      weekIds.push(`${currentYear}-W${currentWeek.toString().padStart(2, '0')}`);
       currentWeek++;
       if (currentWeek > 52) {
         currentWeek = 1;
         currentYear++;
       }
     }
+    return weekIds;
+  });
 
+  const selectedWorkouts = $derived.by(() => {
     // Group workouts by week
     const grouped: Record<string, any> = {};
     for (const w of targetWeekIds) {
@@ -57,9 +72,23 @@
     }
 
     return Object.entries(grouped).map(([weekId, workouts]) => {
-      const phase = trainingState.periodization.find(p => p.weekId === weekId)?.phase || 'No Phase';
+      const phaseId = getDominantBlockForWeek(trainingState.trainingBlocks, weekId)?.phaseId;
+      const phase = (phaseId && trainingState.phaseDefs.find(p => p.id === phaseId)?.name) || 'No Phase';
       return { weekId, phase, workouts };
     });
+  });
+
+  /** Coach-report analytics sections (PLAN.md Phase 6), built on Phase 4's loadAnalytics.ts. */
+  const reportAnalytics = $derived.by(() => {
+    const acwr = calculateAcwrForWeeks(trainingState.workouts, targetWeekIds);
+    const adherence = targetWeekIds
+      .map((weekId) => calculateWeeklyAdherence(trainingState.workouts, weekId))
+      .filter((a) => a.plannedLoad > 0 || a.actualLoad > 0);
+    const painCorrelations = correlatePainWithLoadSpikes(
+      trainingState.painLogs.filter((p) => targetWeekIds.includes(p.weekId)),
+      acwr,
+    );
+    return { acwr, adherence, painCorrelations };
   });
 
   async function handleExport() {
@@ -153,6 +182,87 @@
       <p class="text-sm mt-2 font-bold" style="color: #4b5563;">Training Plan: {startWeek} to {endWeek}</p>
     </div>
 
+    {#if reportAnalytics.adherence.length > 0 || reportAnalytics.acwr.length > 0 || reportAnalytics.painCorrelations.length > 0}
+      <div class="mb-12 page-break-inside-avoid">
+        <div class="p-4 border-l-4 mb-6" style="background-color: #f3f4f6; border-color: #000000;">
+          <h2 class="text-2xl font-black uppercase tracking-widest">Training Summary</h2>
+        </div>
+
+        {#if reportAnalytics.adherence.length > 0}
+          <div class="px-4 mb-6">
+            <h3 class="text-sm font-black uppercase tracking-widest mb-2" style="color: #374151;">Adherence Summary</h3>
+            <table class="w-full text-xs" style="border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid #d1d5db;">
+                  <th class="text-left py-1.5" style="color: #6b7280;">Week</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Completion</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Planned Load</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Actual Load</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Variance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each reportAnalytics.adherence as a}
+                  <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td class="py-1.5 font-bold">{a.weekId}</td>
+                    <td class="text-right py-1.5">{Math.round(a.completionRate * 100)}%</td>
+                    <td class="text-right py-1.5">{a.plannedLoad}</td>
+                    <td class="text-right py-1.5">{a.actualLoad}</td>
+                    <td class="text-right py-1.5">{a.loadVariance > 0 ? '+' : ''}{a.loadVariance}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+
+        {#if reportAnalytics.acwr.length > 0}
+          <div class="px-4 mb-6">
+            <h3 class="text-sm font-black uppercase tracking-widest mb-2" style="color: #374151;">ACWR / Load Trend</h3>
+            <table class="w-full text-xs" style="border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid #d1d5db;">
+                  <th class="text-left py-1.5" style="color: #6b7280;">Week</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Acute Load</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Chronic Load</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Ratio</th>
+                  <th class="text-right py-1.5" style="color: #6b7280;">Ramp Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each reportAnalytics.acwr as r}
+                  <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td class="py-1.5 font-bold">{r.weekId}</td>
+                    <td class="text-right py-1.5">{r.acuteLoad}</td>
+                    <td class="text-right py-1.5">{Math.round(r.chronicLoad)}</td>
+                    <td class="text-right py-1.5">{r.ratio !== undefined ? r.ratio.toFixed(2) : '—'}{r.ratio !== undefined && !r.sufficient ? '*' : ''}</td>
+                    <td class="text-right py-1.5" style={r.spike ? 'color: #b91c1c; font-weight: 700;' : ''}>{Math.round(r.rampRate * 100)}%{r.spike ? ' SPIKE' : ''}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+            {#if reportAnalytics.acwr.some((r) => r.ratio !== undefined && !r.sufficient)}
+              <p class="text-xs mt-1.5" style="color: #9ca3af;">* fewer than 28 days of history behind this ratio - treat as a rough estimate, not a reliable baseline</p>
+            {/if}
+          </div>
+        {/if}
+
+        {#if reportAnalytics.painCorrelations.length > 0}
+          <div class="px-4 mb-2">
+            <h3 class="text-sm font-black uppercase tracking-widest mb-2" style="color: #374151;">Injury / Pain Summary</h3>
+            <ul class="text-xs space-y-1">
+              {#each reportAnalytics.painCorrelations as p}
+                <li>
+                  <span class="font-bold">{formatDate(p.date)}</span> - {p.bodyPart}, severity {p.severity}/10
+                  {#if p.loadSpikeNearby}<span style="color: #b91c1c; font-weight: 700;"> (near a load spike)</span>{/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     {#each selectedWorkouts as week}
       <div class="mb-12 page-break-inside-avoid">
         <div class="p-4 border-l-4 mb-6" style="background-color: #f3f4f6; border-color: #000000;">
@@ -177,24 +287,25 @@
                   <p class="text-sm" style="color: #6b7280;">No exercises added.</p>
                 {:else}
                   <ul class="space-y-4">
-                    {#each workout.exercises as ex, idx}
+                    {#each workout.exercises as slot, idx}
+                      {@const ex = slotValues(slot)}
                       <li class="flex gap-4">
                         <div class="font-black mt-1" style="color: #9ca3af;">{idx + 1}.</div>
                         <div class="flex-1">
-                          <p class="font-bold text-lg">{ex.type} <span class="text-sm font-normal ml-2" style="color: #6b7280;">({ex.category || 'Other'})</span></p>
-                          
+                          <p class="font-bold text-lg">{slotTypeName(slot, trainingState.exerciseTypes)} <span class="text-sm font-normal ml-2" style="color: #6b7280;">({resolveSlotCategory(slot)})</span></p>
+
                           <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style="color: #374151;">
                             {#if ex.duration}<span class="font-bold">⏱️ {ex.duration} min</span>{/if}
                             {#if ex.sets}<span class="font-bold">🔄 {ex.sets} sets</span>{/if}
                             {#if ex.reps}<span class="font-bold">x{ex.reps} reps</span>{/if}
-                            {#if ex.boulderingGrades}<span>Grades: {ex.boulderingGrades.join(', ')}</span>{/if}
+                            {#if ex.minGrade || ex.maxGrade}<span>Grades: {ex.minGrade}{ex.minGrade && ex.maxGrade ? '-' : ''}{ex.maxGrade}</span>{/if}
                             {#if ex.timeOn && ex.timeOff}<span>{ex.timeOn}s ON / {ex.timeOff}s OFF</span>{/if}
                             {#if ex.routeDifficulty}<span>Route Diff: {ex.routeDifficulty}</span>{/if}
                             {#if ex.weight}<span>Weight: +{ex.weight}kg</span>{/if}
                             {#if ex.bodyweightPercent}<span>BW %: {ex.bodyweightPercent}%</span>{/if}
                             {#if ex.maxWeightPercent}<span>Max Weight %: {ex.maxWeightPercent}%</span>{/if}
                           </div>
-                          
+
                           {#if ex.notes}
                             <div style="position: relative; margin-top: 12px; min-height: 20px;">
                               <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background-color: #9ca3af; border-radius: 9999px;"></div>

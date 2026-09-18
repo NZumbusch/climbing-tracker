@@ -98,104 +98,155 @@
       "defaultPlannedLoad": 7
     }
   ],
+  "phaseDefs": [
+    { "id": "phase-capacity", "name": "Capacity", "color": "bg-success-hover", "order": 1 },
+    { "id": "phase-strength", "name": "Strength", "color": "bg-rose-500", "order": 2 },
+    { "id": "phase-power", "name": "Power", "color": "bg-amber-500", "order": 3 },
+    { "id": "phase-power-endurance", "name": "Power Endurance", "color": "bg-tertiary-hover", "order": 4 },
+    { "id": "phase-performance", "name": "Performance", "color": "bg-sky-500", "order": 5 },
+    { "id": "phase-taper", "name": "Taper", "color": "bg-cyan-500", "order": 6 },
+    { "id": "phase-deload", "name": "Deload", "color": "bg-zinc-500", "order": 7 }
+  ],
   "templates": {
-    "Work Capacity": [
+    "phase-capacity": [
       {
-        "notes": "Volume Day: Focus on perfect technique below flash level.",
+        "id": "tmpl-capacity-1",
+        "name": "Volume Day: Focus on perfect technique below flash level.",
         "dayOfWeek": "Monday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 120, "climbingStyle": ["Slab"], "cadence": 10, "plannedLoad": 5 },
-          { "id": "2", "type": "Core Training", "duration": 30, "difficulty": 6, "plannedLoad": 4 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 120, "climbingStyle": ["Slab"], "cadence": 10, "plannedLoad": 5 } },
+          { "id": "2", "typeId": "core-training", "prescribed": { "duration": 30, "difficulty": 6, "plannedLoad": 4 } }
         ]
       },
       {
-        "notes": "Pulling Capacity & Capacity Bouldering",
+        "id": "tmpl-capacity-2",
+        "name": "Pulling Capacity & Capacity Bouldering",
         "dayOfWeek": "Wednesday",
         "exercises": [
-          { "id": "3", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 6 },
-          { "id": "4", "type": "Weighted Pull-ups", "weight": 10, "sets": 4, "plannedLoad": 5 }
+          { "id": "3", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 6 } },
+          { "id": "4", "typeId": "weighted-pullups", "prescribed": { "weight": 10, "sets": 4, "plannedLoad": 5 } }
         ]
       }
     ],
-    "Max Strength": [
+    "phase-strength": [
       {
-        "notes": "Limit Bouldering & Max Hangs",
+        "id": "tmpl-strength-1",
+        "name": "Limit Bouldering & Max Hangs",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 8 },
-          { "id": "2", "type": "Max Hangs", "holdType": "Half Crimp", "holdSize": 20, "bodyweightPercent": 125, "sets": 5, "plannedLoad": 6 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Power"], "plannedLoad": 8 } },
+          { "id": "2", "typeId": "max-hangs", "prescribed": { "holdType": "Half Crimp", "holdSize": 20, "bodyweightPercent": 125, "sets": 5, "plannedLoad": 6 } }
         ]
       },
       {
-        "notes": "Heavy Board Session",
+        "id": "tmpl-strength-2",
+        "name": "Heavy Board Session",
         "dayOfWeek": "Thursday",
         "exercises": [
-          { "id": "3", "type": "Board Session", "duration": 90, "boardType": "Kilterboard", "boardAngle": 45, "plannedLoad": 9 },
-          { "id": "4", "type": "Core Training", "duration": 20, "difficulty": 9, "plannedLoad": 4 }
+          { "id": "3", "typeId": "board-session", "prescribed": { "duration": 90, "boardType": "Kilterboard", "boardAngle": 45, "plannedLoad": 9 } },
+          { "id": "4", "typeId": "core-training", "prescribed": { "duration": 20, "difficulty": 9, "plannedLoad": 4 } }
         ]
       }
     ],
-    "Power": [
+    "phase-power": [
       {
-        "notes": "Explosive Power Day",
+        "id": "tmpl-power-1",
+        "name": "Explosive Power Day",
         "dayOfWeek": "Wednesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 90, "climbingStyle": ["Coordination"], "plannedLoad": 7 },
-          { "id": "2", "type": "Campus Board", "duration": 20, "campusType": "Jumps", "plannedLoad": 9 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 90, "climbingStyle": ["Coordination"], "plannedLoad": 7 } },
+          { "id": "2", "typeId": "campus-board", "prescribed": { "duration": 20, "campusType": "Jumps", "plannedLoad": 9 } }
         ]
       },
       {
-        "notes": "Board Power",
+        "id": "tmpl-power-2",
+        "name": "Board Power",
         "dayOfWeek": "Friday",
         "exercises": [
-          { "id": "3", "type": "Board Session", "duration": 120, "boardType": "Moonboard", "boardAngle": 40, "plannedLoad": 9 },
-          { "id": "4", "type": "Weighted Pull-ups", "weight": 30, "sets": 3, "plannedLoad": 6 }
+          { "id": "3", "typeId": "board-session", "prescribed": { "duration": 120, "boardType": "Moonboard", "boardAngle": 40, "plannedLoad": 9 } },
+          { "id": "4", "typeId": "weighted-pullups", "prescribed": { "weight": 30, "sets": 3, "plannedLoad": 6 } }
         ]
       }
     ],
-    "Power Endurance": [
+    "phase-power-endurance": [
       {
-        "notes": "Lactic Tolerance",
+        "id": "tmpl-power-endurance-1",
+        "name": "Lactic Tolerance",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Rep-Based Intervals", "reps": 4, "sets": 4, "duration": 60, "plannedLoad": 8 },
-          { "id": "2", "type": "Core Training", "duration": 25, "difficulty": 8, "plannedLoad": 4 }
+          { "id": "1", "typeId": "rep-based-intervals", "prescribed": { "reps": 4, "sets": 4, "duration": 60, "plannedLoad": 8 } },
+          { "id": "2", "typeId": "core-training", "prescribed": { "duration": 25, "difficulty": 8, "plannedLoad": 4 } }
         ]
       }
     ],
-    "Performance / Taper": [
+    "phase-performance": [
       {
-        "notes": "Projecting Day",
+        "id": "tmpl-performance-1",
+        "name": "Projecting Day",
         "dayOfWeek": "Saturday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 120, "climbingStyle": ["Board"], "plannedLoad": 9 }
-        ]
-      },
-      {
-        "notes": "Active Recovery",
-        "dayOfWeek": "Thursday",
-        "exercises": [
-          { "id": "2", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Slab"], "plannedLoad": 3 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 120, "climbingStyle": ["Board"], "plannedLoad": 9 } }
         ]
       }
     ],
-    "Deload": [
+    "phase-taper": [
       {
-        "notes": "Light Activation Session",
+        "id": "tmpl-taper-1",
+        "name": "Active Recovery",
+        "dayOfWeek": "Thursday",
+        "exercises": [
+          { "id": "2", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Slab"], "plannedLoad": 3 } }
+        ]
+      }
+    ],
+    "phase-deload": [
+      {
+        "id": "tmpl-deload-1",
+        "name": "Light Activation Session",
         "dayOfWeek": "Tuesday",
         "exercises": [
-          { "id": "1", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Slab"], "cadence": 6, "plannedLoad": 2 }
+          { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Slab"], "cadence": 6, "plannedLoad": 2 } }
         ]
       },
       {
-        "notes": "Light Activation Session",
+        "id": "tmpl-deload-2",
+        "name": "Light Activation Session",
         "dayOfWeek": "Thursday",
         "exercises": [
-          { "id": "2", "type": "Free Bouldering", "duration": 60, "climbingStyle": ["Power"], "cadence": 4, "plannedLoad": 2 }
+          { "id": "2", "typeId": "free-bouldering", "prescribed": { "duration": 60, "climbingStyle": ["Power"], "cadence": 4, "plannedLoad": 2 } }
         ]
       }
     ]
   },
+  "templateLibrary": [
+    {
+      "id": "starter-placeholder-a",
+      "name": "Sample Template A (PLACEHOLDER - NOT REAL TRAINING CONTENT)",
+      "description": "Obviously-fake placeholder seeded for testing the starter-library plumbing only. Do not use for actual training - real program content is pending (see PROGRESS.md).",
+      "templates": {
+        "phase-capacity": [
+          {
+            "id": "starter-a-capacity-1",
+            "name": "PLACEHOLDER Dummy Session 1",
+            "dayOfWeek": "Monday",
+            "exercises": [
+              { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 999, "climbingStyle": ["Slab"], "plannedLoad": 1, "notes": "PLACEHOLDER VALUE - not a real prescription" } }
+            ]
+          }
+        ],
+        "phase-deload": [
+          {
+            "id": "starter-a-deload-1",
+            "name": "PLACEHOLDER Dummy Session 2",
+            "dayOfWeek": "Thursday",
+            "exercises": [
+              { "id": "1", "typeId": "free-bouldering", "prescribed": { "duration": 111, "climbingStyle": ["Slab"], "plannedLoad": 1, "notes": "PLACEHOLDER VALUE - not a real prescription" } }
+            ]
+          }
+        ]
+      }
+    }
+  ],
   "benchmarkTypes": [
     { "id": "max-hang-20", "name": "Max Hang 20mm", "unit": "kg" },
     { "id": "max-hang-15", "name": "Max Hang 15mm", "unit": "kg" },

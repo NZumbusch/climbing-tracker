@@ -1,51 +1,50 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { storage } from '../../lib/storage';
-  import { generateId, showAlert } from '../../lib/utils';
   import { trainingState } from '../../lib/state.svelte';
-  import type { Exercise, ExerciseTypeDef, ParameterBlock } from '../../lib/types';
-  import { PARAMETER_LABELS } from '../../lib/constants';
+  import type { ExerciseSlot, ExerciseTypeDef, ExerciseValues, ParameterBlock } from '../../lib/types';
+  import { PARAMETER_LABELS, BODYWEIGHT_METRIC_ID } from '../../lib/constants';
+  import TargetHint from './TargetHint.svelte';
   import Icon from '@iconify/svelte';
 
   // --- Props ---
-  let { 
-    initialData = null,
+  let {
+    initialSlot = null,
+    mode = 'prescribed',
     onSave
-  } = $props<{ 
-    initialData?: Partial<Exercise> | null,
-    onSave: (data: Omit<Exercise, 'id'>) => void
+  } = $props<{
+    initialSlot?: ExerciseSlot | null,
+    /** Which ExerciseValues bucket on the slot this form edits - "prescribed" (the plan) or "logged" (what happened). */
+    mode?: 'prescribed' | 'logged',
+    onSave: (data: { typeId: string; categoryId?: string; activeParameters: ParameterBlock[]; values: ExerciseValues }) => void
   }>();
 
   // --- State ---
   let exerciseTypes = $state<ExerciseTypeDef[]>([]);
   let selectedTypeId = $state<string>('');
   let activeLoadTab = $state<'weight' | 'bodyweightPercent' | 'maxWeightPercent'>('weight');
-  
+
   // Local form state - Initialized with defaults, updated via $effect
-  let typeName = $state('');
   let duration = $state(60);
   let minGrade = $state('6A');
   let maxGrade = $state('6B');
-  let minRouteGrade = $state('6a');
-  let maxRouteGrade = $state('6b');
   let cadence = $state(5);
-  let climbingStyle = $state<NonNullable<Exercise['climbingStyle']>>(['Power']);
-  let boardType = $state<Exercise['boardType']>('Kilterboard');
+  let climbingStyle = $state<NonNullable<ExerciseValues['climbingStyle']>>(['Power']);
+  let boardType = $state<ExerciseValues['boardType']>('Kilterboard');
   let boardAngle = $state(40);
-  let variant = $state('none');
   let sets = $state<number | undefined>(4);
   let reps = $state<number | undefined>(1);
   let movesPerRoute = $state<number | undefined>();
-  let holdType = $state<Exercise['holdType']>('Half Crimp');
+  let holdType = $state<ExerciseValues['holdType']>('Half Crimp');
   let timeOn = $state(7);
   let timeOff = $state(3);
   let timeBetweenSets = $state(180);
   let weight = $state(0);
   let holdSize = $state(20);
   let distance = $state(0);
-  let campusType = $state<Exercise['campusType']>('Jumps');
-  let mobilityType = $state<NonNullable<Exercise['mobilityType']>>(['Hamstrings']);
-  let leadStyle = $state<NonNullable<Exercise['leadStyle']>>(['Redpoint']);
+  let campusType = $state<ExerciseValues['campusType']>('Jumps');
+  let mobilityType = $state<NonNullable<ExerciseValues['mobilityType']>>(['Hamstrings']);
+  let leadStyle = $state<NonNullable<ExerciseValues['leadStyle']>>(['Redpoint']);
   let difficulty = $state(5);
   let routeDifficulty = $state<"Easy" | "Moderate" | "Hard">("Moderate");
   let bodyweightPercent = $state(100);
@@ -54,71 +53,91 @@
   let notes = $state('');
   let categoryOverride = $state<string>('');
 
+  // Optional convenience (PLAN.md Phase 6): shows the absolute added weight
+  // implied by the bodyweightPercent slider, using the most recently logged
+  // bodyweight entry - doesn't change what's stored (still a %, same as
+  // before), just a display hint.
+  const latestBodyweightKg = $derived.by(() => {
+    const entries = trainingState.dailyMetrics
+      .filter((m) => m.metricId === BODYWEIGHT_METRIC_ID)
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return entries[0]?.value;
+  });
+
   // --- Lifecycle ---
   onMount(async () => {
     exerciseTypes = await storage.getExerciseTypes();
-    syncInitialSelection();
+    if (initialSlot) {
+      selectedTypeId = initialSlot.typeId;
+    } else if (exerciseTypes.length > 0) {
+      selectedTypeId = exerciseTypes[0].id;
+    }
   });
 
   let activeParams = $state<ParameterBlock[]>([]);
 
-  function syncInitialSelection() {
-    const currentName = initialData?.type || typeName;
-    const activeType = exerciseTypes.find(t => t.name === currentName);
-    
-    if (activeType) {
-      selectedTypeId = activeType.id;
-    } else if (currentName) {
-      // Legacy fallback: Only show parameters that have non-default data in initialData
-      const activeParams: string[] = [];
-      if (initialData) {
-        if (initialData.duration !== undefined) activeParams.push('duration');
-        if (initialData.minGrade || initialData.maxGrade) activeParams.push('boulderingGrades');
-        if (initialData.minRouteGrade || initialData.maxRouteGrade) activeParams.push('routeGrades');
-        if (initialData.cadence !== undefined) activeParams.push('cadence');
-        if (initialData.climbingStyle !== undefined) activeParams.push('climbingStyle');
-        if (initialData.boardType !== undefined) activeParams.push('boardType');
-        if (initialData.boardAngle !== undefined) activeParams.push('boardAngle');
-        if (initialData.variant !== undefined) activeParams.push('variant');
-        if (initialData.sets !== undefined) activeParams.push('sets');
-        if (initialData.reps !== undefined) activeParams.push('reps');
-        if (initialData.movesPerRoute !== undefined) activeParams.push('movesPerRoute');
-        if (initialData.holdType !== undefined) activeParams.push('holdType');
-        if (initialData.timeOn !== undefined) activeParams.push('timeOn');
-        if (initialData.timeOff !== undefined) activeParams.push('timeOff');
-        if (initialData.timeBetweenSets !== undefined) activeParams.push('restTime');
-        if (initialData.holdSize !== undefined) activeParams.push('holdSize');
-        if (initialData.weight !== undefined) activeParams.push('weight');
-        if (initialData.distance !== undefined) activeParams.push('distance');
-        if (initialData.campusType !== undefined) activeParams.push('campusStyle');
-        if (initialData.mobilityType !== undefined) activeParams.push('mobilityType');
-        if (initialData.leadStyle !== undefined) activeParams.push('leadStyle');
-        if (initialData.difficulty !== undefined) activeParams.push('difficulty');
-        if (initialData.routeDifficulty !== undefined) activeParams.push('routeDifficulty');
-        if (initialData.bodyweightPercent !== undefined) activeParams.push('bodyweightPercent');
-        if (initialData.maxWeightPercent !== undefined) activeParams.push('maxWeightPercent');
-      }
-
-      const legacyType: ExerciseTypeDef = {
-        id: 'legacy',
-        name: currentName,
-        category: initialData?.category || 'Other',
-        parameters: activeParams as any
-      };
-      exerciseTypes = [legacyType, ...exerciseTypes];
-      selectedTypeId = 'legacy';
-    } else if (exerciseTypes.length > 0) {
-      selectedTypeId = exerciseTypes[0].id;
-    }
-  }
-
   // --- Derived State ---
   const activeTypeDef = $derived(exerciseTypes.find(t => t.id === selectedTypeId));
 
-  // Sync internal state with incoming props
+  // Exercise picker grouped by analytics category, recent/frequent first
+  // within each group (UI_PLAN.md §4.4 - was a flat `<select>` over every
+  // modality). Usage is read straight from `trainingState.workouts`
+  // (already loaded/reactive) rather than a new derived-data module, since
+  // this is presentational ordering for one `<select>`, not a reusable
+  // analytics metric.
+  const typeUsage = $derived.by(() => {
+    const usage = new Map<string, { count: number; lastUsed: string }>();
+    for (const w of trainingState.workouts) {
+      if (!w.date) continue;
+      for (const slot of w.exercises) {
+        const entry = usage.get(slot.typeId) ?? { count: 0, lastUsed: '' };
+        entry.count += 1;
+        if (w.date > entry.lastUsed) entry.lastUsed = w.date;
+        usage.set(slot.typeId, entry);
+      }
+    }
+    return usage;
+  });
+
+  const groupedExerciseTypes = $derived.by(() => {
+    const groups = new Map<string, ExerciseTypeDef[]>();
+    for (const t of exerciseTypes) {
+      const category = t.category || 'Other';
+      if (!groups.has(category)) groups.set(category, []);
+      groups.get(category)!.push(t);
+    }
+    const byRecentThenFrequent = (types: ExerciseTypeDef[]) =>
+      [...types].sort((a, b) => {
+        const ua = typeUsage.get(a.id);
+        const ub = typeUsage.get(b.id);
+        if (!!ua !== !!ub) return ua ? -1 : 1;
+        if (ua && ub) return ub.lastUsed.localeCompare(ua.lastUsed) || ub.count - ua.count;
+        return a.name.localeCompare(b.name);
+      });
+    return Array.from(groups.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([category, types]) => ({ category, types: byRecentThenFrequent(types) }));
+  });
+
+  // The values bucket being edited - the current mode's bucket if it has
+  // data, else fall back to prescribed as a sensible starting point (e.g.
+  // adding a brand-new exercise directly onto an already-active session).
+  const editingValues = $derived<ExerciseValues>(
+    (initialSlot?.[mode as 'prescribed' | 'logged']) ?? initialSlot?.prescribed ?? {},
+  );
+
+  // Inline prescribed-target hints (UI_PLAN.md §4.4) - only meaningful in
+  // `logged` mode, and only once there's a real `prescribed` bucket to
+  // compare against (a brand-new slot added directly while logging has
+  // none). Read-only - `handleSubmit` below never writes to `prescribed`.
+  const targetValues = $derived<ExerciseValues>(
+    mode === 'logged' ? (initialSlot?.prescribed ?? {}) : {},
+  );
+
   $effect(() => {
-    if (initialData?.activeParameters) {
-      activeParams = initialData.activeParameters;
+    if (initialSlot?.activeParameters) {
+      activeParams = initialSlot.activeParameters;
     } else if (activeTypeDef) {
       activeParams = [...activeTypeDef.parameters];
     }
@@ -126,47 +145,39 @@
 
   // Sync internal state with incoming props
   $effect(() => {
-    if (initialData) {
-      typeName = initialData.type || '';
-      duration = initialData.duration || 60;
-      minGrade = initialData.minGrade || '6A';
-      maxGrade = initialData.maxGrade || '6B';
-      minRouteGrade = initialData.minRouteGrade || '6a';
-      maxRouteGrade = initialData.maxRouteGrade || '6b';
-      cadence = initialData.cadence || 5;
-      climbingStyle = Array.isArray(initialData.climbingStyle) ? initialData.climbingStyle : (initialData.climbingStyle ? [initialData.climbingStyle as any] : ['Power']);
-      boardType = initialData.boardType || 'Kilterboard';
-      boardAngle = initialData.boardAngle || 40;
-      variant = initialData.variant || 'none';
-      sets = initialData.sets ?? 4;
-      reps = initialData.reps ?? 1;
-      movesPerRoute = initialData.movesPerRoute;
-      holdType = initialData.holdType || 'Half Crimp';
-      timeOn = initialData.timeOn || 7;
-      timeOff = initialData.timeOff || 3;
-      timeBetweenSets = initialData.timeBetweenSets || 180;
-      weight = initialData.weight || 0;
-      holdSize = initialData.holdSize || 20;
-      distance = initialData.distance || 0;
-      campusType = initialData.campusType || 'Jumps';
-      mobilityType = Array.isArray(initialData.mobilityType) ? initialData.mobilityType : (initialData.mobilityType ? [initialData.mobilityType as any] : ['Hamstrings']);
-      leadStyle = Array.isArray(initialData.leadStyle) ? initialData.leadStyle : (initialData.leadStyle ? [initialData.leadStyle as any] : ['Redpoint']);
-      difficulty = initialData.difficulty || 5;
-      routeDifficulty = initialData.routeDifficulty || 'Moderate';
-      bodyweightPercent = initialData.bodyweightPercent || 100;
-      maxWeightPercent = initialData.maxWeightPercent || 80;
-      plannedLoad = initialData.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
-      notes = initialData.notes || '';
-      categoryOverride = initialData.category || '';
-      
-      const activeType = exerciseTypes.find(t => t.name === typeName);
-      if (activeType) selectedTypeId = activeType.id;
-    }
+    const v = editingValues;
+    duration = v.duration ?? 60;
+    minGrade = v.minGrade || '6A';
+    maxGrade = v.maxGrade || '6B';
+    cadence = v.cadence ?? 5;
+    climbingStyle = Array.isArray(v.climbingStyle) ? v.climbingStyle : ['Power'];
+    boardType = v.boardType || 'Kilterboard';
+    boardAngle = v.boardAngle ?? 40;
+    sets = v.sets ?? 4;
+    reps = v.reps ?? 1;
+    movesPerRoute = v.movesPerRoute;
+    holdType = v.holdType || 'Half Crimp';
+    timeOn = v.timeOn ?? 7;
+    timeOff = v.timeOff ?? 3;
+    timeBetweenSets = v.timeBetweenSets ?? 180;
+    weight = v.weight ?? 0;
+    holdSize = v.holdSize ?? 20;
+    distance = v.distance ?? 0;
+    campusType = v.campusType || 'Jumps';
+    mobilityType = Array.isArray(v.mobilityType) ? v.mobilityType : ['Hamstrings'];
+    leadStyle = Array.isArray(v.leadStyle) ? v.leadStyle : ['Redpoint'];
+    difficulty = v.difficulty ?? 5;
+    routeDifficulty = v.routeDifficulty || 'Moderate';
+    bodyweightPercent = v.bodyweightPercent ?? 100;
+    maxWeightPercent = v.maxWeightPercent ?? 80;
+    plannedLoad = v.plannedLoad ?? (activeTypeDef?.defaultPlannedLoad ?? 5);
+    notes = v.notes || '';
+    categoryOverride = initialSlot?.categoryId || '';
   });
 
   // Watch for modality changes to set default planned load
   $effect(() => {
-    if (!initialData && activeTypeDef) {
+    if (!initialSlot && activeTypeDef) {
       plannedLoad = activeTypeDef.defaultPlannedLoad ?? 5;
     }
   });
@@ -197,108 +208,112 @@
     const cleanWeight = weight; // Weight can be negative (assisted)
     const cleanSize = Math.max(0, holdSize);
 
-    const data: any = { 
-      type: activeTypeDef.name,
+    const values: ExerciseValues = {
       plannedLoad: Number(plannedLoad),
       notes: notes
     };
-    if (categoryOverride) {
-      data.category = categoryOverride;
-    }
-    
+
     const params = activeParams;
 
-    if (params.includes('duration')) data.duration = cleanDuration;
-    if (params.includes('boulderingGrades')) {
-      data.minGrade = minGrade;
-      data.maxGrade = maxGrade;
+    if (params.includes('duration')) values.duration = cleanDuration;
+    if (params.includes('boulderingGrades') || params.includes('grades')) {
+      values.minGrade = minGrade;
+      values.maxGrade = maxGrade;
     }
     if (params.includes('routeGrades')) {
-      data.minRouteGrade = minRouteGrade;
-      data.maxRouteGrade = maxRouteGrade;
+      values.minGrade = minGrade;
+      values.maxGrade = maxGrade;
     }
-    if (params.includes('cadence')) data.cadence = cadence;
-    if (params.includes('climbingStyle')) data.climbingStyle = climbingStyle;
-    if (params.includes('boardType')) data.boardType = boardType;
-    if (params.includes('boardAngle')) data.boardAngle = boardAngle;
-    if (params.includes('variant')) data.variant = variant;
-    if (params.includes('sets')) data.sets = sets;
-    if (params.includes('reps')) data.reps = reps;
-    if (params.includes('movesPerRoute')) data.movesPerRoute = movesPerRoute;
-    
-    if (params.includes('holdType')) data.holdType = holdType;
-    if (params.includes('timeOn')) data.timeOn = timeOn;
-    if (params.includes('timeOff')) data.timeOff = timeOff;
-    if (params.includes('restTime')) data.timeBetweenSets = timeBetweenSets;
-    if (params.includes('holdSize')) data.holdSize = cleanSize;
-    if (params.includes('weight')) data.weight = cleanWeight;
-    if (params.includes('distance')) data.distance = distance;
-    if (params.includes('campusStyle')) data.campusType = campusType;
-    if (params.includes('mobilityType')) data.mobilityType = mobilityType;
-    if (params.includes('leadStyle')) data.leadStyle = leadStyle;
-    if (params.includes('difficulty')) data.difficulty = difficulty;
-    if (params.includes('routeDifficulty')) data.routeDifficulty = routeDifficulty;
-    if (params.includes('bodyweightPercent')) data.bodyweightPercent = bodyweightPercent;
-    if (params.includes('maxWeightPercent')) data.maxWeightPercent = maxWeightPercent;
+    if (params.includes('cadence')) values.cadence = cadence;
+    if (params.includes('climbingStyle')) values.climbingStyle = climbingStyle;
+    if (params.includes('boardType')) values.boardType = boardType;
+    if (params.includes('boardAngle')) values.boardAngle = boardAngle;
+    if (params.includes('sets')) values.sets = sets;
+    if (params.includes('reps')) values.reps = reps;
+    if (params.includes('movesPerRoute')) values.movesPerRoute = movesPerRoute;
 
-    data.activeParameters = activeParams;
+    if (params.includes('holdType')) values.holdType = holdType;
+    if (params.includes('timeOn')) values.timeOn = timeOn;
+    if (params.includes('timeOff')) values.timeOff = timeOff;
+    if (params.includes('restTime')) values.timeBetweenSets = timeBetweenSets;
+    if (params.includes('holdSize')) values.holdSize = cleanSize;
+    if (params.includes('weight')) values.weight = cleanWeight;
+    if (params.includes('distance')) values.distance = distance;
+    if (params.includes('campusStyle')) values.campusType = campusType;
+    if (params.includes('mobilityType')) values.mobilityType = mobilityType;
+    if (params.includes('leadStyle')) values.leadStyle = leadStyle;
+    if (params.includes('difficulty')) values.difficulty = difficulty;
+    if (params.includes('routeDifficulty')) values.routeDifficulty = routeDifficulty;
+    if (params.includes('bodyweightPercent')) values.bodyweightPercent = bodyweightPercent;
+    if (params.includes('maxWeightPercent')) values.maxWeightPercent = maxWeightPercent;
 
-    onSave(data);
+    onSave({
+      typeId: activeTypeDef.id,
+      categoryId: categoryOverride || undefined,
+      activeParameters: activeParams,
+      values
+    });
   }
 
   // Constants
   const bGrades = ['5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C'];
   const rGrades = ['5a', '5b', '5c', '6a', '6a+', '6b', '6b+', '6c', '6c+', '7a', '7a+', '7b', '7b+', '7c', '7c+', '8a', '8a+', '8b', '8b+', '8c', '8c+', '9a', '9a+', '9b', '9b+', '9c'];
-  const climbingStyles: NonNullable<Exercise['climbingStyle']>[number][] = ['Slab', 'Coordination', 'Power', 'Board'];
-  const boardTypes: Exercise['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
+  const climbingStyles: NonNullable<ExerciseValues['climbingStyle']>[number][] = ['Slab', 'Coordination', 'Power', 'Board'];
+  const boardTypes: ExerciseValues['boardType'][] = ['Kilterboard', 'Moonboard', 'Tension Board', 'Spraywall'];
   const boardAngles = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
-  const variants = [{ id: 'none', label: 'None (Standard)' }, { id: '4x4', label: '4x4' }, { id: 'emom', label: 'One every 60s (EMOM)' }, { id: 'pyramid', label: 'Pyramid' }, { id: 'intervals', label: 'Intervals' }, { id: 'circuit', label: 'Circuit' }];
-  const holdTypes: Exercise['holdType'][] = ['Crimp', 'Half Crimp', 'Full Crimp', 'Open Hand', 'Sloper', 'Pocket'];
-  const campusStyles: Exercise['campusType'][] = ['Jumps', 'One Arm Ladders'];
-  const mobilityTypes: NonNullable<Exercise['mobilityType']>[number][] = ['Hamstrings', 'Shoulders', 'Hips', 'Spine', 'Ankles', 'Wrists'];
-  const leadStyles: NonNullable<Exercise['leadStyle']>[number][] = ['Onsight', 'Flash', 'Redpoint', 'Projecting'];
+  const holdTypes: ExerciseValues['holdType'][] = ['Crimp', 'Half Crimp', 'Full Crimp', 'Open Hand', 'Sloper', 'Pocket'];
+  const campusStyles: ExerciseValues['campusType'][] = ['Jumps', 'One Arm Ladders'];
+  const mobilityTypes: NonNullable<ExerciseValues['mobilityType']>[number][] = ['Hamstrings', 'Shoulders', 'Hips', 'Spine', 'Ankles', 'Wrists'];
+  const leadStyles: NonNullable<ExerciseValues['leadStyle']>[number][] = ['Onsight', 'Flash', 'Redpoint', 'Projecting'];
 </script>
 
-<div class="bg-surface/50 border border-border rounded-3xl p-6 space-y-5 backdrop-blur-sm animate-in zoom-in-95 duration-300">
+<div class="bg-surface/50 border border-border rounded-card p-5 space-y-4 backdrop-blur-sm animate-in zoom-in-95 duration-300">
   <div class="space-y-1.5">
-    <label for="modality-select" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Modality</label>
+    <label for="modality-select" class="text-label text-content-subtle ml-1">Modality</label>
     <div class="relative">
-      <select id="modality-select" bind:value={selectedTypeId} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong focus:ring-2 focus:ring-blue-500/50 focus:border-primary outline-none appearance-none transition-all cursor-pointer text-sm font-medium">
-        {#each exerciseTypes as t} <option value={t.id}>{t.name}</option> {/each}
+      <select id="modality-select" bind:value={selectedTypeId} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none appearance-none transition-all cursor-pointer text-sm font-medium">
+        {#each groupedExerciseTypes as group}
+          <optgroup label={group.category}>
+            {#each group.types as t} <option value={t.id}>{t.name}</option> {/each}
+          </optgroup>
+        {/each}
       </select>
     </div>
   </div>
 
   {#if activeParams.includes('duration')}
     <div class="space-y-1.5">
-      <label for="ex-duration" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Duration (min)</label>
-      <input id="ex-duration" type="number" bind:value={duration} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none transition-all text-sm {validationErrors.duration ? 'border-danger/50 focus:border-danger' : ''}" />
-      {#if validationErrors.duration}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.duration}</p>{/if}
+      <div class="flex justify-between items-center ml-1">
+        <label for="ex-duration" class="text-label text-content-subtle">Duration (min)</label>
+        <TargetHint prescribed={targetValues.duration} current={duration} unit="m" />
+      </div>
+      <input id="ex-duration" type="number" bind:value={duration} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none transition-all text-sm {validationErrors.duration ? 'border-danger/50 focus:border-danger' : ''}" />
+      {#if validationErrors.duration}<p class="text-label text-danger ml-1">{validationErrors.duration}</p>{/if}
     </div>
   {/if}
 
   <div class="grid grid-cols-1 gap-5 pt-1">
-    {#if activeParams.includes('boulderingGrades')}
+    {#if activeParams.includes('boulderingGrades') || activeParams.includes('grades')}
       <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5"><label for="ex-min-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-grade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
-        <div class="space-y-1.5"><label for="ex-max-grade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-grade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-min-grade" class="text-label text-content-subtle ml-1">Min Grade</label><select id="ex-min-grade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-max-grade" class="text-label text-content-subtle ml-1">Max Grade</label><select id="ex-max-grade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each bGrades as g} <option value={g}>{g}</option> {/each}</select></div>
       </div>
     {/if}
 
     {#if activeParams.includes('routeGrades')}
       <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minRouteGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
-        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxRouteGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-xl border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-min-rgrade" class="text-label text-content-subtle ml-1">Min Grade</label><select id="ex-min-rgrade" bind:value={minGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
+        <div class="space-y-1.5"><label for="ex-max-rgrade" class="text-label text-content-subtle ml-1">Max Grade</label><select id="ex-max-rgrade" bind:value={maxGrade} class="w-full bg-surface-elevated text-content p-2.5 rounded-control border border-border-strong outline-none text-xs">{#each rGrades as g} <option value={g}>{g}</option> {/each}</select></div>
       </div>
     {/if}
 
-    {#if activeParams.includes('cadence')}<div class="space-y-1.5"><label for="ex-cadence" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Cadence (boulders or routes / min)</label><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('cadence')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-cadence" class="text-label text-content-subtle">Cadence (boulders or routes / min)</label><TargetHint prescribed={targetValues.cadence} current={cadence} /></div><input id="ex-cadence" type="number" bind:value={cadence} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
     {#if activeParams.includes('climbingStyle')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Climbing Style</p>
+        <p class="text-label text-content-subtle ml-1">Climbing Style</p>
         <div class="flex flex-wrap gap-2">
           {#each climbingStyles as style}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (climbingStyle.includes(style)) {
@@ -307,7 +322,7 @@
                   climbingStyle = [...climbingStyle, style];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {climbingStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {climbingStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {style}
             </button>
@@ -315,31 +330,30 @@
         </div>
       </div>
     {/if}
-    {#if activeParams.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('boardAngle')}<div class="space-y-1.5"><label for="ex-board-angle" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Board Angle (°)</label><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('variant')}<div class="space-y-1.5"><label for="ex-variant" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Variant</label><select id="ex-variant" bind:value={variant} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each variants as v} <option value={v.id}>{v.label}</option> {/each}</select></div>{/if}
-    
+    {#if activeParams.includes('boardType')}<div class="space-y-1.5"><label for="ex-board-type" class="text-label text-content-subtle ml-1">Board Type</label><select id="ex-board-type" bind:value={boardType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each boardTypes as type} <option value={type}>{type}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('boardAngle')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-board-angle" class="text-label text-content-subtle">Board Angle (°)</label><TargetHint prescribed={targetValues.boardAngle} current={boardAngle} unit="°" /></div><select id="ex-board-angle" bind:value={boardAngle} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each boardAngles as angle} <option value={angle}>{angle}°</option> {/each}</select></div>{/if}
+
     <div class="grid grid-cols-2 gap-3">
-      {#if activeParams.includes('sets')}<div class="space-y-1.5"><label for="ex-sets" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Sets</label><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.sets ? 'border-danger/50' : ''}" />{#if validationErrors.sets}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.sets}</p>{/if}</div>{/if}
-      {#if activeParams.includes('reps')}<div class="space-y-1.5"><label for="ex-reps" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Reps</label><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-      {#if activeParams.includes('movesPerRoute')}<div class="space-y-1.5"><label for="ex-moves" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Moves per route</label><input id="ex-moves" type="number" bind:value={movesPerRoute} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
+      {#if activeParams.includes('sets')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-sets" class="text-label text-content-subtle">Sets</label><TargetHint prescribed={targetValues.sets} current={sets} /></div><input id="ex-sets" type="number" bind:value={sets} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm {validationErrors.sets ? 'border-danger/50' : ''}" />{#if validationErrors.sets}<p class="text-label text-danger ml-1">{validationErrors.sets}</p>{/if}</div>{/if}
+      {#if activeParams.includes('reps')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-reps" class="text-label text-content-subtle">Reps</label><TargetHint prescribed={targetValues.reps} current={reps} /></div><input id="ex-reps" type="number" bind:value={reps} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+      {#if activeParams.includes('movesPerRoute')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-moves" class="text-label text-content-subtle">Moves per route</label><TargetHint prescribed={targetValues.movesPerRoute} current={movesPerRoute} /></div><input id="ex-moves" type="number" bind:value={movesPerRoute} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
     </div>
-    {#if activeParams.includes('holdType')}<div class="space-y-1.5"><label for="ex-hold" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Hold Type</label><select id="ex-hold" bind:value={holdType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each holdTypes as h} <option value={h}>{h}</option> {/each}</select></div>{/if}
-    {#if activeParams.includes('timeOn')}<div class="space-y-1.5"><label for="ex-on" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Time On (s)</label><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('timeOff')}<div class="space-y-1.5"><label for="ex-off" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Time Off (s)</label><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('restTime')}<div class="space-y-1.5"><label for="ex-rest" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Between Sets (s)</label><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('holdSize')}<div class="space-y-1.5"><label for="ex-size" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Hold Size (mm)</label><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm {validationErrors.holdSize ? 'border-danger/50' : ''}" />{#if validationErrors.holdSize}<p class="text-[9px] font-bold text-danger uppercase tracking-widest ml-1">{validationErrors.holdSize}</p>{/if}</div>{/if}
-    {#if activeParams.includes('weight')}<div class="space-y-1.5"><label for="ex-weight" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Weight (kg)</label><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" placeholder="e.g. 10" /></div>{/if}
-    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Added Weight (% of BW)</span><span class="text-blue-500 font-mono text-[10px]">{bodyweightPercent}%</span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
-    {#if activeParams.includes('maxWeightPercent')}<div class="space-y-4 pt-1"><label for="ex-mw" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Load (% of Max)</span><span class="text-emerald-500 font-mono text-[10px]">{maxWeightPercent}%</span></label><input id="ex-mw" type="range" min="10" max="150" bind:value={maxWeightPercent} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-emerald-500" /><div class="flex justify-between text-[8px] text-content-muted px-1 mt-1"><span>10%</span><span>100% (Max)</span><span>150%</span></div></div>{/if}
-    {#if activeParams.includes('distance')}<div class="space-y-1.5"><label for="ex-distance" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Distance (km)</label><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm" /></div>{/if}
-    {#if activeParams.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('holdType')}<div class="space-y-1.5"><label for="ex-hold" class="text-label text-content-subtle ml-1">Hold Type</label><select id="ex-hold" bind:value={holdType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each holdTypes as h} <option value={h}>{h}</option> {/each}</select></div>{/if}
+    {#if activeParams.includes('timeOn')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-on" class="text-label text-content-subtle">Time On (s)</label><TargetHint prescribed={targetValues.timeOn} current={timeOn} unit="s" /></div><input id="ex-on" type="number" bind:value={timeOn} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('timeOff')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-off" class="text-label text-content-subtle">Time Off (s)</label><TargetHint prescribed={targetValues.timeOff} current={timeOff} unit="s" /></div><input id="ex-off" type="number" bind:value={timeOff} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('restTime')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-rest" class="text-label text-content-subtle">Between Sets (s)</label><TargetHint prescribed={targetValues.timeBetweenSets} current={timeBetweenSets} unit="s" /></div><input id="ex-rest" type="number" bind:value={timeBetweenSets} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('holdSize')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-size" class="text-label text-content-subtle">Hold Size (mm)</label><TargetHint prescribed={targetValues.holdSize} current={holdSize} unit="mm" /></div><input id="ex-size" type="number" bind:value={holdSize} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm {validationErrors.holdSize ? 'border-danger/50' : ''}" />{#if validationErrors.holdSize}<p class="text-label text-danger ml-1">{validationErrors.holdSize}</p>{/if}</div>{/if}
+    {#if activeParams.includes('weight')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-weight" class="text-label text-content-subtle">Weight (kg)</label><TargetHint prescribed={targetValues.weight} current={weight} unit="kg" /></div><input id="ex-weight" type="number" bind:value={weight} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" placeholder="e.g. 10" /></div>{/if}
+    {#if activeParams.includes('bodyweightPercent')}<div class="space-y-4 pt-1"><label for="ex-bw" class="flex justify-between text-label text-content-subtle ml-1"><span>Added Weight (% of BW)</span><span class="flex items-center gap-2"><TargetHint prescribed={targetValues.bodyweightPercent} current={bodyweightPercent} unit="%" /><span class="text-primary font-mono text-caption tabular-nums">{bodyweightPercent}%{#if latestBodyweightKg} <span class="text-content-subtle">(≈ {(latestBodyweightKg * bodyweightPercent / 100).toFixed(1)} kg)</span>{/if}</span></span></label><input id="ex-bw" type="range" min="50" max="220" bind:value={bodyweightPercent} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" /><div class="flex justify-between text-caption text-content-muted px-1 mt-1"><span>50%</span><span>100% (BW)</span><span>220%</span></div></div>{/if}
+    {#if activeParams.includes('maxWeightPercent')}<div class="space-y-4 pt-1"><label for="ex-mw" class="flex justify-between text-label text-content-subtle ml-1"><span>Load (% of Max)</span><span class="flex items-center gap-2"><TargetHint prescribed={targetValues.maxWeightPercent} current={maxWeightPercent} unit="%" /><span class="text-success font-mono text-caption tabular-nums">{maxWeightPercent}%</span></span></label><input id="ex-mw" type="range" min="10" max="150" bind:value={maxWeightPercent} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-success" /><div class="flex justify-between text-caption text-content-muted px-1 mt-1"><span>10%</span><span>100% (Max)</span><span>150%</span></div></div>{/if}
+    {#if activeParams.includes('distance')}<div class="space-y-1.5"><div class="flex justify-between items-center ml-1"><label for="ex-distance" class="text-label text-content-subtle">Distance (km)</label><TargetHint prescribed={targetValues.distance} current={distance} unit="km" /></div><input id="ex-distance" type="number" step="0.1" bind:value={distance} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm" /></div>{/if}
+    {#if activeParams.includes('campusStyle')}<div class="space-y-1.5"><label for="ex-campus" class="text-label text-content-subtle ml-1">Campus Style</label><select id="ex-campus" bind:value={campusType} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm">{#each campusStyles as c} <option value={c}>{c}</option> {/each}</select></div>{/if}
     {#if activeParams.includes('mobilityType')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Mobility Focus</p>
+        <p class="text-label text-content-subtle ml-1">Mobility Focus</p>
         <div class="flex flex-wrap gap-2">
           {#each mobilityTypes as type}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (mobilityType.includes(type)) {
@@ -348,7 +362,7 @@
                   mobilityType = [...mobilityType, type];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {mobilityType.includes(type) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {mobilityType.includes(type) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {type}
             </button>
@@ -358,10 +372,10 @@
     {/if}
     {#if activeParams.includes('leadStyle')}
       <div class="space-y-1.5">
-        <p class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Style</p>
+        <p class="text-label text-content-subtle ml-1">Style</p>
         <div class="flex flex-wrap gap-2">
           {#each leadStyles as style}
-            <button 
+            <button
               type="button"
               onclick={() => {
                 if (leadStyle.includes(style)) {
@@ -370,7 +384,7 @@
                   leadStyle = [...leadStyle, style];
                 }
               }}
-              class="px-3 py-1.5 rounded-xl border text-xs font-bold tracking-widest transition-all {leadStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
+              class="px-3 py-1.5 rounded-control border text-label transition-all {leadStyle.includes(style) ? 'bg-primary-hover border-primary text-white' : 'bg-surface-elevated border-border-strong text-content-muted hover:text-content'}"
             >
               {style}
             </button>
@@ -378,17 +392,17 @@
         </div>
       </div>
     {/if}
-    {#if activeParams.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1"><span>Difficulty</span><span class="text-primary font-mono text-[10px]">{difficulty}/10</span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>{/if}
-    {#if activeParams.includes('routeDifficulty')}<div class="space-y-1.5"><label for="ex-route-diff" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Route Difficulty</label><select id="ex-route-diff" bind:value={routeDifficulty} class="w-full bg-surface-elevated text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none cursor-pointer"><option value="Easy">Easy</option><option value="Moderate">Moderate</option><option value="Hard">Hard</option></select></div>{/if}
+    {#if activeParams.includes('difficulty')}<div class="space-y-4 pt-1"><label for="ex-diff" class="flex justify-between text-label text-content-subtle ml-1"><span>Difficulty</span><span class="flex items-center gap-2"><TargetHint prescribed={targetValues.difficulty} current={difficulty} unit="/10" /><span class="text-primary font-mono text-caption tabular-nums">{difficulty}/10</span></span></label><input id="ex-diff" type="range" min="1" max="10" bind:value={difficulty} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-primary" /></div>{/if}
+    {#if activeParams.includes('routeDifficulty')}<div class="space-y-1.5"><label for="ex-route-diff" class="text-label text-content-subtle ml-1">Route Difficulty</label><select id="ex-route-diff" bind:value={routeDifficulty} class="w-full bg-surface-elevated text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none cursor-pointer"><option value="Easy">Easy</option><option value="Moderate">Moderate</option><option value="Hard">Hard</option></select></div>{/if}
 
     <details class="group border-t border-border/50 pt-4">
-      <summary class="flex justify-between items-center cursor-pointer list-none text-[10px] font-black text-content-subtle hover:text-content uppercase tracking-widest outline-none transition-colors">
+      <summary class="flex justify-between items-center cursor-pointer list-none text-section uppercase text-content-subtle hover:text-content outline-none transition-colors">
         <span>Customize Tracked Fields</span>
         <Icon icon="ic:baseline-keyboard-arrow-down" class="text-lg group-open:rotate-180 transition-transform" />
       </summary>
       <div class="grid grid-cols-2 gap-2 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
         {#each activeTypeDef?.possibleParameters || activeTypeDef?.parameters || [] as id}
-          <button 
+          <button
             type="button"
             onclick={() => {
               if (activeParams.includes(id)) {
@@ -397,7 +411,7 @@
                 activeParams = [...activeParams, id];
               }
             }}
-            class="px-3 py-2 rounded-lg text-[9px] font-bold border transition-all flex items-center gap-2 {activeParams.includes(id) ? 'bg-primary-hover/10 border-primary/50 text-primary-hover' : 'bg-surface border-border text-content-subtle'}"
+            class="px-3 py-2 rounded-control text-label border transition-all flex items-center gap-2 {activeParams.includes(id) ? 'bg-primary-hover/10 border-primary/50 text-primary-hover' : 'bg-surface border-border text-content-subtle'}"
           >
             <Icon icon={activeParams.includes(id) ? 'ic:baseline-check-box' : 'ic:baseline-check-box-outline-blank'} class="text-sm" />
             <span class="text-left flex-1">{PARAMETER_LABELS[id] || id}</span>
@@ -407,35 +421,38 @@
     </details>
 
     <div class="space-y-1.5 pt-4 border-t border-border/50">
-      <label for="ex-category" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Analytics Type</label>
-      <select id="ex-category" bind:value={categoryOverride} class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border-strong outline-none text-sm appearance-none cursor-pointer">
+      <label for="ex-category" class="text-label text-content-subtle ml-1">Analytics Type</label>
+      <select id="ex-category" bind:value={categoryOverride} class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-control border border-border-strong outline-none text-sm appearance-none cursor-pointer">
         <option value="">Default ({activeTypeDef?.category || 'Other'})</option>
         {#each trainingState.analyticsCategories as cat}
-          <option value={cat.name}>{cat.name}</option>
+          <option value={cat.id}>{cat.name}</option>
         {/each}
       </select>
     </div>
 
     <div class="space-y-1.5 pt-4 border-t border-border/50">
-      <label for="ex-notes" class="text-[9px] font-bold text-content-subtle uppercase tracking-widest ml-1">Exercise Notes</label>
-      <textarea id="ex-notes" bind:value={notes} placeholder="Focus on footwork..." class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-xl border border-border-strong outline-none transition-all placeholder:text-content-subtle text-sm" rows="2"></textarea>
+      <label for="ex-notes" class="text-label text-content-subtle ml-1">Exercise Notes</label>
+      <textarea id="ex-notes" bind:value={notes} placeholder="Focus on footwork..." class="w-full bg-surface-elevated/50 text-content p-3.5 rounded-control border border-border-strong outline-none transition-all placeholder:text-content-subtle text-sm" rows="2"></textarea>
     </div>
 
     <div class="space-y-4 pt-4 border-t border-border/50">
-      <label for="ex-planned-load" class="flex justify-between text-[9px] font-bold text-success uppercase tracking-widest ml-1">
+      <label for="ex-planned-load" class="flex justify-between text-label text-success ml-1">
         <span>Target Intensity / Load</span>
-        <span class="text-success font-mono text-[10px]">{plannedLoad}/10</span>
+        <span class="flex items-center gap-2">
+          <TargetHint prescribed={targetValues.plannedLoad} current={plannedLoad} unit="/10" />
+          <span class="text-success font-mono text-caption tabular-nums">{plannedLoad}/10</span>
+        </span>
       </label>
-      <input id="ex-planned-load" type="range" min="1" max="10" bind:value={plannedLoad} class="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-emerald-500" />
-      <p class="text-[8px] text-content-subtle italic ml-1 leading-relaxed">Estimated stress for this specific exercise.</p>
+      <input id="ex-planned-load" type="range" min="1" max="10" bind:value={plannedLoad} class="w-full h-1.5 bg-surface-elevated rounded-control appearance-none cursor-pointer accent-success" />
+      <p class="text-caption text-content-subtle italic ml-1 leading-relaxed">Estimated stress for this specific exercise.</p>
     </div>
   </div>
 
-  <button 
+  <button
     onclick={handleSubmit}
     disabled={!isValid}
-    class="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/20 transition-all active:scale-[0.98]"
+    class="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-4 rounded-control shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
   >
-    {initialData ? 'Update Exercise' : 'Add Exercise'}
+    {initialSlot ? 'Update Exercise' : 'Add Exercise'}
   </button>
 </div>

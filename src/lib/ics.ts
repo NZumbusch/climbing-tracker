@@ -1,7 +1,8 @@
 import type { Workout, DayOfWeek } from './types';
+import { slotValues } from './exerciseSlot';
 
 // Helper to get the starting date of a week given a weekId like "2026-W25"
-function getDateFromWeekId(weekId: string, dayOfWeek?: DayOfWeek): Date {
+export function getDateFromWeekId(weekId: string, dayOfWeek?: DayOfWeek): Date {
   const [yearStr, weekStr] = weekId.split('-W');
   const year = parseInt(yearStr, 10);
   const week = parseInt(weekStr, 10);
@@ -50,13 +51,13 @@ function formatDateToICS(date: Date, timeStr?: string): string {
   return `${yyyy}${MM}${dd}T${hh}${mm}${ss}`;
 }
 
-function calculateWorkoutDuration(workout: Workout): number {
+export function calculateWorkoutDuration(workout: Workout): number {
   if (!workout.exercises || workout.exercises.length === 0) {
     return 60; // Default 1 hour if no exercises
   }
   let totalDuration = 0;
   for (const ex of workout.exercises) {
-    totalDuration += ex.duration || 30; // Default 30 mins for missing duration
+    totalDuration += slotValues(ex).duration || 30; // Default 30 mins for missing duration
   }
   return totalDuration;
 }
