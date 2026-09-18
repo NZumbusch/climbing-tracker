@@ -4,6 +4,7 @@
   import { generateId } from '../../lib/utils';
   import { getBlocksForWeek, getDominantBlockForWeek } from '../../lib/planning/trainingBlocks';
   import type { Workout, Benchmark, DayOfWeek } from '../../lib/types';
+  import { dragHandleZone, dragHandle, type DndEvent } from 'svelte-dnd-action';
   import Icon from "@iconify/svelte";
   import BenchmarkForm from '../common/BenchmarkForm.svelte';
   import AIPromptModal from './AIPromptModal.svelte';
@@ -122,18 +123,34 @@
   const weekBenchmarks = $derived(trainingState.benchmarks.filter((b: Benchmark) => b.weekId === trainingState.selectedWeekId));
 
   // --- Sessions grouped under day headings (UI_PLAN.md §4.3) - Mon-Sun in
-  // that fixed order, then "Unassigned" last (only shown when non-empty).
-  // Rest days render explicitly as "- rest -" rather than an empty gap.
+  // that fixed order, then "Unassigned" last. Rest days (and an empty
+  // Unassigned group) render explicitly as "- rest -"/"No unassigned
+  // sessions" rather than an empty gap - every group always renders, even
+  // empty, since each one is also a live drag-and-drop zone (below) and
+  // needs a real drop target to reassign a session *to* an empty day.
   const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   type DayKey = DayOfWeek | 'Unassigned';
   const DAY_GROUP_KEYS: DayKey[] = [...DAYS, 'Unassigned'];
 
-  const dayGroups = $derived.by(() => {
+  function groupByDay(list: Workout[]): Record<DayKey, Workout[]> {
     const groups = Object.fromEntries(DAY_GROUP_KEYS.map((k) => [k, [] as Workout[]])) as Record<DayKey, Workout[]>;
-    for (const w of weekWorkouts) {
+    for (const w of list) {
       groups[w.dayOfWeek ?? 'Unassigned'].push(w);
     }
     return groups;
+  }
+
+  // Local, mutable mirror of `weekWorkouts` grouped by day - `svelte-dnd-
+  // action` needs a locally-reorderable array per zone to give live visual
+  // feedback while dragging (its `consider` events), which a plain
+  // `$derived` (read-only, recomputed only when its own dependencies
+  // change) can't provide. Resynced from the canonical, store-backed
+  // `weekWorkouts` on every change (including the one this drag itself
+  // causes, once persisted) - the actual write path is still exclusively
+  // `handleDayReassign` (see below), never a direct mutation of this array.
+  let dayGroups = $state<Record<DayKey, Workout[]>>(groupByDay([]));
+  $effect(() => {
+    dayGroups = groupByDay(weekWorkouts);
   });
 
   // --- Handlers ---
@@ -182,6 +199,28 @@
     if (workout.dayOfWeek === newDay) return;
     const snapshot = $state.snapshot(workout);
     await trainingState.saveWorkoutQuiet({ ...snapshot, dayOfWeek: newDay });
+  }
+
+  /**
+   * Drag-and-drop day reassignment (UI_PLAN.md §4.3), via a drag handle on
+   * each session row rather than the whole row - user-directed, so the
+   * rest of the row (and the page) keeps its normal scroll/tap behaviour;
+   * only the handle itself starts a drag. Each day group is its own
+   * `dragHandleZone`; dropping into a different zone than the one a
+   * session started in reassigns its day through the exact same
+   * `handleDayReassign` the explicit picker uses - per §4.3's "do not
+   * duplicate the save path", this finalize handler never writes
+   * `dayOfWeek` itself, it only decides *whether* to call the one function
+   * that does.
+   */
+  function handleDndConsider(dayKey: DayKey, e: CustomEvent<DndEvent<Workout>>) {
+    dayGroups[dayKey] = e.detail.items;
+  }
+
+  async function handleDndFinalize(dayKey: DayKey, e: CustomEvent<DndEvent<Workout>>) {
+    dayGroups[dayKey] = e.detail.items;
+    const moved = e.detail.items.find((w) => w.id === e.detail.info.id);
+    if (moved) await handleDayReassign(moved, dayKey === 'Unassigned' ? undefined : dayKey);
   }
 
   function handleAddBenchmark() {
@@ -309,14 +348,22 @@
           <div class="p-4 bg-surface-elevated/20 rounded-control border border-dashed border-border text-center"><p class="text-caption text-content-subtle italic">No workouts planned</p></div>
         {:else}
         {#each DAY_GROUP_KEYS as dayKey}
-          {#if dayKey !== 'Unassigned' || dayGroups.Unassigned.length > 0}
-            <div class="space-y-2">
-              <h5 class="text-label font-bold text-content-subtle">{dayKey}</h5>
+          <div class="space-y-2">
+            <h5 class="text-label font-bold text-content-subtle">{dayKey}</h5>
 
+            <div
+              class="space-y-2 min-h-[1.5rem] rounded-control transition-colors"
+              use:dragHandleZone={{ items: dayGroups[dayKey], flipDurationMs: 200, delayTouchStart: true, dropTargetClasses: ['ring-2', 'ring-primary/40'] }}
+              onconsider={(e) => handleDndConsider(dayKey, e)}
+              onfinalize={(e) => handleDndFinalize(dayKey, e)}
+            >
               {#each dayGroups[dayKey] as workout (workout.id)}
                 <div class="flex items-center justify-between p-3.5 bg-surface-elevated/50 rounded-control border border-border-strong/50 hover:border-border-strong transition-colors group/item">
-                  <div class="flex items-center gap-2.5 flex-1 min-w-0">
-                    <div class="w-1.5 h-1.5 rounded-full {workout.status === 'completed' ? 'bg-success' : 'bg-primary-hover'}"></div>
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <div use:dragHandle class="cursor-grab active:cursor-grabbing text-content-subtle hover:text-content shrink-0 touch-none p-1 -ml-1" aria-label="Drag to reassign day">
+                      <Icon icon="ic:baseline-drag-indicator" class="text-lg" />
+                    </div>
+                    <div class="w-1.5 h-1.5 rounded-full {workout.status === 'completed' ? 'bg-success' : 'bg-primary-hover'} shrink-0"></div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
                         <div class="flex items-center gap-1.5">
@@ -353,12 +400,10 @@
                   </div>
                 </div>
               {:else}
-                {#if dayKey !== 'Unassigned'}
-                  <p class="text-caption text-content-subtle italic pl-1">— rest —</p>
-                {/if}
+                <p class="text-caption text-content-subtle italic pl-1">{dayKey === 'Unassigned' ? 'No unassigned sessions' : '— rest —'}</p>
               {/each}
             </div>
-          {/if}
+          </div>
         {/each}
         {/if}
       </div>

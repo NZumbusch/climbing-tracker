@@ -2105,3 +2105,24 @@ Implemented `UI_PLAN.md` §4.3/§6 Stage 6, minus drag-and-drop - per this sessi
 
 **Commit:** one commit (`WeekCalendar.svelte` unchanged from its pre-Stage-6 state, `TrainingPlan.svelte`, `state.svelte.ts`) - everything above is the non-DnD portion of the single "Plan screen" Sequencing-table row, landing before the DnD sub-commit per this session's own instruction to split the fiddly part out.
 
+## 2026-09-18 — UI overhaul Stage 6, part 2: drag-and-drop day reassignment
+
+Implemented the DnD half of `UI_PLAN.md` §4.3/§6 Stage 6, on top of part 1's `6c158dd` - the "fiddly" sub-commit this session's kickoff instructions asked to split out. **Per direct user request, drag starts only from a dedicated handle on each session row, not the whole row** - so the rest of the row (and the page generally) keeps its normal touch-scroll behaviour; only the handle itself intercepts the drag gesture.
+
+**Library and pattern:** `svelte-dnd-action`'s `dragHandleZone`/`dragHandle` pair (not plain `dndzone`, which the codebase's one prior usage - `WorkoutForm.svelte`'s exercise reordering - uses for a whole-row-is-the-handle case that doesn't apply here). Each of the 8 day groups (Monday-Sunday, Unassigned) is its own `dragHandleZone`; a small `ic:baseline-drag-indicator` icon at the start of each row carries `use:dragHandle`, with `touch-none` so the browser's native touch-scroll gesture doesn't compete with the drag gesture starting on that specific element. All 8 zones share the library's default `type`, so cross-zone drops between any two day groups (including into/out of Unassigned) work without extra config.
+
+**Every day group now always renders, even empty** (a change from part 1's "Unassigned only shown when non-empty") - each group is a live drop target, and an invisible/absent zone can't be dropped into. An empty one of the 7 real days still reads "— rest —"; an empty Unassigned group now reads "No unassigned sessions" instead of not rendering at all. This is a small, deliberate UX cost (Unassigned always takes a couple of lines of vertical space even when nothing is unassigned) in exchange for drag-to-unassign actually being reachable.
+
+**`dayGroups` converted from a `$derived` to local `$state`, resynced via `$effect` from the canonical `weekWorkouts`:** `svelte-dnd-action` needs a locally-mutable array per zone to give live visual feedback during a drag (`onconsider`, fired continuously while dragging/hovering) - a read-only `$derived` can't be written to by the library. The resync effect means the local mirror always snaps back to the true, store-backed grouping once the store changes (including right after this same drag's own save completes), so there's no divergence risk between what's shown mid-drag and what's actually persisted.
+
+**One shared write path, as §4.3 requires ("Both write the same field through one handler"):** `onfinalize` (`handleDndFinalize`) finds the moved item by `e.detail.info.id`, and - only if it actually landed in a *different* day's zone than it started in - calls the exact same `handleDayReassign(workout, newDay)` part 1 built for the explicit `<select>` picker (which already does the snapshot-before-mutate + `saveWorkoutQuiet` work). `onconsider` and `onfinalize` both also write the dragged-over zone's live items back into local `dayGroups` (required by the library's own contract - it hands back the reordered array and expects the container to store it), but that's the *local, unpersisted mirror*, not the actual save path - the only thing that writes to storage is `handleDayReassign`, called at most once per completed drag.
+
+**Verification performed:**
+- `npm run test` -> 244/244 pass, unchanged (no new pure-logic module - the DnD wiring is UI/event-handling only, same tier as `WorkoutForm.svelte`'s existing exercise-reorder DnD, which also has no dedicated tests).
+- `npm run check` -> 0 errors, 0 warnings, 415 files.
+- `npx vite build` -> succeeds; `svelte-dnd-action` now ships as its own shared chunk (previously bundled only into `WorkoutForm`'s lazy chunk - now `TrainingPlan` pulls it in too), no errors.
+- **No manual browser verification** - explicitly the highest-risk gap of this whole stage, since drag-and-drop (especially touch drag with a delayed-start handle) is exactly the kind of interaction that can look correct in code and still feel wrong on a real device. Worth the user's particular attention: the drag handle actually initiating a drag without also scrolling the page, cross-zone drops landing in the right day (including into/out of the always-rendered-now Unassigned group), the drop-target ring highlight (`ring-2 ring-primary/40`) appearing on the zone under the cursor/finger, and that a same-zone reorder (no day change) doesn't trigger an unnecessary save.
+
+**Commit:** one commit (`TrainingPlan.svelte`) - the DnD sub-commit this session's kickoff instructions asked for, landing on top of part 1.
+
+
