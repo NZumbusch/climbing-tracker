@@ -246,6 +246,33 @@ class TrainingState {
   }
 
   /**
+   * Saves a workout without `refresh()`'s `isLoading` toggle - `App.svelte`
+   * swaps its entire view tree while `isLoading` is true, so a full
+   * `saveWorkout` briefly unmounts/remounts whatever screen is showing,
+   * which reads as the page jumping back to its top. Fine for a save that
+   * navigates away anyway (`processWorkoutSave`), but wrong for an in-place
+   * edit where the user stays put (e.g. the Plan screen's day-of-week
+   * reassignment, `UI_PLAN.md §4.3`) - found and fixed 2026-09-18 after the
+   * new day-picker made this pre-existing behaviour newly visible.
+   * Reloads only the workouts store (everything a schedule change could
+   * plausibly affect) and still re-syncs fatigue-reminder notifications,
+   * since those key off `dayOfWeek`/`startTime` (`fatigueReminder.ts`) -
+   * the one real side effect of the full `refresh()` a "quiet" save must
+   * not silently drop.
+   */
+  async saveWorkoutQuiet(workout: Workout) {
+    await this.workoutStore.saveWorkout(workout);
+    await this.workoutStore.load();
+    if (this.uiStore.notificationsEnabled) {
+      try {
+        await syncFatigueReminders(this.workoutStore.workouts);
+      } catch (err) {
+        console.error('Failed to sync fatigue-reminder notifications:', err);
+      }
+    }
+  }
+
+  /**
    * Handles the high-level logic of saving a workout, including modal triggers.
    */
   async processWorkoutSave(workout: Workout) {
